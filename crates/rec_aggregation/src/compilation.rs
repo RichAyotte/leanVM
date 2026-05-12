@@ -31,7 +31,10 @@ fn compile_main_program(inner_program_log_size: usize, bytecode_zero_eval: F) ->
     let bytecode_point_n_vars = inner_program_log_size + log2_ceil_usize(N_INSTRUCTION_COLUMNS);
     let claim_data_size = (bytecode_point_n_vars + 1) * DIMENSION;
     let claim_data_size_padded = claim_data_size.next_multiple_of(DIGEST_LEN);
-    let input_data_size = 1 + DIGEST_LEN + MESSAGE_LEN_FE + claim_data_size_padded + DIGEST_LEN;
+    // Layout: n_sigs (1) | pairs_hash (DIGEST_LEN) | bytecode claim (padded) |
+    // bytecode hash domain-sep (DIGEST_LEN). The per-signer message lives in
+    // the pairs hint instead of the public input.
+    let input_data_size = 1 + DIGEST_LEN + claim_data_size_padded + DIGEST_LEN;
     let input_data_size_padded = input_data_size.next_multiple_of(DIGEST_LEN);
     let replacements = build_replacements(inner_program_log_size, bytecode_zero_eval, input_data_size_padded);
 

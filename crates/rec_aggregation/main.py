@@ -11,9 +11,19 @@ INNER_PUB_MEM_SIZE = 2**INNER_PUBLIC_MEMORY_LOG_SIZE  # = DIGEST_LEN
 
 INPUT_DATA_SIZE_PADDED = INPUT_DATA_SIZE_PADDED_PLACEHOLDER
 INPUT_DATA_NUM_CHUNKS = INPUT_DATA_SIZE_PADDED / DIGEST_LEN
-BYTECODE_CLAIM_OFFSET = 1 + DIGEST_LEN + MESSAGE_LEN
+# Layout: n_sigs (1) | pairs_hash (DIGEST_LEN) | bytecode_claim | bytecode_hash_domsep.
+# The per-signer message rides into the VM via the `pairs` hint, not the
+# public input, so the claim starts right after the pairs hash.
+BYTECODE_CLAIM_OFFSET = 1 + DIGEST_LEN
 BYTECODE_HASH_DOMSEP_OFFSET = BYTECODE_CLAIM_OFFSET + BYTECODE_CLAIM_SIZE_PADDED
 BYTECODE_SUMCHECK_PROOF_SIZE = BYTECODE_SUMCHECK_PROOF_SIZE_PLACEHOLDER
+
+# Per-pair stride in the `all_pairs` buffer: 8 (pubkey) + 9 (message) + 7 (zero
+# pad) = 24 FE, rounded to a multiple of DIGEST_LEN so the hash helpers stay
+# chunk-aligned. The pad keeps the buffer addressable with constant stride; it
+# must agree with `PAIR_STRIDE_FE` in `rec_aggregation/src/lib.rs`.
+PAIR_STRIDE = 3 * DIGEST_LEN
+N_CHUNKS_PER_PAIR = PAIR_STRIDE / DIGEST_LEN
 
 
 def main():
@@ -26,12 +36,11 @@ def main():
     n_sigs = data_buf[0]
     assert n_sigs != 0
     assert n_sigs - 1 < MAX_N_SIGS
-    pubkeys_hash_expected = data_buf + 1
-    message = pubkeys_hash_expected + DIGEST_LEN
+    pairs_hash_expected = data_buf + 1
     bytecode_claim_output = data_buf + BYTECODE_CLAIM_OFFSET
     bytecode_hash_domsep = data_buf + BYTECODE_HASH_DOMSEP_OFFSET
 
-    # meta = [n_recursions, n_dup, pubkeys_len, n_raw_xmss]
+    # meta = [n_recursions, n_dup, pairs_len, n_raw_xmss]
     meta = Array(4)
     hint_witness("meta", meta)
     n_recursions = meta[0]
@@ -40,8 +49,8 @@ def main():
     n_dup = meta[1]
     assert n_dup < MAX_N_SIGS  # TODO increase
 
-    all_pubkeys = Array(meta[2])
-    hint_witness("pubkeys", all_pubkeys)
+    all_pairs = Array(meta[2])
+    hint_witness("pairs", all_pairs)
     n_raw_xmss = meta[3]
     raw_indices = Array(n_raw_xmss)
     hint_witness("raw_indices", raw_indices)
@@ -54,9 +63,9 @@ def main():
         assert n_dup == 0
         if n_raw_xmss == 0:
             inner_data_buf = build_inner_data_buf(
-                n_sigs, pubkeys_hash_expected, message, bytecode_hash_domsep,
+                n_sigs, pairs_hash_expected, bytecode_hash_domsep,
             )
-           
+
             inner_pub_mem = Array(INNER_PUB_MEM_SIZE)
             copy_8(slice_hash_with_iv(inner_data_buf, INPUT_DATA_NUM_CHUNKS), inner_pub_mem)
             bytecode_claims = Array(2)
@@ -70,8 +79,8 @@ def main():
             return
 
     # General path
-    computed_pubkeys_hash = slice_hash_with_iv_dynamic_unroll(all_pubkeys, n_sigs * DIGEST_LEN, MAX_LOG_MEMORY_SIZE)
-    copy_8(computed_pubkeys_hash, pubkeys_hash_expected)
+    computed_pairs_hash = slice_hash_with_iv_dynamic_unroll(all_pairs, n_sigs * PAIR_STRIDE, MAX_LOG_MEMORY_SIZE)
+    copy_8(computed_pairs_hash, pairs_hash_expected)
 
     # Buffer for partition verification
     n_total = n_sigs + n_dup
@@ -82,11 +91,13 @@ def main():
         idx = raw_indices[i]
         assert idx < n_total
         buffer[idx] = i
-        # Verify raw XMSS signatures (each signer supplies its own slot via the
-        # signature hint blob, so xmss_verify is parameterised by pubkey/message
-        # only).
-        pk = all_pubkeys + idx * DIGEST_LEN
-        xmss_verify(pk, message)
+        # Each signer carries its own slot (read from the signature hint) and
+        # its own message (read from the `pairs` blob at this index). The
+        # pair layout is `pk (DIGEST_LEN) | msg (MESSAGE_LEN) | zero pad`.
+        pair = all_pairs + idx * PAIR_STRIDE
+        pk = pair
+        msg = pair + DIGEST_LEN
+        xmss_verify(pk, msg)
 
     counter: Mut = n_raw_xmss
 
@@ -102,26 +113,37 @@ def main():
         assert n_sub < MAX_N_SIGS
         sub_indices_arr = sub_indices_blob + 1
 
+        # Chain-compress the child's pair list to reproduce the same digest
+        # the child's VM checks internally via slice_hash_with_iv. Each pair
+        # contributes N_CHUNKS_PER_PAIR poseidon compresses; the first chunk
+        # of the first pair uses ZERO_VEC_PTR as the IV.
         idx0 = sub_indices_arr[0]
         assert idx0 < n_total
         buffer[idx0] = counter
         counter += 1
-        pk0 = all_pubkeys + idx0 * DIGEST_LEN
+        pair0 = all_pairs + idx0 * PAIR_STRIDE
         running_hash: Mut = Array(DIGEST_LEN)
-        poseidon16_compress(ZERO_VEC_PTR, pk0, running_hash)
+        poseidon16_compress(ZERO_VEC_PTR, pair0, running_hash)
+        for k in unroll(1, N_CHUNKS_PER_PAIR):
+            chunk = pair0 + k * DIGEST_LEN
+            new_hash = Array(DIGEST_LEN)
+            poseidon16_compress(running_hash, chunk, new_hash)
+            running_hash = new_hash
 
         for j in dynamic_unroll(1, n_sub, log2_ceil(MAX_N_SIGS)):
             idx = sub_indices_arr[j]
             assert idx < n_total
             buffer[idx] = counter
             counter += 1
-            pk = all_pubkeys + idx * DIGEST_LEN
-            new_hash = Array(DIGEST_LEN)
-            poseidon16_compress(running_hash, pk, new_hash)
-            running_hash = new_hash
+            pair = all_pairs + idx * PAIR_STRIDE
+            for k in unroll(0, N_CHUNKS_PER_PAIR):
+                chunk = pair + k * DIGEST_LEN
+                new_hash = Array(DIGEST_LEN)
+                poseidon16_compress(running_hash, chunk, new_hash)
+                running_hash = new_hash
 
         inner_data_buf = build_inner_data_buf(
-            n_sub, running_hash, message, bytecode_hash_domsep,
+            n_sub, running_hash, bytecode_hash_domsep,
         )
         inner_pub_mem = Array(INNER_PUB_MEM_SIZE)
         copy_8(slice_hash_with_iv(inner_data_buf, INPUT_DATA_NUM_CHUNKS), inner_pub_mem)
@@ -194,13 +216,10 @@ def reduce_bytecode_claims(bytecode_claims, n_bytecode_claims, bytecode_claim_ou
     return
 
 @inline
-def build_inner_data_buf(n_sub, pubkeys_hash, message, bytecode_hash_domsep):
+def build_inner_data_buf(n_sub, pairs_hash, bytecode_hash_domsep):
     inner_data_buf = Array(INPUT_DATA_SIZE_PADDED)
     inner_data_buf[0] = n_sub
-    copy_8(pubkeys_hash, inner_data_buf + 1)
-    inner_msg = inner_data_buf + 1 + DIGEST_LEN
-    debug_assert(MESSAGE_LEN == 9)
-    copy_9(message, inner_msg)
+    copy_8(pairs_hash, inner_data_buf + 1)
     hint_witness("inner_bytecode_claim", inner_data_buf + BYTECODE_CLAIM_OFFSET)
     copy_8(bytecode_hash_domsep, inner_data_buf + BYTECODE_HASH_DOMSEP_OFFSET)
     for k in unroll(BYTECODE_HASH_DOMSEP_OFFSET + DIGEST_LEN, INPUT_DATA_SIZE_PADDED):

@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::time::Instant;
 use utils::ansi as s;
 use xmss::signers_cache::{get_benchmark_signatures, message_for_benchmark};
-use xmss::{XmssPublicKey, XmssSignature};
+use xmss::{MESSAGE_LEN_FE, XmssPublicKey, XmssSignature};
 
 use crate::compilation::{get_aggregation_bytecode, init_aggregation_bytecode};
 use crate::{AggregatedXMSS, AggregationTopology, count_signers, xmss_aggregate};
@@ -214,13 +214,17 @@ fn build_aggregation(
     signatures: &[XmssSignature],
     overlap: usize,
     tracing: bool,
-) -> (Vec<XmssPublicKey>, AggregatedXMSS, f64) {
+) -> (Vec<(XmssPublicKey, [F; MESSAGE_LEN_FE])>, AggregatedXMSS, f64) {
+    // The benchmark cache signs the same `message_for_benchmark()` for every
+    // signer; with per-signer messages enabled in the aggregator API, the
+    // benchmark still uses a single shared message per signer for now.
+    let message = message_for_benchmark();
     let raw_count = topology.raw_xmss;
-    let raw_xmss: Vec<(XmssPublicKey, XmssSignature)> = (0..raw_count)
-        .map(|i| (pub_keys[i].clone(), signatures[i].clone()))
+    let raw_xmss: Vec<(XmssPublicKey, [F; MESSAGE_LEN_FE], XmssSignature)> = (0..raw_count)
+        .map(|i| (pub_keys[i].clone(), message, signatures[i].clone()))
         .collect();
 
-    let mut child_pub_keys_list: Vec<Vec<XmssPublicKey>> = vec![];
+    let mut child_pairs_list: Vec<Vec<(XmssPublicKey, [F; MESSAGE_LEN_FE])>> = vec![];
     let mut child_aggs: Vec<AggregatedXMSS> = vec![];
     let mut child_start = raw_count;
     let mut child_display_index = display_index;
@@ -235,7 +239,7 @@ fn build_aggregation(
             overlap,
             tracing,
         );
-        child_pub_keys_list.push(child_pks);
+        child_pairs_list.push(child_pks);
         child_aggs.push(child_agg);
         child_display_index += count_nodes(child);
         child_start += child_count;
@@ -244,19 +248,14 @@ fn build_aggregation(
         }
     }
 
-    let children: Vec<(&[XmssPublicKey], AggregatedXMSS)> = child_pub_keys_list
+    let children: Vec<(&[(XmssPublicKey, [F; MESSAGE_LEN_FE])], AggregatedXMSS)> = child_pairs_list
         .iter()
         .zip(child_aggs)
         .map(|(pks, agg)| (pks.as_slice(), agg))
         .collect();
 
     let time = Instant::now();
-    let (global_pub_keys, result) = xmss_aggregate(
-        &children,
-        raw_xmss,
-        &message_for_benchmark(),
-        topology.log_inv_rate,
-    );
+    let (global_pairs, result) = xmss_aggregate(&children, raw_xmss, topology.log_inv_rate);
     let elapsed = time.elapsed();
 
     if tracing {
@@ -293,7 +292,7 @@ fn build_aggregation(
         );
     }
 
-    (global_pub_keys, result, elapsed.as_secs_f64())
+    (global_pairs, result, elapsed.as_secs_f64())
 }
 
 pub fn run_aggregation_benchmark(topology: &AggregationTopology, overlap: usize, tracing: bool) -> f64 {
@@ -324,12 +323,11 @@ pub fn run_aggregation_benchmark(topology: &AggregationTopology, overlap: usize,
         display.print_initial();
     }
 
-    let (global_pub_keys, aggregated_sigs, time) =
+    let (global_pairs, aggregated_sigs, time) =
         build_aggregation(topology, 0, &mut display, &pub_keys, &signatures, overlap, tracing);
 
     // Verify root proof
-    crate::xmss_verify_aggregation(&global_pub_keys, &aggregated_sigs, &message_for_benchmark())
-        .unwrap();
+    crate::xmss_verify_aggregation(&global_pairs, &aggregated_sigs).unwrap();
     time
 }
 
