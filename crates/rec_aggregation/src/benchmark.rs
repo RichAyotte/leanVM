@@ -3,7 +3,7 @@ use lean_vm::*;
 use std::io::{self, Write};
 use std::time::Instant;
 use utils::ansi as s;
-use xmss::signers_cache::{BENCHMARK_SLOT, get_benchmark_signatures, message_for_benchmark};
+use xmss::signers_cache::{get_benchmark_signatures, message_for_benchmark};
 use xmss::{XmssPublicKey, XmssSignature};
 
 use crate::compilation::{get_aggregation_bytecode, init_aggregation_bytecode};
@@ -255,7 +255,6 @@ fn build_aggregation(
         &children,
         raw_xmss,
         &message_for_benchmark(),
-        BENCHMARK_SLOT,
         topology.log_inv_rate,
     );
     let elapsed = time.elapsed();
@@ -329,13 +328,8 @@ pub fn run_aggregation_benchmark(topology: &AggregationTopology, overlap: usize,
         build_aggregation(topology, 0, &mut display, &pub_keys, &signatures, overlap, tracing);
 
     // Verify root proof
-    crate::xmss_verify_aggregation(
-        &global_pub_keys,
-        &aggregated_sigs,
-        &message_for_benchmark(),
-        BENCHMARK_SLOT,
-    )
-    .unwrap();
+    crate::xmss_verify_aggregation(&global_pub_keys, &aggregated_sigs, &message_for_benchmark())
+        .unwrap();
     time
 }
 

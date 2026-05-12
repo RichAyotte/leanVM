@@ -18,6 +18,7 @@ pub struct XmssSecretKey {
 pub struct XmssSignature {
     pub wots_signature: WotsSignature,
     pub merkle_proof: Vec<Digest>,
+    pub slot: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -158,6 +159,7 @@ pub fn xmss_sign_with_randomness(
     Ok(XmssSignature {
         wots_signature,
         merkle_proof,
+        slot,
     })
 }
 
@@ -179,8 +181,8 @@ pub fn xmss_verify(
     pub_key: &XmssPublicKey,
     message: &[F; MESSAGE_LEN_FE],
     signature: &XmssSignature,
-    slot: u32,
 ) -> Result<(), XmssVerifyError> {
+    let slot = signature.slot;
     let truncated_merkle_root = pub_key.merkle_root[0..TRUNCATED_MERKLE_ROOT_LEN_FE].try_into().unwrap();
     let wots_public_key = signature
         .wots_signature

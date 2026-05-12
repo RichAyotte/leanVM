@@ -23,4 +23,4 @@ pub const RANDOMNESS_LEN_FE: usize = 7;
 pub const MESSAGE_LEN_FE: usize = 9;
 pub const TRUNCATED_MERKLE_ROOT_LEN_FE: usize = 6;
 
-pub const SIG_SIZE_FE: usize = RANDOMNESS_LEN_FE + (V + LOG_LIFETIME) * DIGEST_SIZE;
+pub const SIG_SIZE_FE: usize = RANDOMNESS_LEN_FE + (V + LOG_LIFETIME) * DIGEST_SIZE + 2;

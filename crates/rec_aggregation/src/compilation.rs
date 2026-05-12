@@ -13,7 +13,7 @@ use tracing::instrument;
 use utils::Counter;
 use xmss::{LOG_LIFETIME, MESSAGE_LEN_FE, RANDOMNESS_LEN_FE, TARGET_SUM, V, V_GRINDING, W};
 
-use crate::{MERKLE_LEVELS_PER_CHUNK_FOR_SLOT, N_MERKLE_CHUNKS_FOR_SLOT, NUM_REPEATED_ONES, ZERO_VEC_LEN};
+use crate::{MERKLE_LEVELS_PER_CHUNK_FOR_SLOT, NUM_REPEATED_ONES, ZERO_VEC_LEN};
 
 static BYTECODE: OnceLock<Bytecode> = OnceLock::new();
 
@@ -31,8 +31,7 @@ fn compile_main_program(inner_program_log_size: usize, bytecode_zero_eval: F) ->
     let bytecode_point_n_vars = inner_program_log_size + log2_ceil_usize(N_INSTRUCTION_COLUMNS);
     let claim_data_size = (bytecode_point_n_vars + 1) * DIMENSION;
     let claim_data_size_padded = claim_data_size.next_multiple_of(DIGEST_LEN);
-    let input_data_size =
-        1 + DIGEST_LEN + MESSAGE_LEN_FE + 2 + N_MERKLE_CHUNKS_FOR_SLOT + claim_data_size_padded + DIGEST_LEN;
+    let input_data_size = 1 + DIGEST_LEN + MESSAGE_LEN_FE + claim_data_size_padded + DIGEST_LEN;
     let input_data_size_padded = input_data_size.next_multiple_of(DIGEST_LEN);
     let replacements = build_replacements(inner_program_log_size, bytecode_zero_eval, input_data_size_padded);
 

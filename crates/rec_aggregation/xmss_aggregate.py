@@ -9,21 +9,28 @@ TARGET_SUM = TARGET_SUM_PLACEHOLDER
 LOG_LIFETIME = LOG_LIFETIME_PLACEHOLDER
 MESSAGE_LEN = MESSAGE_LEN_PLACEHOLDER
 RANDOMNESS_LEN = RANDOMNESS_LEN_PLACEHOLDER
-SIG_SIZE = RANDOMNESS_LEN + (V + LOG_LIFETIME) * DIGEST_LEN
-NUM_ENCODING_FE = div_ceil((V + V_GRINDING), (24 / W))  # 24 should be divisible by W (works for W=2,3,4)
 MERKLE_LEVELS_PER_CHUNK = MERKLE_LEVELS_PER_CHUNK_PLACEHOLDER
 N_MERKLE_CHUNKS = LOG_LIFETIME / MERKLE_LEVELS_PER_CHUNK
+# Per-signature hint layout: randomness | chain_tips | merkle_path |
+# slot_lo | slot_hi | merkle_chunks. The last 2 + N_MERKLE_CHUNKS field
+# elements are per-signer slot data that used to live in the public input.
+SIG_SIZE = RANDOMNESS_LEN + (V + LOG_LIFETIME) * DIGEST_LEN + 2 + N_MERKLE_CHUNKS
+NUM_ENCODING_FE = div_ceil((V + V_GRINDING), (24 / W))  # 24 should be divisible by W (works for W=2,3,4)
 
 
 @inline
-def xmss_verify(merkle_root, message, slot_lo, slot_hi, merkle_chunks):
-    # signature: randomness | chain_tips | merkle_path
+def xmss_verify(merkle_root, message):
+    # signature: randomness | chain_tips | merkle_path | slot_lo | slot_hi | merkle_chunks
     # return the hashed xmss public key
     signature = Array(SIG_SIZE)
     hint_witness("xmss_signature", signature)
     randomness = signature
     chain_starts = signature + RANDOMNESS_LEN
     merkle_path = chain_starts + V * DIGEST_LEN
+    slot_ptr = merkle_path + LOG_LIFETIME * DIGEST_LEN
+    slot_lo = slot_ptr[0]
+    slot_hi = slot_ptr[1]
+    merkle_chunks = slot_ptr + 2
 
     # 1) We encode message_hash + randomness into the layer of the hypercube with target sum = TARGET_SUM
 

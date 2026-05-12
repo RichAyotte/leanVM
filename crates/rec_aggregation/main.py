@@ -11,7 +11,7 @@ INNER_PUB_MEM_SIZE = 2**INNER_PUBLIC_MEMORY_LOG_SIZE  # = DIGEST_LEN
 
 INPUT_DATA_SIZE_PADDED = INPUT_DATA_SIZE_PADDED_PLACEHOLDER
 INPUT_DATA_NUM_CHUNKS = INPUT_DATA_SIZE_PADDED / DIGEST_LEN
-BYTECODE_CLAIM_OFFSET = 1 + DIGEST_LEN + MESSAGE_LEN + 2 + N_MERKLE_CHUNKS
+BYTECODE_CLAIM_OFFSET = 1 + DIGEST_LEN + MESSAGE_LEN
 BYTECODE_HASH_DOMSEP_OFFSET = BYTECODE_CLAIM_OFFSET + BYTECODE_CLAIM_SIZE_PADDED
 BYTECODE_SUMCHECK_PROOF_SIZE = BYTECODE_SUMCHECK_PROOF_SIZE_PLACEHOLDER
 
@@ -28,10 +28,6 @@ def main():
     assert n_sigs - 1 < MAX_N_SIGS
     pubkeys_hash_expected = data_buf + 1
     message = pubkeys_hash_expected + DIGEST_LEN
-    slot_ptr = message + MESSAGE_LEN
-    slot_lo = slot_ptr[0]
-    slot_hi = slot_ptr[1]
-    merkle_chunks_for_slot = slot_ptr + 2
     bytecode_claim_output = data_buf + BYTECODE_CLAIM_OFFSET
     bytecode_hash_domsep = data_buf + BYTECODE_HASH_DOMSEP_OFFSET
 
@@ -58,8 +54,7 @@ def main():
         assert n_dup == 0
         if n_raw_xmss == 0:
             inner_data_buf = build_inner_data_buf(
-                n_sigs, pubkeys_hash_expected, message, slot_lo, slot_hi,
-                merkle_chunks_for_slot, bytecode_hash_domsep,
+                n_sigs, pubkeys_hash_expected, message, bytecode_hash_domsep,
             )
            
             inner_pub_mem = Array(INNER_PUB_MEM_SIZE)
@@ -87,9 +82,11 @@ def main():
         idx = raw_indices[i]
         assert idx < n_total
         buffer[idx] = i
-        # Verify raw XMSS signatures
+        # Verify raw XMSS signatures (each signer supplies its own slot via the
+        # signature hint blob, so xmss_verify is parameterised by pubkey/message
+        # only).
         pk = all_pubkeys + idx * DIGEST_LEN
-        xmss_verify(pk, message, slot_lo, slot_hi, merkle_chunks_for_slot)
+        xmss_verify(pk, message)
 
     counter: Mut = n_raw_xmss
 
@@ -124,8 +121,7 @@ def main():
             running_hash = new_hash
 
         inner_data_buf = build_inner_data_buf(
-            n_sub, running_hash, message, slot_lo, slot_hi,
-            merkle_chunks_for_slot, bytecode_hash_domsep,
+            n_sub, running_hash, message, bytecode_hash_domsep,
         )
         inner_pub_mem = Array(INNER_PUB_MEM_SIZE)
         copy_8(slice_hash_with_iv(inner_data_buf, INPUT_DATA_NUM_CHUNKS), inner_pub_mem)
@@ -198,17 +194,13 @@ def reduce_bytecode_claims(bytecode_claims, n_bytecode_claims, bytecode_claim_ou
     return
 
 @inline
-def build_inner_data_buf(n_sub, pubkeys_hash, message, slot_lo, slot_hi, merkle_chunks_for_slot, bytecode_hash_domsep):
+def build_inner_data_buf(n_sub, pubkeys_hash, message, bytecode_hash_domsep):
     inner_data_buf = Array(INPUT_DATA_SIZE_PADDED)
     inner_data_buf[0] = n_sub
     copy_8(pubkeys_hash, inner_data_buf + 1)
     inner_msg = inner_data_buf + 1 + DIGEST_LEN
     debug_assert(MESSAGE_LEN == 9)
     copy_9(message, inner_msg)
-    inner_msg[MESSAGE_LEN] = slot_lo
-    inner_msg[MESSAGE_LEN + 1] = slot_hi
-    for k in unroll(0, N_MERKLE_CHUNKS):
-        inner_msg[MESSAGE_LEN + 2 + k] = merkle_chunks_for_slot[k]
     hint_witness("inner_bytecode_claim", inner_data_buf + BYTECODE_CLAIM_OFFSET)
     copy_8(bytecode_hash_domsep, inner_data_buf + BYTECODE_HASH_DOMSEP_OFFSET)
     for k in unroll(BYTECODE_HASH_DOMSEP_OFFSET + DIGEST_LEN, INPUT_DATA_SIZE_PADDED):

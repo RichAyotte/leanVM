@@ -23,7 +23,7 @@ fn test_xmss_serialize_deserialize() {
     let sig2: XmssSignature = postcard::from_bytes(&sig_bytes).unwrap();
     assert_eq!(sig, sig2);
 
-    xmss_verify(&pk2, &message, &sig2, slot).unwrap();
+    xmss_verify(&pk2, &message, &sig2).unwrap();
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn keygen_sign_verify() {
     let (sk, pk) = xmss_key_gen(keygen_seed, slot_start, slot_end).unwrap();
     for slot in slot_start..=slot_end {
         let sig = xmss_sign(&mut StdRng::seed_from_u64(u64::from(slot)), &sk, &message, slot).unwrap();
-        xmss_verify(&pk, &message, &sig, slot).unwrap();
+        xmss_verify(&pk, &message, &sig).unwrap();
     }
 }
 
