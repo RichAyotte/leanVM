@@ -40,6 +40,7 @@ fn prove_air_poseidon_8(log_n_rows: usize) {
     // Fill the per-round witness columns + outputs from the inputs.
     // The AIR's transition constraints require a consistent Poseidon1 permutation
     // trace, otherwise sumcheck verification fails.
+    #[allow(clippy::needless_range_loop)]
     for row in 0..n_rows {
         let input: [F; WIDTH] = std::array::from_fn(|i| trace[POSEIDON_8_COL_INPUT_START + i][row]);
         let (aux, perm_state) = compute_poseidon8_witness(input);
