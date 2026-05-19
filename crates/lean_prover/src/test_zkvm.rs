@@ -3,7 +3,7 @@ use backend::*;
 use lean_compiler::*;
 use lean_vm::*;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
-use utils::{init_tracing, poseidon8_compress};
+use utils::{init_tracing, poseidon8_compress, poseidon8_permute};
 
 #[test]
 fn test_zk_vm_all_precompiles() {
@@ -48,6 +48,11 @@ def main():
     )
     for i in unroll(0, HALF_DIGEST_LEN):
         assert hardcoded_full_out[i] == hardcoded_half_out[i]
+
+    # poseidon8_permute: full 8-element permutation (no feed-forward), written in natural order:
+    #   m[res .. res + 8] = poseidon(left || right)
+    permute_out = pub_start + 1600
+    poseidon8_permute(pub_start + 4 * DIGEST_LEN, pub_start + 5 * DIGEST_LEN, permute_out)
 
     base_ptr = pub_start + 88
     ext_a_ptr = pub_start + 88 + N
@@ -115,6 +120,10 @@ def main():
     // Half output at 1512..1516: first 2 = hash, last 2 = arbitrary pre-existing data
     public_input[1512..1514].copy_from_slice(&hardcoded_output[..2]);
     public_input[1514..1516].copy_from_slice(&[F::from_usize(555), F::from_usize(666)]);
+
+    // poseidon8_permute output at 1600..1608: raw permutation result.
+    let permute_output = poseidon8_permute(poseidon_8_compress_input);
+    public_input[1600..1608].copy_from_slice(&permute_output);
 
     // Extension op operands: base[N], ext_a[N], ext_b[N]
     let base_slice: [F; N] = rng.random();

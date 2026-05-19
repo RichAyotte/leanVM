@@ -26,6 +26,11 @@ pub fn poseidon8_compress(input: [Goldilocks; 8]) -> [Goldilocks; 4] {
     state[0..4].try_into().unwrap()
 }
 
+#[inline(always)]
+pub fn poseidon8_permute(input: [Goldilocks; 8]) -> [Goldilocks; 8] {
+    get_poseidon8().permute(input)
+}
+
 pub fn poseidon8_compress_pair(left: &[Goldilocks; 4], right: &[Goldilocks; 4]) -> [Goldilocks; 4] {
     let mut input = [Goldilocks::default(); 8];
     input[..4].copy_from_slice(left);

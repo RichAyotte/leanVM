@@ -24,7 +24,10 @@ pub const MIN_LOG_N_ROWS_PER_TABLE: usize = 8; // Zero padding will be added to 
 pub const MAX_LOG_N_ROWS_PER_TABLE: [(Table, usize); 3] = [
     (Table::execution(), 25),
     (Table::extension_op(), 21),
-    (Table::poseidon8(), 21),
+    // 20 (not 21): the `poseidon8_permute` variant widened the table by 5 columns
+    // (`flag_permute` + 4 `outputs_right`), so 2^21 rows would exceed the WHIR
+    // commitment surface cap (see `ensure_not_too_big_commitment_surface`).
+    (Table::poseidon8(), 20),
 ];
 
 pub fn max_log_n_rows_per_table(table: &Table) -> usize {
@@ -36,10 +39,7 @@ pub fn max_log_n_rows_per_table(table: &Table) -> usize {
 }
 
 /// Starting program counter
-pub const STARTING_PC: usize = 1;
-
-/// Ending program counter (the final block is a looping block of 1 instruction)
-pub const ENDING_PC: usize = 0;
+pub const STARTING_PC: usize = 0;
 
 #[cfg(test)]
 mod tests {

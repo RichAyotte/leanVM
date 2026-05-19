@@ -4,7 +4,7 @@ use backend::*;
 use lean_vm::{
     EF, ExtraDataForBuses, F, HALF_DIGEST_LEN, POSEIDON_8_COL_EFFECTIVE_INDEX_LEFT_FIRST,
     POSEIDON_8_COL_EFFECTIVE_INDEX_LEFT_SECOND, POSEIDON_8_COL_FLAG, POSEIDON_8_COL_INPUT_START,
-    POSEIDON_8_COL_OUTPUT_START, POSEIDON_8_COL_ROUND_START, Poseidon8Precompile, compute_poseidon8_witness,
+    POSEIDON_8_COL_OUTPUT_LEFT, POSEIDON_8_COL_ROUND_START, Poseidon8Precompile, compute_poseidon8_witness,
     fill_trace_poseidon_8, num_cols_poseidon_8,
 };
 use rand::{RngExt, SeedableRng, rngs::StdRng};
@@ -42,9 +42,11 @@ fn prove_air_poseidon_8(log_n_rows: usize) {
     // trace, otherwise sumcheck verification fails.
     for row in 0..n_rows {
         let input: [F; WIDTH] = std::array::from_fn(|i| trace[POSEIDON_8_COL_INPUT_START + i][row]);
-        let (aux, output) = compute_poseidon8_witness(input);
-        for (i, v) in output.iter().enumerate() {
-            trace[POSEIDON_8_COL_OUTPUT_START + i][row] = *v;
+        let (aux, perm_state) = compute_poseidon8_witness(input);
+        // Compression rows (flag_permute = 0): `outputs_left` holds the Davies-Meyer
+        // output; `outputs_right` is left zero (AIR-unconstrained for compression).
+        for i in 0..WIDTH / 2 {
+            trace[POSEIDON_8_COL_OUTPUT_LEFT + i][row] = perm_state[i] + input[i];
         }
         for (i, v) in aux.iter().enumerate() {
             trace[POSEIDON_8_COL_ROUND_START + i][row] = *v;
@@ -85,6 +87,7 @@ fn prove_air_poseidon_8(log_n_rows: usize) {
     let air_alpha_powers: Vec<EF> = alpha.powers().collect_n(n_constraints + 1);
     // BUS=false => `logup_alphas_eq_poly` and `bus_beta` are unused; only `alpha_powers` matter.
     let extra_data = ExtraDataForBuses::new(Vec::new(), EF::ZERO, air_alpha_powers);
+    prover_state.duplex();
     let eq_factor: Vec<EF> = prover_state.sample_vec(log_n_rows);
     let column_refs: Vec<&[F]> = trace.iter().map(Vec::as_slice).collect();
     let packed = MleGroupRef::<EF>::Base(column_refs).pack();
@@ -127,6 +130,7 @@ fn prove_air_poseidon_8(log_n_rows: usize) {
     let air_alpha_powers: Vec<EF> = alpha.powers().collect_n(n_constraints + 1);
     let extra_data = ExtraDataForBuses::new(Vec::new(), EF::ZERO, air_alpha_powers);
 
+    verifier_state.duplex();
     let eq_factor_v: Vec<EF> = verifier_state.sample_vec(log_n_rows);
 
     let Evaluation {

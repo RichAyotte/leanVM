@@ -134,6 +134,20 @@ def poly_eq_base_extension(a, b, n):
     return res
 
 
+def poly_eq_base_extension_or_one(a, b, n):
+    # Like poly_eq_base_extension, but returns the identity (the extension element 1)
+    # when n == 0, i.e. the empty product, instead of failing the match_range dispatch.
+    debug_assert(n < 33)
+    res = match_range(
+        n,
+        range(0, 1),
+        lambda _: ONE_EF_PTR,
+        range(1, 33),
+        lambda i: poly_eq_base_extension(a, b, i),
+    )
+    return res
+
+
 @inline
 def expand_from_univariate_base(alpha, n):
     debug_assert(n < 33)
@@ -154,9 +168,16 @@ def expand_from_univariate_base_const(alpha, n: Const):
 
 
 def expand_from_univariate_ext(alpha, n):
+    debug_assert(0 < n)
+    debug_assert(n < 31)
+    res = match_range(n, range(1, 31), lambda nv: expand_from_univariate_ext_const(alpha, nv))
+    return res
+
+
+def expand_from_univariate_ext_const(alpha, n: Const):
     res = Array(n * DIM)
     copy_ef(alpha, res)
-    for i in range(0, n - 1):
+    for i in unroll(0, n - 1):
         mul_extension(res + i * DIM, res + i * DIM, res + (i + 1) * DIM)
     return res
 
@@ -407,11 +428,29 @@ def copy_message(a, b):
 
 
 @inline
+def set_to_8_zeros(a):
+    # Zero 8 entries (the duplex-sponge state) via three overlapping DIM clears.
+    zero_ptr = ZERO_VEC_PTR
+    dot_product_ee(a, ONE_EF_PTR, zero_ptr)
+    dot_product_ee(a + DIM, ONE_EF_PTR, zero_ptr)
+    dot_product_ee(a + (8 - DIM), ONE_EF_PTR, zero_ptr)
+    return
+
+@inline
 def copy_poseidon_input(a, b):
     # Copy a full Poseidon8 input block = 2 × DIGEST_LEN entries.
     copy_digest(a, b)
     copy_digest(a + DIGEST_LEN, b + DIGEST_LEN)
     return
+
+@inline
+def copy_8(a, b):
+    # Copy 8 entries (the duplex-sponge state) via three overlapping DIM copies.
+    dot_product_ee(a, ONE_EF_PTR, b)
+    dot_product_ee(a + DIM, ONE_EF_PTR, b + DIM)
+    dot_product_ee(a + (8 - DIM), ONE_EF_PTR, b + (8 - DIM))
+    return
+
 
 @inline
 def copy_many_ef(a, b, n):

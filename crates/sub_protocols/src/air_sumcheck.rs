@@ -492,15 +492,15 @@ pub fn prove_batched_air_sumcheck<'a, EF: ExtensionField<PF<EF>>>(
     MultilinearPoint(challenges)
 }
 
-pub fn compute_shifted_columns<F: Field>(air_down_column_indexes: &[usize], columns: &[&[F]]) -> Vec<Vec<F>> {
-    air_down_column_indexes
+pub fn compute_shifted_columns<F: Field>(n_shift_columns: usize, columns: &[&[F]]) -> Vec<Vec<F>> {
+    // Convention: the first `n_shift_columns` columns are the ones that get shifted.
+    columns[..n_shift_columns]
         .par_iter()
-        .map(|&col_index| {
-            let column = columns[col_index];
-            let mut down = unsafe { uninitialized_vec(column.len()) };
-            down[..column.len() - 1].copy_from_slice(&column[1..]);
-            down[column.len() - 1] = column[column.len() - 1];
-            down
+        .map(|column| {
+            let mut shifted = unsafe { uninitialized_vec(column.len()) };
+            shifted[..column.len() - 1].copy_from_slice(&column[1..]);
+            shifted[column.len() - 1] = column[column.len() - 1];
+            shifted
         })
         .collect()
 }
@@ -513,22 +513,18 @@ pub fn natural_ordering_point_for_session<EF: Copy>(sumcheck_air_point: &[EF], l
         .collect()
 }
 
-pub fn columns_evals_up_and_down<EF: ExtensionField<PF<EF>>, A: Air>(
+pub fn columns_evals_flat_and_shift<EF: ExtensionField<PF<EF>>, A: Air>(
     air: &A,
     col_evals: &[EF],
     natural_ordering_point: &[EF],
 ) -> (MultilinearPoint<EF>, BTreeMap<ColIndex, EF>, BTreeMap<ColIndex, EF>) {
-    let n_up = air.n_columns();
-    debug_assert_eq!(col_evals.len(), n_up + air.n_down_columns());
+    let n_flat = air.n_columns();
+    debug_assert_eq!(col_evals.len(), n_flat + air.n_shift_columns());
 
     let point = MultilinearPoint(natural_ordering_point.to_vec());
 
-    let evals_eq: BTreeMap<ColIndex, EF> = col_evals[..n_up].iter().copied().enumerate().collect();
-    let evals_next: BTreeMap<ColIndex, EF> = col_evals[n_up..]
-        .iter()
-        .zip(air.down_column_indexes())
-        .map(|(&v, col_index)| (col_index, v))
-        .collect();
+    let evals_eq: BTreeMap<ColIndex, EF> = col_evals[..n_flat].iter().copied().enumerate().collect();
+    let evals_next: BTreeMap<ColIndex, EF> = col_evals[n_flat..].iter().copied().enumerate().collect();
 
     (point, evals_eq, evals_next)
 }

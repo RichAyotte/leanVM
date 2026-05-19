@@ -1,33 +1,37 @@
 from snark_lib import *
-
-# FIAT SHAMIR layout (Goldilocks, DIGEST_LEN=4): 1 + DIGEST_LEN field elements
-#   slots 0..DIGEST_LEN   → sponge state (one digest)
-#   slot  DIGEST_LEN      → transcript pointer
-
 from utils import *
 
 
-FS_SIZE = DIGEST_LEN + 1
-FS_TPTR = DIGEST_LEN  # index of transcript pointer inside an FS state
+# Duplex-sponge Fiat-Shamir over the Goldilocks width-8 Poseidon permutation.
+#
+# fs layout (9 cells):
+#   fs[0..4]  = capacity
+#   fs[4..8]  = rate
+#   fs[8]     = transcript pointer
+# This matches the natural-ordering poseidon permute precompile output [cap | rate].
 
 
 def fs_new(transcript_ptr):
-    fs_state = Array(FS_SIZE)
-    zero_digest(fs_state)
-    fs_state[FS_TPTR] = transcript_ptr
-    return fs_state
+    fs = Array(9)
+    set_to_8_zeros(fs)
+    fs[8] = transcript_ptr
+    return fs
+
+
+@inline
+def _absorb_chunks(fs, data, n_chunks, new_transcript_ptr):
+    assert n_chunks != 0
+    chain = Array(n_chunks * 8 + 1)
+    poseidon8_permute(fs, data, chain)
+    for i in unroll(1, n_chunks):
+        poseidon8_permute(chain + (i - 1) * 8, data + i * DIGEST_LEN, chain + i * 8)
+    chain[n_chunks * 8] = new_transcript_ptr
+    return chain + (n_chunks - 1) * 8
 
 
 @inline
 def fs_observe_chunks(fs, data, n_chunks):
-    result: Mut = Array(FS_SIZE)
-    poseidon8_compress(fs, data, result)
-    for i in unroll(1, n_chunks):
-        new_result = Array(FS_SIZE)
-        poseidon8_compress(result, data + i * DIGEST_LEN, new_result)
-        result = new_result
-    result[FS_TPTR] = fs[FS_TPTR]  # preserve transcript pointer
-    return result
+    return _absorb_chunks(fs, data, n_chunks, fs[8])
 
 
 def fs_observe(fs, data, length: Const):
@@ -41,27 +45,22 @@ def fs_observe(fs, data, length: Const):
         padded[j] = data[n_full_chunks * DIGEST_LEN + j]
     for j in unroll(remainder, DIGEST_LEN):
         padded[j] = 0
-    final_result = Array(FS_SIZE)
-    poseidon8_compress(intermediate, padded, final_result)
-    final_result[FS_TPTR] = fs[FS_TPTR]  # preserve transcript pointer
-    return final_result
+    return fs_observe_chunks(intermediate, padded, 1)
 
 
 def fs_grinding(fs, bits):
     if bits == 0:
         return fs  # no grinding
-    transcript_ptr = fs[FS_TPTR]
-    zero_digest_tail(transcript_ptr + 1)
+    transcript_ptr = fs[8]
+    new_fs = _absorb_chunks(fs, transcript_ptr, 1, transcript_ptr + DIGEST_LEN)
 
-    new_fs = Array(FS_SIZE)
-    poseidon8_compress(fs, transcript_ptr, new_fs)
-    new_fs[FS_TPTR] = transcript_ptr + DIGEST_LEN
-
-    sampled = new_fs[0]
+    # Rate is at new_fs[4..8]; sample the first cell of it for the grinding check.
+    sampled = new_fs[4]
     debug_assert(bits <= 24)
     match_range(bits, range(0, 25), lambda b: assert_trailing_bits_are_zeros(sampled, b))
 
     return new_fs
+
 
 def assert_trailing_bits_are_zeros(value, bits: Const):
     debug_assert(bits != 0)
@@ -100,68 +99,71 @@ def assert_trailing_bits_are_zeros(value, bits: Const):
     return
 
 
+@inline
+def fs_duplex(fs):
+    # Equivalent to absorbing DIGEST_LEN zeros.
+    # Refreshes the rate so a subsequent sample doesn't repeat the previous one.
+    new_fs = Array(9)
+    poseidon8_permute(fs, ZERO_VEC_PTR, new_fs)
+    new_fs[8] = fs[8]
+    return new_fs
+
 
 def fs_sample_chunks(fs, n_chunks: Const):
-    # return the updated fiat-shamir, and a pointer to n_chunks chunks of DIGEST_LEN field elements
-
-    sampled = Array((n_chunks + 1) * DIGEST_LEN + 1)
-    for i in unroll(0, (n_chunks + 1)):
-        domain_sep = Array(DIGEST_LEN)
-        domain_sep[0] = i
-        zero_digest_tail(domain_sep + 1)
-        poseidon8_compress(
-            domain_sep,
-            fs,
-            sampled + i * DIGEST_LEN,
-        )
-    sampled[(n_chunks + 1) * DIGEST_LEN] = fs[FS_TPTR]  # same transcript pointer
-    new_fs = sampled + n_chunks * DIGEST_LEN
-    return new_fs, sampled
+    # Returns (new_fs, samples_ptr) where samples_ptr points to a contiguous
+    # n_chunks * DIGEST_LEN-cell buffer holding the squeezed chunks. Assumes the
+    # rate at fs[4..8] is "fresh" (just-permuted, not yet emitted); caller must
+    # duplex (or observe) between independent sample sequences.
+    if n_chunks == 0:
+        return fs, ZERO_VEC_PTR
+    if n_chunks == 1:
+        # Chunk 0 is the current fs itself: its rate is fs[4..8], no permute needed.
+        return fs, fs + 4
+    samples = Array(n_chunks * DIGEST_LEN)
+    copy_digest(samples, fs + 4)
+    chain = Array((n_chunks - 1) * 8 + 1)
+    poseidon8_permute(fs, ZERO_VEC_PTR, chain)
+    copy_digest(samples + DIGEST_LEN, chain + 4)
+    for i in unroll(2, n_chunks):
+        poseidon8_permute(chain + (i - 2) * 8, ZERO_VEC_PTR, chain + (i - 1) * 8)
+        copy_digest(samples + i * DIGEST_LEN, chain + (i - 1) * 8 + 4)
+    chain[(n_chunks - 1) * 8] = fs[8]
+    new_fs = chain + (n_chunks - 2) * 8
+    return new_fs, samples
 
 
 @inline
 def fs_sample_ef(fs):
-    sampled = Array(DIGEST_LEN)
-    poseidon8_compress(ZERO_VEC_PTR, fs, sampled)
-    new_fs = Array(FS_SIZE)
-    poseidon8_compress(SAMPLING_DOMAIN_SEPARATOR_PTR, fs, new_fs)
-    new_fs[FS_TPTR] = fs[FS_TPTR]  # same transcript pointer
-    return new_fs, sampled
+    # Single-chunk sample: read the fresh rate at fs[4..8]; the new fs is unchanged.
+    return fs, fs + 4
 
 
+@inline
 def fs_sample_many_ef(fs, n):
     # return the updated fiat-shamir, and a pointer to n (continuous) extension field elements
-    n_chunks = div_ceil_dynamic(n * DIM, DIGEST_LEN)
+    n_chunks = div_ceil(n * DIM, DIGEST_LEN)
     debug_assert(n_chunks <= 31)
     debug_assert(1 <= n_chunks)
-    new_fs, sampled = match_range(n_chunks, range(1, 32), lambda nc: fs_sample_chunks(fs, nc))
+    new_fs, sampled = fs_sample_chunks(fs, n_chunks)
     return new_fs, sampled
 
 
 @inline
 def fs_hint(fs, n):
-    # return the updated fiat-shamir, and a pointer to n field elements from the transcript
-    transcript_ptr = fs[FS_TPTR]
-    new_fs = Array(FS_SIZE)
-    copy_digest(fs, new_fs)
-    new_fs[FS_TPTR] = fs[FS_TPTR] + n  # advance transcript pointer
-    return new_fs, transcript_ptr
+    # Hint = read `n` cells from the transcript without absorbing them. Just advance the
+    # transcript pointer; the sponge state is unchanged.
+    new_fs = Array(9)
+    copy_8(new_fs, fs)
+    new_fs[8] = fs[8] + n
+    return new_fs, fs[8]
 
 
 def fs_receive_chunks(fs, n_chunks: Const):
-    # each chunk = DIGEST_LEN field elements
-    new_fs = Array(1 + DIGEST_LEN * n_chunks)
-    transcript_ptr = fs[FS_TPTR]
-    new_fs[DIGEST_LEN * n_chunks] = transcript_ptr + DIGEST_LEN * n_chunks  # advance transcript pointer
-
-    poseidon8_compress(fs, transcript_ptr, new_fs)
-    for i in unroll(1, n_chunks):
-        poseidon8_compress(
-            new_fs + ((i - 1) * DIGEST_LEN),
-            transcript_ptr + i * DIGEST_LEN,
-            new_fs + i * DIGEST_LEN,
-        )
-    return new_fs + DIGEST_LEN * (n_chunks - 1), transcript_ptr
+    # Read n_chunks * DIGEST_LEN cells from the transcript and absorb them. Returns the
+    # new fs and a pointer to the just-consumed transcript region.
+    transcript_ptr = fs[8]
+    new_fs = _absorb_chunks(fs, transcript_ptr, n_chunks, transcript_ptr + n_chunks * DIGEST_LEN)
+    return new_fs, transcript_ptr
 
 
 @inline
@@ -189,46 +191,23 @@ def fs_receive_ef(fs, n: Const):
 
 
 def fs_print_state(fs_state):
-    for i in unroll(0, FS_SIZE):
+    for i in unroll(0, 9):
         print(i, fs_state[i])
     return
 
 
-def fs_sample_data_with_offset(fs, n_chunks: Const, offset):
-    # Like fs_sample_chunks but uses domain separators [offset..offset+n_chunks-1].
-    # Only returns the sampled data, does NOT update fs.
-    sampled = Array(n_chunks * DIGEST_LEN)
-    for i in unroll(0, n_chunks):
-        domain_sep = Array(DIGEST_LEN)
-        domain_sep[0] = offset + i
-        zero_digest_tail(domain_sep + 1)
-        poseidon8_compress(domain_sep, fs, sampled + i * DIGEST_LEN)
-    return sampled
-
-
-def fs_finalize_sample(fs, total_n_chunks):
-    # Compute new fs state using domain_sep = total_n_chunks
-    # (same as the last poseidon call in fs_sample_chunks).
-    new_fs = Array(FS_SIZE)
-    domain_sep = Array(DIGEST_LEN)
-    domain_sep[0] = total_n_chunks
-    zero_digest_tail(domain_sep + 1)
-    poseidon8_compress(domain_sep, fs, new_fs)
-    new_fs[FS_TPTR] = fs[FS_TPTR]  # same transcript pointer
-    return new_fs
-
-
 @inline
 def fs_sample_queries(fs, n_samples):
+    # Sample `n_samples` query bit-strings. Each chunk yields DIGEST_LEN base field
+    # elements that can be downsampled to query indices. We squeeze
+    # `ceil(n_samples / DIGEST_LEN)` chunks.
     debug_assert(n_samples < 512)
-    # total_chunks = ceil(n_samples / DIGEST_LEN). With DIGEST_LEN=4 we shift
-    # right by 2 and check whether the low 2 bits are nonzero. BE decomposition:
+    # total_chunks = ceil(n_samples / DIGEST_LEN). With DIGEST_LEN=4 we shift right
+    # by 2 and check whether the low 2 bits are nonzero. BE decomposition:
     # nb[0] = bit 8 (MSB), nb[8] = bit 0 (LSB).
     nb = checked_decompose_bits_small_value_const(n_samples, 9)
     floor_div = nb[0] * 64 + nb[1] * 32 + nb[2] * 16 + nb[3] * 8 + nb[4] * 4 + nb[5] * 2 + nb[6]
     has_remainder = 1 - (1 - nb[7]) * (1 - nb[8])
     total_chunks = floor_div + has_remainder
-    # Sample exactly the needed chunks (dispatch via match_range to keep n_chunks const)
-    sampled = match_range(total_chunks, range(0, 129), lambda nc: fs_sample_data_with_offset(fs, nc, 0))
-    new_fs = fs_finalize_sample(fs, total_chunks)
+    new_fs, sampled = match_range(total_chunks, range(0, 129), lambda nc: fs_sample_chunks(fs, nc))
     return sampled, new_fs
