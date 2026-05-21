@@ -1,8 +1,8 @@
 mod extension_op;
 pub use extension_op::*;
 
-mod poseidon_8;
-pub use poseidon_8::*;
+mod poseidon;
+pub use poseidon::*;
 
 mod table_enum;
 pub use table_enum::*;

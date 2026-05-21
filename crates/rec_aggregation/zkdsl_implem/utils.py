@@ -45,7 +45,7 @@ def powers(alpha, n):
     assert n < 400
     assert 0 < n
     # 2**log2_ceil(i) is not really necessary but helps reduce byetcode size (traedoff cycles / bytecode size)
-    res = match_range(n, range(1, 400), lambda i: powers_const(alpha, 2**log2_ceil(i)))
+    res = match_range(n, range(1, 400), lambda i: powers_const(alpha, 2 ** log2_ceil(i)))
     return res
 
 
@@ -76,6 +76,7 @@ def product_first_n(values, n):
     debug_assert(n < 33)
     res = match_range(n, range(0, 1), lambda _: ONE_EF_PTR, range(1, 33), lambda i: product_first_n_const(values, i))
     return res
+
 
 @inline
 def product_first_n_const(values, n):
@@ -215,10 +216,12 @@ def dot_product_be_dynamic(a, b, res, n):
     match_range(n, range(1, 400), lambda i: dot_product_be(a, b, res, i))
     return
 
+
 def dot_product_ee_dynamic(a, b, res, n):
     debug_assert(n < 400)
     match_range(n, range(1, 400), lambda i: dot_product_ee(a, b, res, i))
     return
+
 
 def mle_of_01234567_etc(point, n):
     if n == 0:
@@ -327,6 +330,7 @@ def div_extension_ret(n, d):
     div_extension(n, d, quotient)
     return quotient
 
+
 @inline
 def div_extension(n, d, res):
     dot_product_ee(d, res, n)
@@ -391,6 +395,7 @@ def zero_ef(a):
     dot_product_ee(a, ONE_EF_PTR, zero_ptr)
     return
 
+
 @inline
 def zero_digest_tail(a):
     # Zero DIGEST_LEN-1 entries — typically called on `ptr + 1` after writing a
@@ -436,12 +441,14 @@ def set_to_8_zeros(a):
     dot_product_ee(a + (8 - DIM), ONE_EF_PTR, zero_ptr)
     return
 
+
 @inline
 def copy_poseidon_input(a, b):
     # Copy a full Poseidon8 input block = 2 × DIGEST_LEN entries.
     copy_digest(a, b)
     copy_digest(a + DIGEST_LEN, b + DIGEST_LEN)
     return
+
 
 @inline
 def copy_8(a, b):
@@ -524,7 +531,7 @@ def checked_decompose_bits(a):
     for i in unroll(1, F_BITS - HALF_BITS):
         sum_high += bits[F_BITS - 1 - HALF_BITS - i] * 2**i
     # If the high 32 bits are all set, the low 32 bits must be zero (only p-1).
-    if sum_high == 2**(F_BITS - HALF_BITS) - 1:
+    if sum_high == 2 ** (F_BITS - HALF_BITS) - 1:
         assert partial_sums_low[HALF_BITS - 1] == 0
 
     assert a == partial_sums_low[HALF_BITS - 1] + sum_high * 2**HALF_BITS
@@ -749,11 +756,13 @@ def embed_in_ef(f):
         res[i] = 0
     return res
 
+
 def next_mle(x, y, n):
     debug_assert(n < 32)
     debug_assert(n != 0)
     res = match_range(n, range(1, 32), lambda i: next_mle_const(x, y, i))
     return res
+
 
 def next_mle_const(x, y, n: Const):
     # x and y are pointers to n elements of extension field

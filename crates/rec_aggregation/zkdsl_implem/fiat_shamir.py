@@ -80,10 +80,10 @@ def assert_trailing_bits_are_zeros(value, bits: Const):
     # bits must be zero (only valid such element is p - 1 = 2^64 - 2^32).
     partial_sum_low: Mut = chunks[0]
     for i in unroll(1, half_chunks):
-        partial_sum_low += chunks[i] * 2**(i * chunk_size)
+        partial_sum_low += chunks[i] * 2 ** (i * chunk_size)
     partial_sum_high: Mut = chunks[half_chunks]
     for i in unroll(1, half_chunks):
-        partial_sum_high += chunks[half_chunks + i] * 2**(i * chunk_size)
+        partial_sum_high += chunks[half_chunks + i] * 2 ** (i * chunk_size)
 
     assert value == partial_sum_low + partial_sum_high * 2**HALF_BITS
 
@@ -91,10 +91,10 @@ def assert_trailing_bits_are_zeros(value, bits: Const):
         assert partial_sum_low == 0
 
     if bits < 16:
-        assert chunks[0] / 2**bits < 2**(chunk_size - bits)
+        assert chunks[0] / 2**bits < 2 ** (chunk_size - bits)
     else:
         assert chunks[0] == 0
-        assert chunks[1] / 2**(bits - 16) < 2**(chunk_size - (bits - 16))
+        assert chunks[1] / 2 ** (bits - 16) < 2 ** (chunk_size - (bits - 16))
 
     return
 

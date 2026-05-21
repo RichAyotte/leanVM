@@ -36,6 +36,7 @@ TYPE_2_DIGESTS_OFFSET = COMPONENT_DATA_OFFSET
 BYTECODE_CLAIM_NUM_CHUNKS = BYTECODE_CLAIM_SIZE_PADDED / DIGEST_LEN
 TYPE_2_BASE_NUM_CHUNKS = BYTECODE_CLAIM_NUM_CHUNKS + 2  # prefix chunk + domsep chunk
 
+
 def main():
     debug_assert(MAX_N_SIGS + MAX_N_DUPS <= 2**16)  # because of range checking, TODO increase
     pub_mem = 0  # See hashing.py for the memory layout
@@ -96,7 +97,7 @@ def main():
         hint_witness("inner_type2_layout", type2_data_buf)
         ensure_well_formed_input_data(type2_data_buf, bytecode_hash_domsep, TYPE_2_FLAG)
         type2_digests = type2_data_buf + TYPE_2_DIGESTS_OFFSET
-     
+
         kept_type1_buff = Array(TYPE_1_INPUT_DATA_SIZE_PADDED)
         hint_witness("kept_type1_buff", kept_type1_buff)
         copy_digest(data_buf, kept_type1_buff)  # type-1 flag | n_signatures | 0×(DIGEST_LEN-2)
@@ -224,7 +225,7 @@ def main():
         type1_data_buf[1] = n_sub
         for k in unroll(2, DIGEST_LEN):
             type1_data_buf[k] = 0
-        
+
         copy_digest(running_hash, type1_data_buf + TYPE_1_PUBKEYS_HASH_OFFSET)
         copy_digest(message, type1_data_buf + TYPE_1_MSG_HASH_OFFSET)
         for k in unroll(0, MERKLE_CHUNKS_NUM_CHUNKS):

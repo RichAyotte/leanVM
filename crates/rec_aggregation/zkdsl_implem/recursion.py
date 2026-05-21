@@ -31,6 +31,7 @@ MAX_AIR_FULL_DEGREE = MAX_AIR_FULL_DEGREE_PLACEHOLDER
 N_AIR_COLUMNS = N_AIR_COLUMNS_PLACEHOLDER  # [_; N_TABLES]
 N_AIR_SHIFT_COLUMNS = N_AIR_SHIFT_COLUMNS_PLACEHOLDER  # [_; N_TABLES] — by convention, shift column j of table t is column j
 
+
 N_INSTRUCTION_COLUMNS = N_INSTRUCTION_COLUMNS_PLACEHOLDER
 N_COMMITTED_EXEC_COLUMNS = N_COMMITTED_EXEC_COLUMNS_PLACEHOLDER
 
@@ -119,7 +120,9 @@ def recursion(inner_public_memory, bytecode_hash_domsep):
 
     value_index = mle_of_01234567_etc(point_gkr + (n_vars_logup_gkr - log_memory) * DIM, log_memory)
     fingerprint_memory = fingerprint_2(LOGUP_MEMORY_DOMAINSEP, value_index, value_memory, logup_alphas_eq_poly)
-    retrieved_denominators_value: Mut = mul_extension_ret(memory_and_acc_prefix, sub_extension_ret(logup_c, fingerprint_memory))
+    retrieved_denominators_value: Mut = mul_extension_ret(
+        memory_and_acc_prefix, sub_extension_ret(logup_c, fingerprint_memory)
+    )
 
     offset: Mut = two_exp(log_memory)
 
@@ -144,7 +147,9 @@ def recursion(inner_public_memory, bytecode_hash_domsep):
     bytecode_value = bytecode_claim + BYTECODE_POINT_N_VARS * DIM
     bytecode_value_corrected: Mut = bytecode_value
     for i in unroll(0, log2_ceil(MAX_BUS_WIDTH) - log2_ceil(N_INSTRUCTION_COLUMNS)):
-        bytecode_value_corrected = mul_extension_ret(bytecode_value_corrected, one_minus_self_extension_ret(logup_alphas + i * DIM))
+        bytecode_value_corrected = mul_extension_ret(
+            bytecode_value_corrected, one_minus_self_extension_ret(logup_alphas + i * DIM)
+        )
 
     fs, value_bytecode_acc = fs_receive_ef_inlined(fs, 1)
     retrieved_numerators_value = sub_extension_ret(
@@ -162,7 +167,9 @@ def recursion(inner_public_memory, bytecode_hash_domsep):
                     bytecode_value_corrected,
                     add_extension_ret(
                         mul_extension_ret(bytecode_index_value, logup_alphas_eq_poly + N_INSTRUCTION_COLUMNS * DIM),
-                        mul_base_extension_ret(LOGUP_BYTECODE_DOMAINSEP, logup_alphas_eq_poly + (2 ** log2_ceil(MAX_BUS_WIDTH) - 1) * DIM),
+                        mul_base_extension_ret(
+                            LOGUP_BYTECODE_DOMAINSEP, logup_alphas_eq_poly + (2 ** log2_ceil(MAX_BUS_WIDTH) - 1) * DIM
+                        ),
                     ),
                 ),
             ),
@@ -306,10 +313,14 @@ def continue_recursion_ordered(
         prefix = multilinear_location_prefix(offset / n_rows, n_vars_logup_gkr - log_n_rows, point_gkr)
 
         fs, eval_on_selector = fs_receive_ef_inlined(fs, 1)
-        retrieved_numerators_value = add_extension_ret(retrieved_numerators_value, mul_extension_ret(prefix, eval_on_selector))
+        retrieved_numerators_value = add_extension_ret(
+            retrieved_numerators_value, mul_extension_ret(prefix, eval_on_selector)
+        )
 
         fs, eval_on_data = fs_receive_ef_inlined(fs, 1)
-        retrieved_denominators_value = add_extension_ret(retrieved_denominators_value, mul_extension_ret(prefix, eval_on_data))
+        retrieved_denominators_value = add_extension_ret(
+            retrieved_denominators_value, mul_extension_ret(prefix, eval_on_data)
+        )
 
         bus_numerators_values.push(eval_on_selector)
 
@@ -390,7 +401,7 @@ def continue_recursion_ordered(
         )
         initial_sum = add_extension_ret(initial_sum, bus_final_value)
 
-    n_max = log_n_cycles # extension table is always the biggest
+    n_max = log_n_cycles  # extension table is always the biggest
     # Batched AIR sumcheck:
     fs, all_challenges, batched_air_final_value = sumcheck_verify_reversed(fs, n_max, initial_sum, MAX_AIR_FULL_DEGREE)
 
@@ -443,7 +454,9 @@ def continue_recursion_ordered(
     fs = fs_duplex(fs)
     combination_randomness_gen: Mut
     fs, combination_randomness_gen = fs_sample_ef(fs)
-    combination_randomness_powers: Mut = powers(combination_randomness_gen, num_ood_at_commitment + TOTAL_WHIR_STATEMENTS)
+    combination_randomness_powers: Mut = powers(
+        combination_randomness_gen, num_ood_at_commitment + TOTAL_WHIR_STATEMENTS
+    )
     whir_sum: Mut = Array(DIM)
     dot_product_ee_dynamic(whir_base_ood_evals, combination_randomness_powers, whir_sum, num_ood_at_commitment)
     curr_randomness: Mut = combination_randomness_powers + num_ood_at_commitment * DIM
@@ -526,7 +539,9 @@ def continue_recursion_ordered(
         eq_pub_mem,
         INNER_PUBLIC_MEMORY_LOG_SIZE,
     )
-    prefix_pub_mem = multilinear_location_prefix(0, stacked_n_vars - INNER_PUBLIC_MEMORY_LOG_SIZE, folding_randomness_global)
+    prefix_pub_mem = multilinear_location_prefix(
+        0, stacked_n_vars - INNER_PUBLIC_MEMORY_LOG_SIZE, folding_randomness_global
+    )
     s = add_extension_ret(
         s,
         mul_extension_ret(mul_extension_ret(curr_randomness, prefix_pub_mem), eq_pub_mem),
@@ -656,7 +671,9 @@ def fingerprint_2(table_index, data_1, data_2, logup_alphas_eq_poly):
     copy_ef(data_1, buff)
     copy_ef(data_2, buff + DIM)
     res: Mut = dot_product_ee_ret(buff, logup_alphas_eq_poly, 2)
-    res = add_extension_ret(res, mul_base_extension_ret(table_index, logup_alphas_eq_poly + (2 ** log2_ceil(MAX_BUS_WIDTH) - 1) * DIM))
+    res = add_extension_ret(
+        res, mul_base_extension_ret(table_index, logup_alphas_eq_poly + (2 ** log2_ceil(MAX_BUS_WIDTH) - 1) * DIM)
+    )
     return res
 
 
@@ -693,7 +710,9 @@ def verify_gkr_quotient(fs: Mut, n_vars):
     debug_assert(LOGUP_GKR_N_COEFFS_SENT % NUM_REPEATED_ONES == 0)
     quotient: Mut = ZERO_VEC_PTR
     for k in unroll(0, LOGUP_GKR_N_COEFFS_SENT / NUM_REPEATED_ONES):
-        quotient = add_extension_ret(quotient, sum_continuous_ef(initial_quotients + k * NUM_REPEATED_ONES * DIM, NUM_REPEATED_ONES))
+        quotient = add_extension_ret(
+            quotient, sum_continuous_ef(initial_quotients + k * NUM_REPEATED_ONES * DIM, NUM_REPEATED_ONES)
+        )
 
     points = Array(n_vars)
     claims_num = Array(n_vars)
@@ -710,7 +729,9 @@ def verify_gkr_quotient(fs: Mut, n_vars):
     claims_den[LOGUP_GKR_N_VARS_TO_SEND_COEFFS - 1] = first_claim_den
 
     for i in range(LOGUP_GKR_N_VARS_TO_SEND_COEFFS, n_vars):
-        fs, points[i], claims_num[i], claims_den[i] = verify_gkr_quotient_step(fs, i, points[i - 1], claims_num[i - 1], claims_den[i - 1])
+        fs, points[i], claims_num[i], claims_den[i] = verify_gkr_quotient_step(
+            fs, i, points[i - 1], claims_num[i - 1], claims_den[i - 1]
+        )
 
     return (
         fs,
