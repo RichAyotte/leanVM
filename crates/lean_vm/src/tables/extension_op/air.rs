@@ -69,9 +69,9 @@ impl<const BUS: bool> Air for ExtensionOpPrecompile<BUS> {
         // + 3 * flag_mul
         // + 3 * flag_poly_eq
         // + 3 * start (vres vs comp)
-        // + 6 transition gates (len/is_be/flags/idx transitions) + 1 start-row-length
-        // + 1 bus (if BUS)
-        5 + 3 + 3 + 3 + 3 + 7 + BUS as usize
+        // + 7 transition gates (len/is_be/flags/idx_a/idx_b) + 1 start-row-length
+        // + 2 bus (multiplicity + fingerprint) if BUS
+        5 + 3 + 3 + 3 + 3 + 8 + if BUS { 2 } else { 0 }
     }
     fn n_shift_columns(&self) -> usize {
         COL_COMP + 3

@@ -397,10 +397,11 @@ const fn poseidon8_n_constraints(bus: bool) -> usize {
     // Initial + terminal full rounds: 8 MDS equality gates per round (deg 7).
     // Partial rounds: 1 post_sbox gate per round (deg 7).
     // Output: 3 gates per WIDTH/2 lane (compression / permute-left / permute-right).
-    // + bus (if enabled).
+    // + 2 bus gates (multiplicity + fingerprint) if enabled.
     let full_gates = 2 * POSEIDON1_HALF_FULL_ROUNDS * WIDTH;
     let partial_gates = POSEIDON1_PARTIAL_ROUNDS;
-    1 + 3 + 1 + 2 + full_gates + partial_gates + 3 * (WIDTH / 2) + bus as usize
+    let bus_gates = if bus { 2 } else { 0 };
+    1 + 3 + 1 + 2 + full_gates + partial_gates + 3 * (WIDTH / 2) + bus_gates
 }
 
 impl<const BUS: bool> Air for Poseidon8Precompile<BUS> {
