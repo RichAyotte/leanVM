@@ -16,6 +16,12 @@ pub fn verify_execution(
     public_input: &[F],
     proof: Proof<F>,
 ) -> Result<(ProofVerificationDetails, RawProof<F>), ProofError> {
+    if bytecode.log_size() > MAX_BYTECODE_LOG_SIZE {
+        return Err(ProofError::TooBigBytecode {
+            current_log_size: bytecode.log_size(),
+            max_log_size: MAX_BYTECODE_LOG_SIZE,
+        });
+    }
     let mut verifier_state = VerifierState::<EF, _>::new(proof, *get_poseidon8())?;
     verifier_state.observe_scalars(public_input);
     verifier_state.observe_scalars(&poseidon8_compress_pair(&bytecode.hash, &SNARK_DOMAIN_SEP));
@@ -72,7 +78,7 @@ pub fn verify_execution(
 
     let logup_c = verifier_state.sample();
     verifier_state.duplex();
-    let logup_alphas = verifier_state.sample_vec(log2_ceil_usize(max_bus_width_including_domainsep()));
+    let logup_alphas = verifier_state.sample_vec(LOG_MAX_BUS_WIDTH);
     let logup_alphas_eq_poly = eval_eq(&logup_alphas);
 
     let logup_statements = verify_generic_logup(
@@ -120,11 +126,11 @@ pub fn verify_execution(
         let bus_numerator_value = logup_statements.bus_numerators_values[table];
         let bus_denominator_value = logup_statements.bus_denominators_values[table];
         let bus_final_value = bus_numerator_value
-            * match table.bus().direction {
+            * match table.bus_interactions()[0].direction {
                 BusDirection::Pull => EF::NEG_ONE,
                 BusDirection::Push => EF::ONE,
             }
-            + bus_beta * (bus_denominator_value - logup_c);
+            + bus_beta * (logup_c - bus_denominator_value);
 
         initial_sum += eta_power * bus_final_value;
 

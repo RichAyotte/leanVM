@@ -1,6 +1,6 @@
 use crate::{
     DIMENSION, EF, EXT_OP_FLAG_ADD, EXT_OP_FLAG_IS_BE, EXT_OP_FLAG_MUL, EXT_OP_FLAG_POLY_EQ, ExtraDataForBuses,
-    eval_virtual_bus_column,
+    eval_bus_virtual,
     tables::extension_op::{EXT_OP_LEN_MULTIPLIER, ExtensionOpPrecompile},
 };
 use backend::*;
@@ -27,9 +27,9 @@ pub(super) const COL_VB: usize = 15;
 /// result coordinates (3 cols).
 pub(super) const COL_VRES: usize = 18;
 
-// Virtual columns (not materialized)
-pub(super) const COL_ACTIVATION_FLAG: usize = 21;
-pub(super) const COL_AUX_EXTENSION_OP: usize = 22;
+// Virtual columns (not explicitely in AIR)
+pub(super) const COL_MULTIPLICITY_EXTENSION_OP: usize = 21;
+pub(super) const COL_DOMAINSEP_EXTENSION_OP: usize = 22;
 
 pub(super) const AIR_N_COLUMNS: usize = 21;
 
@@ -108,7 +108,7 @@ impl<const BUS: bool> Air for ExtensionOpPrecompile<BUS> {
         let comp_shift: [AB::IF; 3] = std::array::from_fn(|k| shift[COL_COMP + k]);
 
         let active = flag_add + flag_mul + flag_poly_eq;
-        let activation_flag = start * active;
+        let multiplicity = start * active;
 
         let aux = is_be * AB::F::from_usize(EXT_OP_FLAG_IS_BE)
             + flag_add * AB::F::from_usize(EXT_OP_FLAG_ADD)
@@ -119,14 +119,15 @@ impl<const BUS: bool> Air for ExtensionOpPrecompile<BUS> {
         let idx_r = flat[COL_IDX_RES];
 
         if BUS {
-            builder.assert_zero_ef(eval_virtual_bus_column::<AB, EF>(
+            builder.assert_zero_ef(eval_bus_virtual::<AB, EF>(
                 extra_data,
-                activation_flag,
-                &[aux, idx_a, idx_b, idx_r],
+                multiplicity,
+                aux,
+                &[idx_a, idx_b, idx_r],
             ));
         } else {
-            builder.declare_values(&[activation_flag]);
-            builder.declare_values(&[aux, idx_a, idx_b, idx_r]);
+            builder.declare_values(&[multiplicity]);
+            builder.declare_values(&[idx_a, idx_b, idx_r, aux]);
         }
 
         let is_ee = -(is_be - AB::F::ONE);
