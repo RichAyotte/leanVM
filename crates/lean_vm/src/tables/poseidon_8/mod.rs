@@ -484,12 +484,13 @@ impl<const BUS: bool> Air for Poseidon8Precompile<BUS> {
 
         // Phase 2 — bus / declare.
         if BUS {
-            builder.assert_zero_ef(eval_bus_virtual::<AB, EF>(
+            eval_bus_virtual::<AB, EF>(
+                builder,
                 extra_data,
                 multiplicity,
                 domainsep_reconstructed,
                 &[index_a, index_b, index_res],
-            ));
+            );
         } else {
             builder.declare_values(std::slice::from_ref(&multiplicity));
             builder.declare_values(&[index_a, index_b, index_res, domainsep_reconstructed]);

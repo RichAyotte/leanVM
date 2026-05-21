@@ -119,12 +119,7 @@ impl<const BUS: bool> Air for ExtensionOpPrecompile<BUS> {
         let idx_r = flat[COL_IDX_RES];
 
         if BUS {
-            builder.assert_zero_ef(eval_bus_virtual::<AB, EF>(
-                extra_data,
-                multiplicity,
-                aux,
-                &[idx_a, idx_b, idx_r],
-            ));
+            eval_bus_virtual::<AB, EF>(builder, extra_data, multiplicity, aux, &[idx_a, idx_b, idx_r]);
         } else {
             builder.declare_values(&[multiplicity]);
             builder.declare_values(&[idx_a, idx_b, idx_r, aux]);
