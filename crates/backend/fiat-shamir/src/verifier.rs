@@ -72,8 +72,16 @@ where
         // SAFETY: We've confirmed PF<EF> == KoalaBear
         let paths: PrunedMerklePaths<KoalaBear, KoalaBear> = unsafe { std::mem::transmute(paths) };
         let perm = default_koalabear_poseidon1_16();
-        let hash_fn =
-            |data: &[KoalaBear]| symetric::hash_iter::<_, _, _, 16, 8, DIGEST_LEN_FE>(&perm, data.iter().copied());
+        let hash_fn = |data: &[KoalaBear]| {
+            let iv_first = KoalaBear::from_usize(data.len());
+            let initial_state =
+                symetric::precompute_zero_suffix_state::<_, _, 16, 8, DIGEST_LEN_FE>(&perm, iv_first, 0);
+            symetric::hash_iter_with_initial_state::<_, _, _, 16, 8, DIGEST_LEN_FE>(
+                &perm,
+                data.iter().copied(),
+                &initial_state,
+            )
+        };
         let combine_fn = |left: &[KoalaBear; DIGEST_LEN_FE], right: &[KoalaBear; DIGEST_LEN_FE]| {
             symetric::compress(&perm, [*left, *right])
         };

@@ -8,6 +8,7 @@ use field::BasedVectorSpace;
 use field::ExtensionField;
 use field::Field;
 use field::PackedValue;
+use field::PrimeCharacteristicRing;
 use koala_bear::{KoalaBear, QuinticExtensionFieldKB, default_koalabear_poseidon1_16};
 use poly::*;
 
@@ -56,7 +57,12 @@ pub(crate) fn merkle_commit<F: Field, EF: ExtensionField<F>>(
 fn build_merkle_tree_koalabear(leaf: DenseMatrix<KoalaBear>) -> RoundMerkleTree<KoalaBear> {
     let perm = default_koalabear_poseidon1_16();
     let base_width = leaf.width;
-    let first_layer = first_digest_layer::<PFPacking<KoalaBear>, _, _, DIGEST_ELEMS, 16, 8>(&perm, &leaf, base_width);
+    let iv_first = KoalaBear::from_usize(base_width);
+    let scalar_state = symetric::precompute_zero_suffix_state::<KoalaBear, _, 16, 8, DIGEST_ELEMS>(&perm, iv_first, 0);
+    let packed_state: [PFPacking<KoalaBear>; 16] =
+        std::array::from_fn(|i| PFPacking::<KoalaBear>::from_fn(|_| scalar_state[i]));
+    let first_layer =
+        first_digest_layer::<PFPacking<KoalaBear>, _, _, DIGEST_ELEMS, 16, 8>(&perm, &leaf, &packed_state, base_width);
     let tree = symetric::merkle::MerkleTree::from_first_layer::<PFPacking<KoalaBear>, _, 16>(&perm, first_layer);
     WhirMerkleTree { leaf, tree }
 }
@@ -132,7 +138,7 @@ pub struct WhirMerkleTree<F, M, const DIGEST_ELEMS: usize> {
     pub(crate) tree: symetric::merkle::MerkleTree<F, DIGEST_ELEMS>,
 }
 
-impl<F: Clone + Copy + Default + Send + Sync, M: Matrix<F>, const DIGEST_ELEMS: usize>
+impl<F: field::PrimeCharacteristicRing + Send + Sync, M: Matrix<F>, const DIGEST_ELEMS: usize>
     WhirMerkleTree<F, M, DIGEST_ELEMS>
 {
     #[instrument(name = "build merkle tree", skip_all)]
@@ -141,7 +147,12 @@ impl<F: Clone + Copy + Default + Send + Sync, M: Matrix<F>, const DIGEST_ELEMS: 
         P: PackedValue<Value = F> + Default,
         Perm: Compression<[F; WIDTH]> + Compression<[P; WIDTH]>,
     {
-        let first_layer = first_digest_layer::<P, Perm, _, DIGEST_ELEMS, WIDTH, RATE>(perm, &leaf, leaf_base_width);
+        let iv_first = F::from_usize(leaf_base_width);
+        let scalar_state =
+            symetric::precompute_zero_suffix_state::<F, Perm, WIDTH, RATE, DIGEST_ELEMS>(perm, iv_first, 0);
+        let packed_state: [P; WIDTH] = std::array::from_fn(|i| P::from_fn(|_| scalar_state[i]));
+        let first_layer =
+            first_digest_layer::<P, Perm, _, DIGEST_ELEMS, WIDTH, RATE>(perm, &leaf, &packed_state, leaf_base_width);
         let tree = symetric::merkle::MerkleTree::from_first_layer::<P, Perm, WIDTH>(perm, first_layer);
         Self { leaf, tree }
     }
@@ -163,6 +174,7 @@ impl<F: Clone + Copy + Default + Send + Sync, M: Matrix<F>, const DIGEST_ELEMS: 
 fn first_digest_layer<P, Perm, M, const DIGEST_ELEMS: usize, const WIDTH: usize, const RATE: usize>(
     perm: &Perm,
     matrix: &M,
+    packed_initial_state: &[P; WIDTH],
     base_width: usize,
 ) -> Vec<[P::Value; DIGEST_ELEMS]>
 where
@@ -185,7 +197,11 @@ where
             let first_row = i * width;
             let iter = matrix.vertically_packed_row::<P>(first_row, base_width);
             let packed_digest: [P; DIGEST_ELEMS] =
-                symetric::hash_iter::<_, _, _, WIDTH, RATE, DIGEST_ELEMS>(perm, iter);
+                symetric::hash_iter_with_initial_state::<_, _, _, WIDTH, RATE, DIGEST_ELEMS>(
+                    perm,
+                    iter,
+                    packed_initial_state,
+                );
             for (dst, src) in digests_chunk.iter_mut().zip(unpack_array(packed_digest)) {
                 *dst = src;
             }

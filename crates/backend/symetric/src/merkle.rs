@@ -98,14 +98,20 @@ pub fn merkle_verify<F, Comp, const DIGEST_ELEMS: usize, const WIDTH: usize, con
     opening_proof: &[[F; DIGEST_ELEMS]],
 ) -> bool
 where
-    F: Default + Copy + PartialEq,
+    F: field::PrimeCharacteristicRing + PartialEq,
     Comp: Compression<[F; WIDTH]>,
 {
     if opening_proof.len() != log_height {
         return false;
     }
 
-    let mut root = crate::hash_iter::<_, _, _, WIDTH, RATE, DIGEST_ELEMS>(comp, opened_values.iter().copied());
+    let iv_first = F::from_usize(opened_values.len());
+    let initial_state = crate::precompute_zero_suffix_state::<F, Comp, WIDTH, RATE, DIGEST_ELEMS>(comp, iv_first, 0);
+    let mut root = crate::hash_iter_with_initial_state::<_, _, _, WIDTH, RATE, DIGEST_ELEMS>(
+        comp,
+        opened_values.iter().copied(),
+        &initial_state,
+    );
 
     for &sibling in opening_proof.iter() {
         let (left, right) = if index & 1 == 0 {
