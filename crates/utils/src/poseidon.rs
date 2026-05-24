@@ -38,34 +38,18 @@ pub fn poseidon8_compress_pair(left: &[Goldilocks; 4], right: &[Goldilocks; 4]) 
     poseidon8_compress(input)
 }
 
-/// If `use_iv` is false, the length of the slice must be constant (not malleable).
-pub fn poseidon_compress_slice(data: &[Goldilocks], use_iv: bool) -> [Goldilocks; 4] {
+/// Absorbs `data` in rate-mode chunks of 4, starting from the IV `[data.len(), 0, 0, 0]`.
+pub fn poseidon_compress_slice(data: &[Goldilocks]) -> [Goldilocks; 4] {
     assert!(!data.is_empty());
     // Goldilocks DIGEST_LEN = 4: input slice must align to one digest.
     assert!(data.len().is_multiple_of(4));
-    if use_iv {
-        let mut hash = [Goldilocks::default(); 4];
-        for chunk in data.chunks(4) {
-            let mut block = [Goldilocks::default(); 8];
-            block[..4].copy_from_slice(&hash);
-            block[4..4 + chunk.len()].copy_from_slice(chunk);
-            hash = poseidon8_compress(block);
-        }
-        hash
-    } else {
-        let len = data.len();
-        if len <= 8 {
-            let mut padded = [Goldilocks::default(); 8];
-            padded[..len].copy_from_slice(data);
-            return poseidon8_compress(padded);
-        }
-        let mut hash = poseidon8_compress(data[0..8].try_into().unwrap());
-        for chunk in data[8..].chunks(4) {
-            let mut block = [Goldilocks::default(); 8];
-            block[..4].copy_from_slice(&hash);
-            block[4..4 + chunk.len()].copy_from_slice(chunk);
-            hash = poseidon8_compress(block);
-        }
-        hash
+    let mut hash = [Goldilocks::default(); 4];
+    hash[0] = Goldilocks::from_usize(data.len());
+    for chunk in data.chunks(4) {
+        let mut block = [Goldilocks::default(); 8];
+        block[..4].copy_from_slice(&hash);
+        block[4..].copy_from_slice(chunk);
+        hash = poseidon8_compress(block);
     }
+    hash
 }
