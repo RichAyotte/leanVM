@@ -74,7 +74,7 @@ fn compile_main_program(program_log_size: usize, bytecode_zero_eval: F) -> Bytec
         entry: "main.py".to_string(),
         dir: &EMBEDDED_ZK_DSL,
     };
-    compile_program_with_flags(&source, CompilationFlags { replacements })
+    compile_program_with_flags(&source, CompilationFlags { replacements }, DIGEST_LEN)
 }
 
 #[instrument(skip_all)]
@@ -359,6 +359,16 @@ fn build_replacements(log_inner_bytecode: usize, bytecode_zero_eval: F) -> BTree
     replacements.insert(
         "N_AIR_CONSTRAINTS_PLACEHOLDER".to_string(),
         format!("[{}]", n_air_constraints.join(", ")),
+    );
+    let mut air_alpha_offsets = Vec::with_capacity(n_air_constraints.len());
+    let mut cumul: usize = 0;
+    for s in &n_air_constraints {
+        air_alpha_offsets.push(cumul.to_string());
+        cumul += s.parse::<usize>().unwrap();
+    }
+    replacements.insert(
+        "AIR_ALPHA_OFFSETS_PLACEHOLDER".to_string(),
+        format!("[{}]", air_alpha_offsets.join(", ")),
     );
     replacements.insert(
         "AIR_DEGREES_PLACEHOLDER".to_string(),

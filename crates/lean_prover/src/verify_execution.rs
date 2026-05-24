@@ -9,6 +9,7 @@ use utils::{ToUsize, from_end, get_poseidon16};
 #[derive(Debug, Clone)]
 pub struct ProofVerificationDetails {
     pub bytecode_evaluation: Evaluation<EF>,
+    pub sorted_table_perm: Vec<usize>,
 }
 
 pub fn verify_execution(
@@ -22,22 +23,24 @@ pub fn verify_execution(
             max_log_size: MAX_BYTECODE_LOG_SIZE,
         });
     }
+    if public_input.len() != bytecode.public_input_size {
+        return Err(ProofError::InvalidProof);
+    }
     let mut verifier_state = VerifierState::<EF, _>::new(proof, get_poseidon16().clone())?;
     verifier_state.observe_scalars(public_input);
-    verifier_state.observe_scalars(&poseidon16_compress_pair(&bytecode.hash, &SNARK_DOMAIN_SEP));
+    verifier_state.observe_scalars(&fiat_shamir_domain_sep(bytecode));
     let dims = verifier_state
-        .next_base_scalars_vec(3 + N_TABLES)?
+        .next_base_scalars_vec(2 + N_TABLES)?
         .into_iter()
         .map(|x| x.to_usize())
         .collect::<Vec<_>>();
     let log_inv_rate = dims[0];
     let log_memory = dims[1];
-    let public_input_len = dims[2]; // enforce the exact length of the public input to pass through Fiat Shamir (otherwise we could have 2 public inputs, only differing by a few (<8) zeros in the end, leading to the same fiat shamir state: tipically giving the advseary 2 or 3 bits of advantage in the subsequent part where the public input is evaluated as a multilinear polynomial)
-    if public_input_len != public_input.len() {
+    let table_n_vars: BTreeMap<Table, VarCount> = (0..N_TABLES).map(|i| (ALL_TABLES[i], dims[i + 2])).collect();
+    check_rate(log_inv_rate)?;
+    if log_memory < log2_strict_usize(bytecode.public_input_size) {
         return Err(ProofError::InvalidProof);
     }
-    let table_n_vars: BTreeMap<Table, VarCount> = (0..N_TABLES).map(|i| (ALL_TABLES[i], dims[i + 3])).collect();
-    check_rate(log_inv_rate)?;
     let whir_config = default_whir_config(log_inv_rate);
     for (table, &log_n_rows) in &table_n_vars {
         if log_n_rows < MIN_LOG_N_ROWS_PER_TABLE {
@@ -107,8 +110,6 @@ pub fn verify_execution(
     let air_alpha = verifier_state.sample();
     let air_alpha_powers: Vec<EF> = air_alpha.powers().collect_n(total_air_constraints());
 
-    let tables_sorted = sort_tables_by_height(&table_n_vars);
-
     struct TableVerifyData {
         table: Table,
         extra_data: ExtraDataForBuses<EF>,
@@ -117,10 +118,10 @@ pub fn verify_execution(
     let mut initial_sum = EF::ZERO;
     let mut alpha_offset = 0;
 
-    for (table, _) in &tables_sorted {
+    for table in ALL_TABLES {
         let n_constraints = table.n_constraints();
-        let bus_numerator_value = logup_statements.bus_numerators_values[table];
-        let bus_denominator_value = logup_statements.bus_denominators_values[table];
+        let bus_numerator_value = logup_statements.bus_numerators_values[&table];
+        let bus_denominator_value = logup_statements.bus_denominators_values[&table];
         let signed_numerator = bus_numerator_value
             * match table.bus_interactions()[0].direction {
                 BusDirection::Pull => EF::NEG_ONE,
@@ -131,16 +132,16 @@ pub fn verify_execution(
 
         let alpha_slice = air_alpha_powers[alpha_offset..alpha_offset + n_constraints].to_vec();
         verify_data.push(TableVerifyData {
-            table: *table,
+            table,
             extra_data: ExtraDataForBuses::new(logup_alphas_eq_poly.clone(), alpha_slice),
         });
 
         alpha_offset += n_constraints;
     }
 
-    let max_full_degree = tables_sorted.iter().map(|(t, _)| t.degree_air() + 1).max().unwrap();
+    let max_full_degree = ALL_TABLES.iter().map(|t| t.degree_air() + 1).max().unwrap();
 
-    let n_max = tables_sorted[0].1;
+    let n_max = *table_n_vars.values().max().unwrap();
     let Evaluation {
         point: sumcheck_air_point,
         value: claimed_air_final_value,
@@ -225,9 +226,14 @@ pub fn verify_execution(
         global_statements_base,
     )?;
 
+    let sorted_table_perm: Vec<usize> = sort_tables_by_height(&table_n_vars)
+        .into_iter()
+        .map(|(t, _)| t.index())
+        .collect();
     Ok((
         ProofVerificationDetails {
             bytecode_evaluation: logup_statements.bytecode_evaluation.unwrap(),
+            sorted_table_perm,
         },
         verifier_state.into_raw_proof(),
     ))
