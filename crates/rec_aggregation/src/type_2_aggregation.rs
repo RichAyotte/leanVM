@@ -1,14 +1,13 @@
 use backend::*;
 use lean_prover::ProverError;
-use lean_prover::SNARK_DOMAIN_SEP;
 use lean_prover::default_whir_config;
+use lean_prover::fiat_shamir_domain_sep;
 use lean_prover::prove_execution::ExecutionProof;
 use lean_prover::prove_execution::prove_execution;
 use lean_vm::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use utils::poseidon_compress_slice;
-use utils::poseidon8_compress_pair;
 
 use crate::InnerVerified;
 use crate::bytecode_claims::compute_bytecode_value_at;
@@ -79,8 +78,7 @@ fn build_type2_input_data(digests: &[[F; DIGEST_LEN]], bytecode_claim_flat: &[F]
     // data[2..DIGEST_LEN] stays zero (prefix-chunk pad).
 
     data[BYTECODE_CLAIM_OFFSET..][..bytecode_claim_flat.len()].copy_from_slice(bytecode_claim_flat);
-    let bytecode_hash = &get_aggregation_bytecode().hash;
-    let domsep = poseidon8_compress_pair(bytecode_hash, &SNARK_DOMAIN_SEP);
+    let domsep = fiat_shamir_domain_sep(get_aggregation_bytecode());
     data[domsep_offset..][..DIGEST_LEN].copy_from_slice(&domsep);
 
     for (i, d) in digests.iter().enumerate() {
@@ -123,6 +121,10 @@ pub fn merge_many_type_1(
         .iter()
         .map(|v| v.raw_proof.transcript.clone())
         .collect();
+    let table_sort_perm_blobs: Vec<Vec<F>> = verified_children
+        .iter()
+        .map(|v| v.sorted_table_perm.iter().map(|&i| F::from_usize(i)).collect())
+        .collect();
     let (merkle_leaf_blobs, merkle_path_blobs) =
         extract_merkle_hint_blobs(verified_children.iter().map(|v| &v.raw_proof));
 
@@ -142,6 +144,7 @@ pub fn merge_many_type_1(
             .collect(),
     );
     hints.insert("proof_transcript".to_string(), proof_transcript_blobs);
+    hints.insert("table_sort_perm".to_string(), table_sort_perm_blobs);
     hints.insert("merkle_leaf".to_string(), merkle_leaf_blobs);
     hints.insert("merkle_path".to_string(), merkle_path_blobs);
     hints.insert(
@@ -152,6 +155,7 @@ pub fn merge_many_type_1(
     let witness = ExecutionWitness {
         preamble_memory_len: PREAMBLE_MEMORY_LEN,
         hints,
+        min_table_log_n_rows: Default::default(),
     };
     let execution_proof = prove_execution(bytecode, &public_input_digest, &witness, &whir_config, false)?;
 
@@ -209,6 +213,11 @@ pub fn split_type_2(
 
     let reduced_claims = reduce_bytecode_claims(std::slice::from_ref(&outer_verified));
     let bytecode_value_hint_blob = flatten_scalars_to_base(&[outer_verified.bytecode_evaluation.value]);
+    let table_sort_perm_blob: Vec<F> = outer_verified
+        .sorted_table_perm
+        .iter()
+        .map(|&i| F::from_usize(i))
+        .collect();
 
     let mut outer_type_1 = type_2.info[index].clone();
     outer_type_1.bytecode_claim = reduced_claims.final_claim.clone();
@@ -238,6 +247,7 @@ pub fn split_type_2(
     hints.insert("bytecode_value_hint".to_string(), vec![bytecode_value_hint_blob]);
     hints.insert("proof_transcript_size".to_string(), vec![proof_transcript_size]);
     hints.insert("proof_transcript".to_string(), vec![proof_transcript]);
+    hints.insert("table_sort_perm".to_string(), vec![table_sort_perm_blob]);
     hints.insert("merkle_leaf".to_string(), merkle_leaf_blobs);
     hints.insert("merkle_path".to_string(), merkle_path_blobs);
     hints.insert(
@@ -248,6 +258,7 @@ pub fn split_type_2(
     let witness = ExecutionWitness {
         preamble_memory_len: PREAMBLE_MEMORY_LEN,
         hints,
+        min_table_log_n_rows: Default::default(),
     };
     let execution_proof = prove_execution(bytecode, &outer_digest, &witness, &whir_config, false)?;
 

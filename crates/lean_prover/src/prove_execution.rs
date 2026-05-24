@@ -27,6 +27,12 @@ pub fn prove_execution(
     check_rate(whir_config.starting_log_inv_rate)
         .map_err(|err| panic!("{err}"))
         .unwrap();
+    if public_input.len() != bytecode.public_input_size {
+        return Err(ProverError::InvalidPunlicInputSize {
+            expected: bytecode.public_input_size,
+            actual: public_input.len(),
+        });
+    }
     let ExecutionTrace {
         traces,
         public_memory_size,
@@ -35,7 +41,8 @@ pub fn prove_execution(
     } = info_span!("Witness generation").in_scope(|| -> Result<_, ProverError> {
         let execution_result = info_span!("Executing bytecode")
             .in_scope(|| try_execute_bytecode(bytecode, public_input, witness, vm_profiler))?;
-        Ok(info_span!("Building execution trace").in_scope(|| get_execution_trace(bytecode, execution_result)))
+        Ok(info_span!("Building execution trace")
+            .in_scope(|| get_execution_trace(bytecode, execution_result, &witness.min_table_log_n_rows)))
     })?;
 
     // Memory must be at least MIN_LOG_MEMORY_SIZE and at least bytecode size
@@ -46,14 +53,10 @@ pub fn prove_execution(
     }
     let mut prover_state = build_prover_state();
     prover_state.observe_scalars(public_input);
-    prover_state.observe_scalars(&poseidon8_compress_pair(&bytecode.hash, &SNARK_DOMAIN_SEP));
+    prover_state.observe_scalars(&fiat_shamir_domain_sep(bytecode));
     prover_state.add_base_scalars(
         &[
-            vec![
-                whir_config.starting_log_inv_rate,
-                log2_strict_usize(memory.len()),
-                public_input.len(),
-            ],
+            vec![whir_config.starting_log_inv_rate, log2_strict_usize(memory.len())],
             traces.values().map(|t| t.log_n_rows).collect::<Vec<_>>(),
         ]
         .concat()
@@ -158,11 +161,10 @@ pub fn prove_execution(
 
     let tables_log_heights: BTreeMap<Table, VarCount> =
         traces.iter().map(|(table, trace)| (*table, trace.log_n_rows)).collect();
-    let tables_sorted = sort_tables_by_height(&tables_log_heights);
 
-    let column_refs: Vec<Vec<&[F]>> = tables_sorted
+    let column_refs: Vec<Vec<&[F]>> = ALL_TABLES
         .iter()
-        .map(|(table, _)| {
+        .map(|table| {
             traces[table].columns[..table.n_columns()]
                 .iter()
                 .map(Vec::as_slice)
@@ -170,15 +172,16 @@ pub fn prove_execution(
         })
         .collect();
     let _span = info_span!("Computing shifted columns for AIR sumcheck").entered();
-    let shifted_rows: Vec<Vec<Vec<F>>> = tables_sorted
+    let shifted_rows: Vec<Vec<Vec<F>>> = ALL_TABLES
         .par_iter()
         .zip(&column_refs)
-        .map(|((table, _), cols)| compute_shifted_columns(table.n_shift_columns(), cols))
+        .map(|(table, cols)| compute_shifted_columns(table.n_shift_columns(), cols))
         .collect();
     std::mem::drop(_span);
-    let mut sessions = Vec::with_capacity(tables_sorted.len());
+    let mut sessions = Vec::with_capacity(ALL_TABLES.len());
     let mut alpha_offset = 0;
-    for (idx, (table, log_n_rows)) in tables_sorted.iter().enumerate() {
+    for (idx, table) in ALL_TABLES.iter().enumerate() {
+        let log_n_rows = tables_log_heights[table];
         let n_constraints = table.n_constraints();
         let bus_numerator_value = logup_statements.bus_numerators_values[table];
         let bus_denominator_value = logup_statements.bus_denominators_values[table];
@@ -193,7 +196,7 @@ pub fn prove_execution(
         let bus_final_value = air_alpha_powers[alpha_offset] * signed_numerator
             + air_alpha_powers[alpha_offset + 1] * (logup_c - bus_denominator_value);
 
-        let eq_suffix = from_end(gkr_point, *log_n_rows).to_vec();
+        let eq_suffix = from_end(gkr_point, log_n_rows).to_vec();
 
         let alpha_slice = air_alpha_powers[alpha_offset..alpha_offset + n_constraints].to_vec();
         let extra_data = ExtraDataForBuses::new(logup_alphas_eq_poly.clone(), alpha_slice);
@@ -217,7 +220,7 @@ pub fn prove_execution(
     let sumcheck_air_point =
         info_span!("batched AIR sumcheck").in_scope(|| prove_batched_air_sumcheck(&mut prover_state, &mut sessions));
 
-    for (idx, (table, _)) in tables_sorted.iter().enumerate() {
+    for (idx, table) in ALL_TABLES.iter().enumerate() {
         let col_evals = sessions[idx].final_column_evals();
         prover_state.add_extension_scalars(&col_evals);
 
