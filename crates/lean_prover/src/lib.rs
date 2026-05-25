@@ -37,11 +37,7 @@ pub const SNARK_DOMAIN_SEP: [F; 4] = F::new_array([
 ]);
 
 pub fn fiat_shamir_domain_sep(bytecode: &Bytecode) -> [F; 4] {
-    let mut block = [F::ZERO; 8];
-    block[..4].copy_from_slice(&SNARK_DOMAIN_SEP);
-    block[4] = F::from_usize(bytecode.public_input_size);
-    let extended = poseidon8_compress(block);
-    poseidon8_compress_pair(&bytecode.hash, &extended)
+    poseidon8_compress_pair(&bytecode.hash, &SNARK_DOMAIN_SEP)
 }
 
 pub fn default_whir_config(starting_log_inv_rate: usize) -> WhirConfigBuilder {
@@ -76,7 +72,7 @@ pub enum ProverError {
     Runner(RunnerError),
     UnknownMessage,
     MultipleMessages,
-    InvalidPunlicInputSize { expected: usize, actual: usize },
+    InvalidPublicInputSize { expected: usize, actual: usize },
 }
 
 impl From<TooBigTableError> for ProverError {
@@ -98,7 +94,7 @@ impl Display for ProverError {
             Self::Runner(e) => write!(f, "{}", e),
             Self::UnknownMessage => write!(f, "Unknown message, not part of the type2"),
             Self::MultipleMessages => write!(f, "Multiple common messages in the type2"),
-            Self::InvalidPunlicInputSize { expected, actual } => {
+            Self::InvalidPublicInputSize { expected, actual } => {
                 write!(f, "Invalid public input size: expected {}, actual {}", expected, actual)
             }
         }
