@@ -832,3 +832,4 @@ def log2_ceil_runtime(n):
         _, partial_sums_low = checked_decompose_bits(n)
         match_range(log2, range(2, 31), lambda i: _verify_log2_small(n, partial_sums_low, i))
     return log2
+

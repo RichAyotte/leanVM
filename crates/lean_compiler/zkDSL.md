@@ -14,7 +14,7 @@ def helper():                   # other functions (optional)
     ...
 ```
 
-The `from snark_lib import *` line imports Python definitions for zkDSL primitives (Array, DynArray, Mut, Const, etc.), allowing `.py` files to be executed as normal Python scripts for testing. The zkDSL compiler ignores this import line.
+The `from snark_lib import *` line imports Python definitions for zkDSL primitives (Array, Mut, Const, etc.), allowing `.py` files to be executed as normal Python scripts for testing. The zkDSL compiler ignores this import line.
 
 To run zkDSL files as Python scripts, run from the file's directory with PYTHONPATH pointing to the lean_compiler crate (for snark_lib.py):
 ```bash
@@ -197,65 +197,6 @@ arr[0] = 20               # ERROR: different value at same location
 
 Use `mut` variables when you need mutability, the compiler cannot handle mutability on hand-written allocated memory ("Array(...)").
 
-## DynArray (Compile-Time Dynamic Arrays)
-
-DynArrays are compile-time constructs for building dynamic arrays. Unlike `Array`, DynArrays track structure at compile time—each element gets its own memory slot.
-
-```
-v = DynArray([1, 2, 3])  # create dynamic array
-v.push(4)                # append element
-v.pop()                  # remove last element (does not return it)
-x = v[2]                 # access (index must be compile-time constant)
-n = len(v)               # get length
-```
-
-### Nested DynArrays
-
-```
-matrix = DynArray([DynArray([1, 2]), DynArray([3, 4, 5])])
-matrix[1].push(6)        # push to inner array
-matrix[0].pop()          # pop from inner array
-x = matrix[0][0]         # x = 1
-n = len(matrix[1])       # n = 4
-```
-
-### Building DynArrays in Loops
-
-Use `unroll` loops to build arrays dynamically:
-
-```
-v = DynArray([])
-for i in unroll(0, 5):
-    v.push(i * i)        # v = [0, 1, 4, 9, 16]
-```
-
-### Restrictions
-
-DynArrays are compile-time only. The compiler must know the exact structure at every point:
-
-1. **Indices must be compile-time constants** (literals or unroll loop variables)
-2. **Push/pop to outer-scope arrays forbidden** inside `if/else`, `match`, or non-unrolled loops
-3. **DynArrays cannot be passed to non-inlined functions**
-4. **Pop on empty array is a compile error**
-
-```
-# OK: local array in branch
-if cond == 1:
-    v = DynArray([1, 2])
-    v.push(3)
-
-# ERROR: push to outer-scope array in branch
-v = DynArray([1, 2])
-if cond == 1:
-    v.push(3)            # compile error
-
-# OK: same variable name in different branches
-if cond == 1:
-    v = DynArray([1])
-else:
-    v = DynArray([2, 3]) # different structure, but only one executes
-```
-
 ## Control Flow
 
 ### If/Else
@@ -339,8 +280,6 @@ for i in parallel_range(0, n):          # iterations executed in parallel (see b
     ...
 for i in unroll(0, 4):                  # unrolled at compile time
     ...
-for i in dynamic_unroll(5, a, n_bits):  # start=5 and n_bits compile-time; a runtime, with (a - start) < 2^n_bits
-    ...
 ```
 Use `unroll` when bounds are const or compile-time expansion is needed.
 
@@ -350,8 +289,6 @@ Use `unroll` when bounds are const or compile-time expansion is needed.
   external addresses that do not affect other iterations .
 - The memory footprint (i.e. total memory usage) must be the same across iterations
 - XMSS / Merkle hint consumption must be the same across iterations
-
-**`dynamic_unroll`** enables iterating from `start` to a runtime value `a` (where `a - start` is known to be < 2^n_bits) in an unrolled fashion. The compiler automatically generates bit decomposition of `a - start`, verification constraints, and conditional execution for each index. Both `start` and `n_bits` must be compile-time known.
 
 **Mutable variables in non-unrolled loops:** Mutable variables can be modified inside non-unrolled loops. The compiler automatically transforms these into buffer-based implementations:
 
@@ -460,13 +397,14 @@ n = data_buf[0]
 
 hints = prover-supplied values at runtime (without adding snark constraints). Like `hint_witness`, they are bare statements (no return value) — the caller allocates any destination memory and is responsible for constraining the written values.
 
-| Hint | Signature | Writes |
-|------|-----------|--------|
-| `hint_decompose_bits` | `(to_decompose, ptr, num_bits, endianness)` | `num_bits` field elements at `ptr` (the 0/1 bit decomposition of `to_decompose`); `endianness` is `0` for big-endian, `1` for little-endian |
-| `hint_less_than` | `(a, b, result_ptr)` | `1` at `result_ptr` if `a < b` else `0` |
-| `hint_log2_ceil` | `(n, result_ptr)` | `ceil(log2(n))` at `result_ptr` |
-| `hint_decompose_bits_xmss` | `(chunks_ptr, limbs_ptr, src_value)` | WOTS-encoding decomposition of one Goldilocks FE: 5 2W-bit chunks of the low 30 bits at `chunks_ptr[0..5]` (each chunk packs two consecutive chain steps as `step_a + CHAIN_LENGTH * step_b`) + 2 u16 limbs of the high 32 bits at `limbs_ptr[0..2]` (the top 2 bits of the low limb are implicit zeros — see `crates/lean_vm/src/isa/hint.rs`) |
-| `hint_decompose_bits_merkle_whir` | `(decomposed_ptr, remaining_ptr, value, chunk_size)` | Merkle/WHIR-specific decomposition |
+| Hint                              | Signature                                            | Writes                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hint_decompose_bits`             | `(to_decompose, ptr, num_bits, endianness)`          | `num_bits` field elements at `ptr` (the 0/1 bit decomposition of `to_decompose`); `endianness` is `0` for big-endian, `1` for little-endian                                                                                                                                                                                                                         |
+| `hint_less_than`                  | `(a, b, result_ptr)`                                 | `1` at `result_ptr` if `a < b` else `0`                                                                                                                                                                                                                                                                                                                             |
+| `hint_log2_ceil`                  | `(n, result_ptr)`                                    | `ceil(log2(n))` at `result_ptr`                                                                                                                                                                                                                                                                                                                                     |
+| `hint_div_floor`                  | `(a, b, q_ptr, r_ptr)`                               | `floor(a/b)` at `q_ptr` and `a mod b` at `r_ptr` (requires `b != 0`)                                                                                                                                                                                                                                                                                                |
+| `hint_decompose_bits_xmss`        | `(chunks_ptr, limbs_ptr, src_value)`                 | WOTS-encoding decomposition of one Goldilocks FE: 5 2W-bit chunks of the low 30 bits at `chunks_ptr[0..5]` (each chunk packs two consecutive chain steps as `step_a + CHAIN_LENGTH * step_b`) + 2 u16 limbs of the high 32 bits at `limbs_ptr[0..2]` (the top 2 bits of the low limb are implicit zeros — see `crates/lean_vm/src/isa/hint.rs`)                      |
+| `hint_decompose_bits_merkle_whir` | `(decomposed_ptr, remaining_ptr, value, chunk_size)` | Merkle/WHIR-specific decomposition                                                                                                                                                                                                                                                                                                                                  |
 
 Hints only *suggest* a value; the guest must add appropriate constraints to bind that value to its specification.
 
@@ -583,11 +521,11 @@ result = function_call(
     arg3
 )
 
-arr = DynArray([
+ARR = [
     1,
     2,
-    3
-])
+    3,
+]
 ```
 
 ### Explicit continuation with backslash
