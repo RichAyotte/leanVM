@@ -100,7 +100,7 @@ fn test_run_whir() {
         ));
     }
 
-    let mut prover_state = ProverState::new(poseidon8);
+    let mut prover_state = ProverState::new(poseidon8, Default::default());
 
     precompute_dft_twiddles::<F>(1 << 24);
 
@@ -123,7 +123,7 @@ fn test_run_whir() {
 
     let proof_size_single = pruned_proof.proof_size_fe() as f64 * F::bits() as f64 / 8.0;
 
-    let mut verifier_state = VerifierState::<EF, _>::new(pruned_proof, poseidon8).unwrap();
+    let mut verifier_state = VerifierState::<EF, _>::new(pruned_proof, poseidon8, Default::default()).unwrap();
 
     let parsed_commitment = params.parse_commitment::<F>(&mut verifier_state).unwrap();
 

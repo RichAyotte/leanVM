@@ -26,9 +26,8 @@ pub fn verify_execution(
     if public_input.len() != PUBLIC_INPUT_LEN {
         return Err(ProofError::InvalidProof);
     }
-    let mut verifier_state = VerifierState::<EF, _>::new(proof, *get_poseidon8())?;
+    let mut verifier_state = VerifierState::<EF, _>::new(proof, *get_poseidon8(), fiat_shamir_domain_sep(bytecode))?;
     verifier_state.observe_scalars(public_input);
-    verifier_state.observe_scalars(&fiat_shamir_domain_sep(bytecode));
     let dims = verifier_state
         .next_base_scalars_vec(2 + N_TABLES)?
         .into_iter()

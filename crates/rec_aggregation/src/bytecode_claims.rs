@@ -1,6 +1,7 @@
 use backend::*;
+use lean_prover::fiat_shamir_domain_sep;
 use lean_vm::*;
-use utils::{build_prover_state, get_poseidon8, poseidon_compress_slice, poseidon8_compress_pair};
+use utils::{get_poseidon8, poseidon_compress_slice, poseidon8_compress_pair};
 
 use crate::compilation::BYTECODE_CLAIM_OFFSET;
 use crate::{InnerVerified, get_aggregation_bytecode};
@@ -54,7 +55,9 @@ pub(crate) fn reduce_bytecode_claims(verified: &[InnerVerified]) -> ReducedBytec
     }
     let claims_hash = hash_bytecode_claims(&claims);
 
-    let mut reduction_prover = build_prover_state();
+    let mut reduction_capacity = fiat_shamir_domain_sep(bytecode);
+    reduction_capacity[0] += F::ONE; // Domain-separate this sub-protocol's Fiat-Shamir from the main snark
+    let mut reduction_prover = ProverState::new(*get_poseidon8(), reduction_capacity);
     reduction_prover.add_base_scalars(&claims_hash);
     let alpha: EF = reduction_prover.sample();
 
@@ -87,7 +90,8 @@ pub(crate) fn reduce_bytecode_claims(verified: &[InnerVerified]) -> ReducedBytec
     assert_eq!(bytecode_claim_output.len(), bytecode.bytecode_claim_size());
 
     let sumcheck_transcript = {
-        let mut vs = VerifierState::<EF, _>::new(reduction_prover.into_proof(), *get_poseidon8()).unwrap();
+        let mut vs =
+            VerifierState::<EF, _>::new(reduction_prover.into_proof(), *get_poseidon8(), reduction_capacity).unwrap();
         vs.next_base_scalars_vec(claims_hash.len()).unwrap();
         let _: EF = vs.sample();
         sumcheck_verify(&mut vs, bytecode.cumulated_n_vars(), 2, claimed_sum, None).unwrap();

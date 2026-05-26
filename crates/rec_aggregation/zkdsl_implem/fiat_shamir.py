@@ -11,9 +11,11 @@ from utils import *
 # This matches the natural-ordering poseidon permute precompile output [cap | rate].
 
 
-def fs_new(transcript_ptr):
+@inline
+def fs_new(transcript_ptr, initial_capacity):
     fs = Array(9)
-    set_to_8_zeros(fs)
+    copy_digest(fs, initial_capacity)
+    zero_digest(fs + 4)
     fs[8] = transcript_ptr
     return fs
 
