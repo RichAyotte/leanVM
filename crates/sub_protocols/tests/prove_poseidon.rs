@@ -2,10 +2,9 @@ use std::time::Instant;
 
 use backend::*;
 use lean_vm::{
-    EF, ExtraDataForBuses, F, HALF_DIGEST_LEN, POSEIDON_8_COL_EFFECTIVE_INDEX_LEFT_FIRST,
-    POSEIDON_8_COL_EFFECTIVE_INDEX_LEFT_SECOND, POSEIDON_8_COL_INPUT_START, POSEIDON_8_COL_MULTIPLICITY,
-    POSEIDON_8_COL_OUTPUT_LEFT, POSEIDON_8_COL_ROUND_START, Poseidon8Precompile, compute_poseidon8_witness,
-    fill_trace_poseidon_8, num_cols_poseidon_8,
+    EF, ExtraDataForBuses, F, HALF_DIGEST_LEN, POSEIDON_8_COL_ADDR_LEFT_HI, POSEIDON_8_COL_ADDR_LEFT_LO,
+    POSEIDON_8_COL_INPUT_START, POSEIDON_8_COL_MULTIPLICITY, POSEIDON_8_COL_OUT_LO, POSEIDON_8_COL_ROUND_START,
+    Poseidon8Precompile, compute_poseidon8_witness, fill_trace_poseidon_8, num_cols_poseidon_8,
 };
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 use sub_protocols::{
@@ -34,8 +33,8 @@ fn prove_air_poseidon_8(log_n_rows: usize) {
         *t = (0..n_rows).map(|_| rng.random()).collect();
     }
     trace[POSEIDON_8_COL_MULTIPLICITY] = vec![F::ONE; n_rows];
-    trace[POSEIDON_8_COL_EFFECTIVE_INDEX_LEFT_FIRST] = vec![F::ZERO; n_rows];
-    trace[POSEIDON_8_COL_EFFECTIVE_INDEX_LEFT_SECOND] = vec![F::from_usize(HALF_DIGEST_LEN); n_rows];
+    trace[POSEIDON_8_COL_ADDR_LEFT_LO] = vec![F::ZERO; n_rows];
+    trace[POSEIDON_8_COL_ADDR_LEFT_HI] = vec![F::from_usize(HALF_DIGEST_LEN); n_rows];
 
     // Fill the per-round witness columns + outputs from the inputs.
     // The AIR's transition constraints require a consistent Poseidon1 permutation
@@ -44,10 +43,10 @@ fn prove_air_poseidon_8(log_n_rows: usize) {
     for row in 0..n_rows {
         let input: [F; WIDTH] = std::array::from_fn(|i| trace[POSEIDON_8_COL_INPUT_START + i][row]);
         let (aux, perm_state) = compute_poseidon8_witness(input);
-        // Compression rows (flag_permute = 0): `outputs_left` holds the Davies-Meyer
-        // output; `outputs_right` is left zero (AIR-unconstrained for compression).
+        // Compression rows (flag_permute = 0): `out_lo` holds the Davies-Meyer
+        // output; `out_hi` is left zero (AIR-unconstrained for compression).
         for i in 0..WIDTH / 2 {
-            trace[POSEIDON_8_COL_OUTPUT_LEFT + i][row] = perm_state[i] + input[i];
+            trace[POSEIDON_8_COL_OUT_LO + i][row] = perm_state[i] + input[i];
         }
         for (i, v) in aux.iter().enumerate() {
             trace[POSEIDON_8_COL_ROUND_START + i][row] = *v;

@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::{default_whir_config, prove_execution::prove_execution, verify_execution::verify_execution};
 use backend::*;
 use lean_compiler::*;
@@ -5,15 +7,17 @@ use lean_vm::*;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 use utils::{init_tracing, poseidon8_compress, poseidon8_permute};
 
-#[test]
-fn test_zk_vm_all_precompiles() {
-    let program_str = r#"
+const N: usize = 11;
+const M: usize = 3;
+
+const ALL_PRECOMPILES_PROGRAM: &str = r#"
 DIM = 3
 N = 11
 M = 3
 DIGEST_LEN = 4
 HALF_DIGEST_LEN = 2
 SCRATCH_SIZE = 8192
+LOOP_ITERS = LOOP_ITERS_PLACEHOLDER
 
 def main():
     scratch = Array(SCRATCH_SIZE)
@@ -80,16 +84,20 @@ def main():
     poly_eq_ee(ext_a_ptr, ext_b_ptr, scratch + 1300, N)
 
     c: Mut = 0
-    for i in range(0,100):
+    for i in range(0, LOOP_ITERS):
         c += 1
-    assert c == 100
+    assert c == LOOP_ITERS
 
     return
 "#;
 
-    const N: usize = 11;
-    const M: usize = 3;
+fn all_precompiles_flags(loop_iters: usize) -> CompilationFlags {
+    CompilationFlags {
+        replacements: BTreeMap::from([("LOOP_ITERS_PLACEHOLDER".to_string(), loop_iters.to_string())]),
+    }
+}
 
+fn all_precompiles_witness() -> (Vec<F>, ExecutionWitness) {
     let mut rng = StdRng::seed_from_u64(0);
     let mut scratch = F::zero_vec(8192);
 
@@ -185,7 +193,18 @@ def main():
         hints,
         ..Default::default()
     };
-    test_zk_vm_helper_with_witness(program_str, &public_input, witness);
+    (public_input, witness)
+}
+
+#[test]
+fn test_zk_vm_all_precompiles() {
+    let (public_input, witness) = all_precompiles_witness();
+    test_zk_vm_helper_with_witness(
+        ALL_PRECOMPILES_PROGRAM,
+        &public_input,
+        witness,
+        all_precompiles_flags(100),
+    );
 }
 
 #[test]
@@ -235,18 +254,34 @@ def fibonacci_const(a, b, n: Const):
         buff[j] = buff[j - 1] + buff[j - 2]
     return buff[n], buff[n + 1]
 "#;
-    let program_str = program_str.replace("FIB_N_PLACEHOLDER", &n.to_string());
-
-    test_zk_vm_helper(&program_str, &[F::ZERO; PUBLIC_INPUT_LEN]);
+    let flags = CompilationFlags {
+        replacements: [("FIB_N_PLACEHOLDER".to_string(), n.to_string())].into_iter().collect(),
+    };
+    test_zk_vm_helper_with_witness(
+        program_str,
+        &[F::ZERO; PUBLIC_INPUT_LEN],
+        ExecutionWitness::default(),
+        flags,
+    );
 }
 
 fn test_zk_vm_helper(program_str: &str, public_input: &[F]) {
-    test_zk_vm_helper_with_witness(program_str, public_input, ExecutionWitness::default())
+    test_zk_vm_helper_with_witness(
+        program_str,
+        public_input,
+        ExecutionWitness::default(),
+        CompilationFlags::default(),
+    )
 }
 
-fn test_zk_vm_helper_with_witness(program_str: &str, public_input: &[F], witness: ExecutionWitness) {
+fn test_zk_vm_helper_with_witness(
+    program_str: &str,
+    public_input: &[F],
+    witness: ExecutionWitness,
+    flags: CompilationFlags,
+) {
     utils::init_tracing();
-    let bytecode = compile_program(&ProgramSource::Raw(program_str.to_string()));
+    let bytecode = compile_program_with_flags(&ProgramSource::Raw(program_str.to_string()), flags);
     let time = std::time::Instant::now();
     let starting_log_inv_rate = 1;
     let proof = prove_execution(
