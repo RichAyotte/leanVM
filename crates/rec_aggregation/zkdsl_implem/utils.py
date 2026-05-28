@@ -42,7 +42,7 @@ def powers(alpha, n):
     assert n < 512
     assert 0 < n
     # 2**log2_ceil(i) is not really necessary but helps reduce byetcode size (traedoff cycles / bytecode size)
-    res = match_range(n, range(1, 512), lambda i: powers_const(alpha, 2**log2_ceil(i)))
+    res = match_range(n, range(1, 512), lambda i: powers_const(alpha, 2 ** log2_ceil(i)))
     return res
 
 
@@ -73,6 +73,7 @@ def product_first_n(values, n):
     debug_assert(n < 33)
     res = match_range(n, range(0, 1), lambda _: ONE_EF_PTR, range(1, 33), lambda i: product_first_n_const(values, i))
     return res
+
 
 @inline
 def product_first_n_const(values, n):
@@ -131,6 +132,20 @@ def poly_eq_base_extension(a, b, n):
     return res
 
 
+def poly_eq_base_extension_or_one(a, b, n):
+    # Like poly_eq_base_extension, but returns the identity (the extension element 1)
+    # when n == 0, i.e. the empty product, instead of failing the match_range dispatch.
+    debug_assert(n < 33)
+    res = match_range(
+        n,
+        range(0, 1),
+        lambda _: ONE_EF_PTR,
+        range(1, 33),
+        lambda i: poly_eq_base_extension(a, b, i),
+    )
+    return res
+
+
 @inline
 def expand_from_univariate_base(alpha, n):
     debug_assert(n < 33)
@@ -151,9 +166,16 @@ def expand_from_univariate_base_const(alpha, n: Const):
 
 
 def expand_from_univariate_ext(alpha, n):
+    debug_assert(0 < n)
+    debug_assert(n < 31)
+    res = match_range(n, range(1, 31), lambda nv: expand_from_univariate_ext_const(alpha, nv))
+    return res
+
+
+def expand_from_univariate_ext_const(alpha, n: Const):
     res = Array(n * DIM)
     copy_5(alpha, res)
-    for i in range(0, n - 1):
+    for i in unroll(0, n - 1):
         mul_extension(res + i * DIM, res + i * DIM, res + (i + 1) * DIM)
     return res
 
@@ -191,10 +213,12 @@ def dot_product_be_dynamic(a, b, res, n):
     match_range(n, range(1, 400), lambda i: dot_product_be(a, b, res, i))
     return
 
+
 def dot_product_ee_dynamic(a, b, res, n):
     debug_assert(n < 400)
     match_range(n, range(1, 400), lambda i: dot_product_ee(a, b, res, i))
     return
+
 
 def mle_of_01234567_etc(point, n):
     if n == 0:
@@ -212,7 +236,7 @@ def mle_of_01234567_etc(point, n):
 
 @inline
 def checked_less_than(a, b):
-    res: Imu
+    res: Imm
     hint_less_than(a, b, res)
     assert res * (1 - res) == 0
     if res == 1:
@@ -225,7 +249,7 @@ def checked_less_than(a, b):
 @inline
 def maximum(a, b):
     is_a_less_than_b = checked_less_than(a, b)
-    res: Imu
+    res: Imm
     if is_a_less_than_b == 1:
         res = b
     else:
@@ -303,6 +327,7 @@ def div_extension_ret(n, d):
     div_extension(n, d, quotient)
     return quotient
 
+
 @inline
 def div_extension(n, d, res):
     dot_product_ee(d, res, n)
@@ -360,6 +385,7 @@ def set_to_5_zeros(a):
     dot_product_ee(a, ONE_EF_PTR, zero_ptr)
     return
 
+
 @inline
 def set_to_6_zeros(a):
     zero_ptr = ZERO_VEC_PTR
@@ -367,11 +393,13 @@ def set_to_6_zeros(a):
     a[5] = 0
     return
 
+
 @inline
 def copy_6(a, b):
     dot_product_ee(a, ONE_EF_PTR, b)
     a[5] = b[5]
     return
+
 
 @inline
 def set_to_7_zeros(a):
@@ -399,9 +427,12 @@ def set_to_9_zeros(a):
 
 
 @inline
-def copy_8(a, b):
-    dot_product_ee(a, ONE_EF_PTR, b)
-    dot_product_ee(a + (8 - DIM), ONE_EF_PTR, b + (8 - DIM))
+def set_to_16_zeros(a):
+    zero_ptr = ZERO_VEC_PTR
+    dot_product_ee(a, ONE_EF_PTR, zero_ptr)
+    dot_product_ee(a + 5, ONE_EF_PTR, zero_ptr)
+    dot_product_ee(a + 10, ONE_EF_PTR, zero_ptr)
+    a[15] = 0
     return
 
 
@@ -435,6 +466,14 @@ def copy_16(a, b):
     dot_product_ee(a + 10, ONE_EF_PTR, b + 10)
     a[15] = b[15]
     return
+
+
+@inline
+def copy_8(a, b):
+    dot_product_ee(a, ONE_EF_PTR, b)
+    dot_product_ee(a + (8 - DIM), ONE_EF_PTR, b + (8 - DIM))
+    return
+
 
 @inline
 def copy_32(a, b):
@@ -514,20 +553,21 @@ def sum_2_ef_fractions(a_num, a_den, b_num, b_den):
 # -   1111111    | 00...00
 # - not(1111111) | xx...xx
 def checked_decompose_bits(a):
-    # return a pointer to the 31 bits of a
-    # .. and the first 24 partial sums of these bits
+    # return a pointer to the 31 bits of a (big-endian: bits[0] = MSB, bits[F_BITS-1] = LSB)
+    # .. and the first 24 partial sums of these bits, where partial_sums_24[k] is the
+    # value of the lowest k+1 bits of a.
     bits = Array(F_BITS)
-    hint_decompose_bits(a, bits, F_BITS, LITTLE_ENDIAN)
+    hint_decompose_bits(a, bits, F_BITS)
 
     for i in unroll(0, F_BITS):
         assert bits[i] * (1 - bits[i]) == 0
     partial_sums_24 = Array(24)
-    partial_sums_24[0] = bits[0]
+    partial_sums_24[0] = bits[F_BITS - 1]
     for i in unroll(1, 24):
-        partial_sums_24[i] = partial_sums_24[i - 1] + bits[i] * 2**i
-    sum_7: Mut = bits[24]
+        partial_sums_24[i] = partial_sums_24[i - 1] + bits[F_BITS - 1 - i] * 2**i
+    sum_7: Mut = bits[F_BITS - 1 - 24]
     for i in unroll(1, 7):
-        sum_7 += bits[24 + i] * 2**i
+        sum_7 += bits[F_BITS - 1 - (24 + i)] * 2**i
     if sum_7 == 127:
         assert partial_sums_24[23] == 0
 
@@ -560,25 +600,26 @@ def whir_1_merkle_step_and_pow(v, state_in, path_chunk, state_out, power_shift):
 
 
 @inline
-def decompose_and_verify_merkle_query(a, domain_size, prev_root, num_chunks):
+def decompose_and_verify_merkle_query(a, domain_size, prev_root, num_chunks, leaf_iv):
     nibbles = Array(6)
-    top7: Imu
-    hint_decompose_bits_merkle_whir(nibbles, top7, a, 4)
+    hint_decompose_bits_merkle_whir(nibbles, a, 4)
 
     for i in unroll(0, 6):
         assert nibbles[i] < 16
-    assert top7 < 2**7
 
     partial_sum: Mut = nibbles[0]
     for i in unroll(1, 6):
         partial_sum += nibbles[i] * 16**i
+    # top7 = (a - partial_sum) * inv(2^24) = (partial_sum - a) * 127  (inv(2^24) = -127 mod p)
+    top7 = (partial_sum - a) * 127
+    assert top7 < 2**7
     if top7 == 2**7 - 1:
         assert partial_sum == 0
     assert partial_sum + top7 * 2**24 == a
 
     leaf_data = Array(num_chunks * DIGEST_LEN)
     hint_witness("merkle_leaf", leaf_data)
-    leaf_hash = slice_hash_rtl(leaf_data, num_chunks)
+    leaf_hash = slice_hash_rtl(leaf_data, num_chunks, leaf_iv)
 
     merkle_path = Array(domain_size * DIGEST_LEN)
     hint_witness("merkle_path", merkle_path)
@@ -650,7 +691,7 @@ def decompose_and_verify_merkle_query(a, domain_size, prev_root, num_chunks):
 
 def checked_decompose_bits_small_value_const(to_decompose, n_bits: Const):
     bits = Array(n_bits)
-    hint_decompose_bits(to_decompose, bits, n_bits, BIG_ENDIAN)
+    hint_decompose_bits(to_decompose, bits, n_bits)
     sum: Mut = bits[n_bits - 1]
     assert sum * (1 - sum) == 0
     for i in unroll(1, n_bits):
@@ -710,7 +751,7 @@ def mle_of_zeros_then_ones(point, n_zeros, n_vars):
 
     for i in range(0, n_vars):
         p = point + (n_vars - 1 - i) * DIM
-        if bits[i] == 0:
+        if bits[F_BITS - 1 - i] == 0:
             one_minus_p = one_minus_self_extension_ret(p)
             tmp = mul_extension_ret(one_minus_p, res)
             res = add_extension_ret(tmp, p)
@@ -739,11 +780,13 @@ def embed_in_ef(f):
         res[i] = 0
     return res
 
+
 def next_mle(x, y, n):
     debug_assert(n < 32)
     debug_assert(n != 0)
     res = match_range(n, range(1, 32), lambda i: next_mle_const(x, y, i))
     return res
+
 
 def next_mle_const(x, y, n: Const):
     # x and y are pointers to n elements of extension field
@@ -805,10 +848,17 @@ def _verify_log2_large(n, log2: Const):
 
 def log2_ceil_runtime(n):
     # requires: 2 < n <= 2^30
-    log2: Imu
+    log2: Imm
     hint_log2_ceil(n, log2)
     assert log2 < 31
     if two_exp(log2) != n:
         _, partial_sums_24 = checked_decompose_bits(n)
-        match_range(log2, range(2, 24), lambda i: _verify_log2_small(n, partial_sums_24, i), range(24, 31), lambda i: _verify_log2_large(n, i))
+        match_range(
+            log2,
+            range(2, 24),
+            lambda i: _verify_log2_small(n, partial_sums_24, i),
+            range(24, 31),
+            lambda i: _verify_log2_large(n, i),
+        )
     return log2
+

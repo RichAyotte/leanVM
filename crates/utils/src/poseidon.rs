@@ -31,6 +31,11 @@ pub fn poseidon16_compress(input: [KoalaBear; 16]) -> [KoalaBear; 8] {
     get_poseidon16().compress(input)[0..8].try_into().unwrap()
 }
 
+#[inline(always)]
+pub fn poseidon16_permute(input: [KoalaBear; 16]) -> [KoalaBear; 16] {
+    get_poseidon16().permute(input)
+}
+
 pub fn poseidon16_compress_pair(left: &[KoalaBear; 8], right: &[KoalaBear; 8]) -> [KoalaBear; 8] {
     let mut input = [KoalaBear::default(); 16];
     input[..8].copy_from_slice(left);
@@ -75,32 +80,32 @@ pub fn poseidon24_compress_0_9_pair(left: [KoalaBear; 9], right: [KoalaBear; 15]
     poseidon24_compress_0_9(input)
 }
 
-/// If `use_iv` is false, the length of the slice must be constant (not malleable).
-pub fn poseidon_compress_slice(data: &[KoalaBear], use_iv: bool) -> [KoalaBear; 8] {
+/// Absorbs `data` in rate-mode chunks of 8, starting from the IV `[data.len(), 0, ..., 0]`.
+pub fn poseidon_compress_slice(data: &[KoalaBear]) -> [KoalaBear; 8] {
     assert!(!data.is_empty());
-    if use_iv {
-        let mut hash = [KoalaBear::default(); 8];
-        for chunk in data.chunks(8) {
-            let mut block = [KoalaBear::default(); 16];
-            block[..8].copy_from_slice(&hash);
-            block[8..8 + chunk.len()].copy_from_slice(chunk);
-            hash = poseidon16_compress(block);
-        }
-        hash
-    } else {
-        let len = data.len();
-        if len <= 16 {
-            let mut padded = [KoalaBear::default(); 16];
-            padded[..len].copy_from_slice(data);
-            return poseidon16_compress(padded);
-        }
-        let mut hash = poseidon16_compress(data[0..16].try_into().unwrap());
-        for chunk in data[16..].chunks(8) {
-            let mut block = [KoalaBear::default(); 16];
-            block[..8].copy_from_slice(&hash);
-            block[8..8 + chunk.len()].copy_from_slice(chunk);
-            hash = poseidon16_compress(block);
-        }
-        hash
+    assert!(data.len().is_multiple_of(8));
+    let mut hash = [KoalaBear::default(); 8];
+    hash[0] = KoalaBear::from_usize(data.len());
+    for chunk in data.chunks(8) {
+        let mut block = [KoalaBear::default(); 16];
+        block[..8].copy_from_slice(&hash);
+        block[8..].copy_from_slice(chunk);
+        hash = poseidon16_compress(block);
     }
+    hash
+}
+
+/// Sponge hash starting from the all-zero IV (capacity), absorbing `data` in rate-mode
+/// chunks of 8; the final partial chunk (if any) is zero-padded. Handles arbitrary length
+/// (no 8-alignment requirement). Matches the zkDSL `slice_hash_with_iv_dynamic_unroll`.
+pub fn poseidon_compress_slice_zero_iv(data: &[KoalaBear]) -> [KoalaBear; 8] {
+    assert!(!data.is_empty());
+    let mut hash = [KoalaBear::default(); 8];
+    for chunk in data.chunks(8) {
+        let mut block = [KoalaBear::default(); 16];
+        block[..8].copy_from_slice(&hash);
+        block[8..8 + chunk.len()].copy_from_slice(chunk);
+        hash = poseidon16_compress(block);
+    }
+    hash
 }

@@ -4,7 +4,7 @@ use std::fmt::Display;
 
 use backend::*;
 use lean_vm::{
-    EF, F, MAX_WHIR_LOG_INV_RATE, MIN_LOG_N_ROWS_PER_TABLE, MIN_WHIR_LOG_INV_RATE, RunnerError, Table, TableT,
+    Bytecode, EF, F, MAX_WHIR_LOG_INV_RATE, MIN_LOG_N_ROWS_PER_TABLE, MIN_WHIR_LOG_INV_RATE, RunnerError, Table, TableT,
 };
 use utils::*;
 
@@ -30,6 +30,10 @@ pub const RS_DOMAIN_INITIAL_REDUCTION_FACTOR: usize = 5;
 pub const SNARK_DOMAIN_SEP: [F; 8] = F::new_array([
     1046873597, 587403661, 1441000407, 1547181303, 1522249642, 1883305763, 367566943, 2033638717,
 ]);
+
+pub fn fiat_shamir_domain_sep(bytecode: &Bytecode) -> [F; 8] {
+    poseidon16_compress_pair(&bytecode.hash, &SNARK_DOMAIN_SEP)
+}
 
 pub fn default_whir_config(starting_log_inv_rate: usize) -> WhirConfigBuilder {
     assert!(0 < starting_log_inv_rate);
@@ -63,6 +67,17 @@ pub enum ProverError {
     Runner(RunnerError),
     UnknownMessage,
     MultipleMessages,
+    InvalidRate,
+    InvalidChildProof(ProofError),
+    InvalidSplitIndex {
+        index: usize,
+        n_components: usize,
+    },
+    LimitExceeded {
+        what: &'static str,
+        actual: usize,
+        max: usize,
+    },
 }
 
 impl From<TooBigTableError> for ProverError {
@@ -77,6 +92,12 @@ impl From<RunnerError> for ProverError {
     }
 }
 
+impl From<ProofError> for ProverError {
+    fn from(err: ProofError) -> Self {
+        Self::InvalidChildProof(err)
+    }
+}
+
 impl Display for ProverError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -84,6 +105,17 @@ impl Display for ProverError {
             Self::Runner(e) => write!(f, "{}", e),
             Self::UnknownMessage => write!(f, "Unknown message, not part of the type2"),
             Self::MultipleMessages => write!(f, "Multiple common messages in the type2"),
+            Self::InvalidRate => write!(
+                f,
+                "LeanVM supports rate 1/2, 1/4, 1/8 and 1/16 (log_inv_rate in {{1, 2, 3, 4}})"
+            ),
+            Self::InvalidChildProof(e) => write!(f, "Invalid child proof: {}", e),
+            Self::InvalidSplitIndex { index, n_components } => {
+                write!(f, "Invalid split index {index} for {n_components} components")
+            }
+            Self::LimitExceeded { what, actual, max } => {
+                write!(f, "Too many {}: {} (max {})", what, actual, max)
+            }
         }
     }
 }

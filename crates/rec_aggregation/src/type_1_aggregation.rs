@@ -1,6 +1,6 @@
 use backend::*;
 use lean_prover::ProverError;
-use lean_prover::SNARK_DOMAIN_SEP;
+use lean_prover::fiat_shamir_domain_sep;
 use lean_prover::prove_execution::{ExecutionProof, prove_execution};
 use lean_vm::*;
 use leansig_wrapper::{
@@ -9,10 +9,10 @@ use leansig_wrapper::{
     xmss_encode_message, xmss_merkle_path, xmss_randomness,
 };
 use tracing::instrument;
-use utils::{poseidon_compress_slice, poseidon16_compress_pair};
+use utils::{poseidon_compress_slice, poseidon_compress_slice_zero_iv};
 
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::InnerVerified;
 use crate::bytecode_claims::evaluation_for_bytecode_point;
@@ -32,8 +32,6 @@ pub(crate) const N_TWEAKS: usize = 1 + V * CHAIN_LENGTH + 1 + LOG_LIFETIME;
 /// All tweaks are stored as a 4-FE slot [tw[0], tw[1], 0, 0].
 pub(crate) const TWEAK_SLOT_SIZE: usize = 4;
 pub(crate) const TWEAK_TABLE_SIZE_FE_PADDED: usize = (N_TWEAKS * TWEAK_SLOT_SIZE).next_multiple_of(DIGEST_LEN);
-
-pub(crate) const TWEAKS_HASHING_USE_IV: bool = false; // fixed size → no IV needed
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub(crate) struct Digest(pub [F; DIGEST_LEN]);
@@ -68,6 +66,19 @@ impl<'de> Deserialize<'de> for TypeOneInfo {
             pubkeys,
         })
     }
+}
+
+pub(crate) fn check_type_one_pubkeys(pubkeys: &[XmssPublicKey]) -> Result<(), &'static str> {
+    if pubkeys.is_empty() {
+        return Err("pubkeys must be non-empty");
+    }
+    if pubkeys.len() > MAX_XMSS_AGGREGATED {
+        return Err("too many pubkeys (exceeds MAX_XMSS_AGGREGATED)");
+    }
+    if !pubkeys.windows(2).all(|w| w[0] < w[1]) {
+        return Err("pubkeys must be strictly sorted (no duplicates)");
+    }
+    Ok(())
 }
 
 impl TypeOneMultiSignature {
@@ -147,7 +158,7 @@ impl TypeOneInfo {
 
     pub(crate) fn build_input_data(&self) -> Vec<F> {
         let tweak_table = compute_tweak_table(self.without_pubkeys.slot);
-        let tweaks_hash = poseidon_compress_slice(&tweak_table, TWEAKS_HASHING_USE_IV);
+        let tweaks_hash = poseidon_compress_slice(&tweak_table);
         build_type1_input_data(
             self.pubkeys.len(),
             &hash_pubkeys(&self.pubkeys),
@@ -155,7 +166,7 @@ impl TypeOneInfo {
             self.without_pubkeys.slot,
             &tweaks_hash,
             &self.bytecode_claim_flat(),
-            &get_aggregation_bytecode().hash,
+            get_aggregation_bytecode(),
         )
     }
 }
@@ -168,8 +179,10 @@ fn pub_key_flat(pk: &XmssPublicKey) -> Vec<F> {
 }
 
 pub(crate) fn hash_pubkeys(pub_keys: &[XmssPublicKey]) -> [F; DIGEST_LEN] {
+    // leansig pubkeys are PUB_KEY_FLAT_SIZE=13 FE each (not 8-aligned) -> zero-IV remainder hash,
+    // matching the zkDSL `slice_hash_with_iv_dynamic_unroll`.
     let flat: Vec<F> = pub_keys.iter().flat_map(pub_key_flat).collect();
-    poseidon_compress_slice(&flat, true)
+    poseidon_compress_slice_zero_iv(&flat)
 }
 
 /// Tweak slots are 4-FE [tw[0], tw[1], 0, 0]
@@ -219,7 +232,7 @@ fn compute_merkle_chunks_for_slot(slot: u32) -> Vec<F> {
         .collect()
 }
 
-/// Layout: [prefix(8) | bytecode_claim_padded | bytecode_hash_domsep(8) | pubkeys_hash | message | merkle_chunks | tweaks_hash].
+/// Layout: [prefix(8) | bytecode_claim_padded | initial_fiat_shamir_cap(8) | pubkeys_hash | message | merkle_chunks | tweaks_hash].
 pub(crate) fn build_type1_input_data(
     n_sigs: usize,
     pubkeys_hash: &[F; DIGEST_LEN],
@@ -227,9 +240,9 @@ pub(crate) fn build_type1_input_data(
     slot: u32,
     tweaks_hash: &[F; DIGEST_LEN],
     bytecode_claim_flat: &[F],
-    bytecode_hash: &[F; DIGEST_LEN],
+    bytecode: &Bytecode,
 ) -> Vec<F> {
-    let log_size = get_aggregation_bytecode().log_size();
+    let log_size = bytecode.log_size();
     let mut data = Vec::with_capacity(type1_input_data_size_padded(log_size));
     data.push(F::from_usize(TYPE1_FLAG));
     data.push(F::from_usize(n_sigs));
@@ -237,7 +250,7 @@ pub(crate) fn build_type1_input_data(
     data.extend_from_slice(bytecode_claim_flat);
     let claim_padding = bytecode_claim_flat.len().next_multiple_of(DIGEST_LEN) - bytecode_claim_flat.len();
     data.extend(std::iter::repeat_n(F::ZERO, claim_padding));
-    data.extend_from_slice(&poseidon16_compress_pair(bytecode_hash, &SNARK_DOMAIN_SEP));
+    data.extend_from_slice(&fiat_shamir_domain_sep(bytecode));
     data.extend_from_slice(pubkeys_hash);
     data.extend_from_slice(message);
     data.extend(compute_merkle_chunks_for_slot(slot));
@@ -262,9 +275,7 @@ fn encode_xmss_signature(sig: &XmssSignature) -> Vec<F> {
 
 // assumes `bytecode_value` in TypeOneMultiSignature::proof is correct (it should not be read / deserialized from an untrusted source)
 pub fn verify_type_1(sig: &TypeOneMultiSignature) -> Result<InnerVerified, ProofError> {
-    if !sig.info.pubkeys.is_sorted() {
-        return Err(ProofError::InvalidProof);
-    }
+    check_type_one_pubkeys(&sig.info.pubkeys).map_err(|_| ProofError::InvalidProof)?;
     verify_inner(sig.info.build_input_data(), sig.proof.proof.clone())
 }
 
@@ -273,12 +284,29 @@ pub fn verify_type_1(sig: &TypeOneMultiSignature) -> Result<InnerVerified, Proof
 #[instrument(skip_all)]
 pub fn aggregate_type_1(
     children: &[TypeOneMultiSignature],
-    mut raw_xmss: Vec<(XmssPublicKey, XmssSignature)>,
+    raw_xmss: Vec<(XmssPublicKey, XmssSignature)>,
     message: [u8; MESSAGE_LENGTH],
     slot: u32,
     log_inv_rate: usize,
 ) -> Result<TypeOneMultiSignature, ProverError> {
-    assert!(children.len() <= MAX_RECURSIONS);
+    aggregate_type_1_with_min_padding(children, raw_xmss, message, slot, log_inv_rate, BTreeMap::new())
+}
+
+pub(crate) fn aggregate_type_1_with_min_padding(
+    children: &[TypeOneMultiSignature],
+    mut raw_xmss: Vec<(XmssPublicKey, XmssSignature)>,
+    message: [u8; MESSAGE_LENGTH],
+    slot: u32,
+    log_inv_rate: usize,
+    min_table_log_n_rows: BTreeMap<Table, usize>,
+) -> Result<TypeOneMultiSignature, ProverError> {
+    if children.len() > MAX_RECURSIONS {
+        return Err(ProverError::LimitExceeded {
+            what: "aggregation children",
+            actual: children.len(),
+            max: MAX_RECURSIONS,
+        });
+    }
     for child in children {
         assert_eq!(
             child.info.without_pubkeys.message, message,
@@ -290,10 +318,7 @@ pub fn aggregate_type_1(
         );
     }
     let message = &message;
-    let verified_children: Vec<InnerVerified> = children
-        .iter()
-        .map(|c| verify_type_1(c).expect("child proof failed to verify"))
-        .collect();
+    let verified_children: Vec<InnerVerified> = children.iter().map(verify_type_1).collect::<Result<_, _>>()?;
     let children: Vec<&[XmssPublicKey]> = children.iter().map(|c| c.info.pubkeys.as_slice()).collect();
     let children = children.as_slice();
 
@@ -316,10 +341,16 @@ pub fn aggregate_type_1(
     global_pub_keys.sort();
     global_pub_keys.dedup();
     let n_sigs = global_pub_keys.len();
-    assert!(n_sigs <= MAX_XMSS_AGGREGATED);
+    if n_sigs > MAX_XMSS_AGGREGATED {
+        return Err(ProverError::LimitExceeded {
+            what: "aggregated public keys",
+            actual: n_sigs,
+            max: MAX_XMSS_AGGREGATED,
+        });
+    }
 
     let tweak_table = compute_tweak_table(slot);
-    let tweaks_hash = poseidon_compress_slice(&tweak_table, TWEAKS_HASHING_USE_IV);
+    let tweaks_hash = poseidon_compress_slice(&tweak_table);
 
     let reduced_claims = reduce_bytecode_claims(&verified_children);
 
@@ -330,9 +361,9 @@ pub fn aggregate_type_1(
         slot,
         &tweaks_hash,
         &reduced_claims.final_claim_flat(),
-        &bytecode.hash,
+        bytecode,
     );
-    let public_input = poseidon_compress_slice(&pub_input_data, true).to_vec();
+    let public_input = poseidon_compress_slice(&pub_input_data);
 
     let mut claimed: HashSet<XmssPublicKey> = HashSet::new();
     let mut dup_pub_keys: Vec<XmssPublicKey> = Vec::new();
@@ -352,6 +383,7 @@ pub fn aggregate_type_1(
     let mut bytecode_value_hint_blobs = Vec::with_capacity(n_recursions);
     let mut inner_bytecode_claim_blobs = Vec::with_capacity(n_recursions);
     let mut proof_transcript_blobs = Vec::with_capacity(n_recursions);
+    let mut table_sort_perm_blobs: Vec<Vec<F>> = Vec::with_capacity(n_recursions);
 
     let claim_size_padded = bytecode_claim_size.next_multiple_of(DIGEST_LEN);
 
@@ -374,10 +406,17 @@ pub fn aggregate_type_1(
         bytecode_value_hint_blobs.push(v.bytecode_evaluation.value.as_basis_coefficients_slice().to_vec());
         inner_bytecode_claim_blobs.push(v.input_data[BYTECODE_CLAIM_OFFSET..][..claim_size_padded].to_vec());
         proof_transcript_blobs.push(v.raw_proof.transcript.clone());
+        table_sort_perm_blobs.push(v.sorted_table_perm.iter().map(|&i| F::from_usize(i)).collect());
     }
 
     let n_dup = dup_pub_keys.len();
-    assert!(n_dup <= MAX_XMSS_DUPLICATES);
+    if n_dup > MAX_XMSS_DUPLICATES {
+        return Err(ProverError::LimitExceeded {
+            what: "duplicate public keys",
+            actual: n_dup,
+            max: MAX_XMSS_DUPLICATES,
+        });
+    }
 
     let mut pubkeys_blob: Vec<F> = Vec::with_capacity((n_sigs + n_dup) * PUB_KEY_FLAT_SIZE);
     for pk in &global_pub_keys {
@@ -424,6 +463,7 @@ pub fn aggregate_type_1(
             .collect(),
     );
     hints.insert("proof_transcript".to_string(), proof_transcript_blobs);
+    hints.insert("table_sort_perm".to_string(), table_sort_perm_blobs);
     hints.insert("xmss_signature".to_string(), xmss_signature_blobs);
     hints.insert("merkle_leaf".to_string(), merkle_leaf_blobs);
     hints.insert("merkle_path".to_string(), merkle_path_blobs);
@@ -439,6 +479,7 @@ pub fn aggregate_type_1(
     let witness = ExecutionWitness {
         preamble_memory_len: PREAMBLE_MEMORY_LEN,
         hints,
+        min_table_log_n_rows,
     };
     let proof = prove_execution(bytecode, &public_input, &witness, &whir_config, false)?;
 
@@ -468,4 +509,39 @@ pub(crate) fn extract_merkle_hint_blobs<'a>(
             (leaf, path)
         })
         .unzip()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compilation::init_aggregation_bytecode;
+    use crate::signatures_cache::{BENCHMARK_SLOT, get_benchmark_signatures, message_for_benchmark};
+
+    /// Exercises the recursive-aggregation path when the inner proof has the
+    /// extension-op table bigger than the execution table.
+    #[test]
+    fn test_recursive_aggregation_extension_table_bigger_than_execution() {
+        init_aggregation_bytecode();
+
+        let log_inv_rate = 2;
+        let message = message_for_benchmark();
+        let slot: u32 = BENCHMARK_SLOT;
+        let signatures = get_benchmark_signatures();
+        let raws_inner = signatures[0..10].to_vec();
+        let raws_outer = signatures[10..12].to_vec();
+
+        let extension_padding_log = 15;
+        let mut min_padding: BTreeMap<Table, usize> = BTreeMap::new();
+        min_padding.insert(Table::extension_op(), extension_padding_log);
+
+        let inner =
+            aggregate_type_1_with_min_padding(&[], raws_inner, message, slot, log_inv_rate, min_padding).unwrap();
+        verify_type_1(&inner).unwrap();
+
+        let inner_metadata = inner.proof.metadata.as_ref().expect("inner metadata available");
+        assert!(dbg!(inner_metadata.cycles) < 1usize << extension_padding_log,);
+
+        let outer = aggregate_type_1(&[inner], raws_outer, message, slot, log_inv_rate).unwrap();
+        verify_type_1(&outer).unwrap();
+    }
 }

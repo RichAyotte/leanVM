@@ -1,9 +1,9 @@
-use crate::MIN_LOG_MEMORY_SIZE;
 use crate::core::{F, Label, SourceLocation};
 use crate::diagnostics::RunnerError;
 use crate::execution::ExecutionHistory;
 use crate::execution::memory::MemoryAccess;
 use crate::isa::operands::{MemOrConstant, MemOrFpOrConstant};
+use crate::{MAX_LOG_MEMORY_SIZE, MIN_LOG_MEMORY_SIZE};
 use backend::*;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -111,14 +111,16 @@ pub enum CustomHint {
     DecomposeBits,
     LessThan,
     Log2Ceil,
+    DivFloor,
 }
 
-pub const CUSTOM_HINTS: [CustomHint; 5] = [
+pub const CUSTOM_HINTS: [CustomHint; 6] = [
     CustomHint::DecomposeBitsXMSS,
     CustomHint::DecomposeBitsMerkleWhir,
     CustomHint::DecomposeBits,
     CustomHint::LessThan,
     CustomHint::Log2Ceil,
+    CustomHint::DivFloor,
 ];
 
 impl CustomHint {
@@ -129,16 +131,18 @@ impl CustomHint {
             Self::DecomposeBits => "hint_decompose_bits",
             Self::LessThan => "hint_less_than",
             Self::Log2Ceil => "hint_log2_ceil",
+            Self::DivFloor => "hint_div_floor",
         }
     }
 
     pub fn n_args(&self) -> usize {
         match self {
             Self::DecomposeBitsXMSS => 5,
-            Self::DecomposeBitsMerkleWhir => 4,
-            Self::DecomposeBits => 4,
+            Self::DecomposeBitsMerkleWhir => 3,
+            Self::DecomposeBits => 3,
             Self::LessThan => 3,
             Self::Log2Ceil => 2,
+            Self::DivFloor => 4,
         }
     }
 
@@ -157,7 +161,11 @@ impl CustomHint {
                 let to_decompose_ptr = args[2].read_value(ctx.memory, ctx.fp)?.to_usize();
                 let num_to_decompose = args[3].read_value(ctx.memory, ctx.fp)?.to_usize();
                 let chunk_size = args[4].read_value(ctx.memory, ctx.fp)?.to_usize();
-                assert!(24_usize.is_multiple_of(chunk_size));
+                if chunk_size == 0 || !24_usize.is_multiple_of(chunk_size) {
+                    return Err(RunnerError::InvalidHintArguments(format!(
+                        "DecomposeBitsXMSS: chunk_size {chunk_size} must be a nonzero divisor of 24"
+                    )));
+                }
                 let q: usize = 127; // Q parameter for aborting hypercube (p = Q * w^z + 1)
                 let base = 1 << chunk_size;
                 let n_chunks = 24 / chunk_size;
@@ -183,9 +191,13 @@ impl CustomHint {
             }
             Self::DecomposeBitsMerkleWhir => {
                 let decomposed_ptr = args[0].read_value(ctx.memory, ctx.fp)?.to_usize();
-                let value = args[2].read_value(ctx.memory, ctx.fp)?.to_usize();
-                let chunk_size = args[3].read_value(ctx.memory, ctx.fp)?.to_usize();
-                assert!(24_usize.is_multiple_of(chunk_size));
+                let value = args[1].read_value(ctx.memory, ctx.fp)?.to_usize();
+                let chunk_size = args[2].read_value(ctx.memory, ctx.fp)?.to_usize();
+                if chunk_size == 0 || !24_usize.is_multiple_of(chunk_size) {
+                    return Err(RunnerError::InvalidHintArguments(format!(
+                        "DecomposeBitsMerkleWhir: chunk_size {chunk_size} must be a nonzero divisor of 24"
+                    )));
+                }
                 let mut memory_index_decomposed = decomposed_ptr;
                 #[allow(clippy::explicit_counter_loop)]
                 for i in 0..24 / chunk_size {
@@ -193,40 +205,42 @@ impl CustomHint {
                     ctx.memory.set(memory_index_decomposed, value)?;
                     memory_index_decomposed += 1;
                 }
-                ctx.memory
-                    .set(args[1].memory_address(ctx.fp)?, F::from_usize(value >> 24))?;
             }
             Self::DecomposeBits => {
                 let to_decompose = args[0].read_value(ctx.memory, ctx.fp)?.to_usize();
                 let memory_index = args[1].read_value(ctx.memory, ctx.fp)?.to_usize();
                 let num_bits = args[2].read_value(ctx.memory, ctx.fp)?.to_usize();
-                let endianness = args[3].read_value(ctx.memory, ctx.fp)?.to_usize();
-                assert!(
-                    endianness == 0 || endianness == 1,
-                    "Invalid endianness for DecomposeBits hint"
-                );
-                assert!(num_bits <= F::bits());
-                if endianness == 0 {
-                    // Big-endian
-                    ctx.memory
-                        .set_slice(memory_index, &to_big_endian_in_field::<F>(to_decompose, num_bits))?
-                } else {
-                    // Little-endian
-                    ctx.memory
-                        .set_slice(memory_index, &to_little_endian_in_field::<F>(to_decompose, num_bits))?
+                if num_bits > F::bits() {
+                    return Err(RunnerError::InvalidHintArguments(format!(
+                        "DecomposeBits: num_bits {num_bits} exceeds field size {}",
+                        F::bits()
+                    )));
                 }
+                ctx.memory
+                    .set_slice(memory_index, &to_big_endian_in_field::<F>(to_decompose, num_bits))?
             }
             Self::LessThan => {
                 let a = args[0].read_value(ctx.memory, ctx.fp)?;
                 let b = args[1].read_value(ctx.memory, ctx.fp)?;
                 let res_ptr = args[2].memory_address(ctx.fp)?;
-                let result = if a.to_usize() < b.to_usize() { F::ONE } else { F::ZERO };
+                let result = F::from_bool(a.to_usize() < b.to_usize());
                 ctx.memory.set(res_ptr, result)?;
             }
             Self::Log2Ceil => {
                 let n = args[0].read_value(ctx.memory, ctx.fp)?.to_usize();
                 let res_ptr = args[1].memory_address(ctx.fp)?;
                 ctx.memory.set(res_ptr, F::from_usize(log2_ceil_usize(n)))?;
+            }
+            Self::DivFloor => {
+                let a = args[0].read_value(ctx.memory, ctx.fp)?.to_usize();
+                let b = args[1].read_value(ctx.memory, ctx.fp)?.to_usize();
+                let q_ptr = args[2].memory_address(ctx.fp)?;
+                let r_ptr = args[3].memory_address(ctx.fp)?;
+                if b == 0 {
+                    return Err(RunnerError::DivByZero);
+                }
+                ctx.memory.set(q_ptr, F::from_usize(a / b))?;
+                ctx.memory.set(r_ptr, F::from_usize(a % b))?;
             }
         }
         Ok(())
@@ -301,6 +315,9 @@ impl Hint {
                 let size = size.read_value(ctx.memory, ctx.fp)?.to_usize();
 
                 let allocation_start_addr = *ctx.ap;
+                if allocation_start_addr + size > 1 << MAX_LOG_MEMORY_SIZE {
+                    return Err(RunnerError::OutOfMemory);
+                }
                 ctx.memory.set(ctx.fp + *offset, F::from_usize(allocation_start_addr))?;
                 *ctx.ap += size;
             }
@@ -318,7 +335,7 @@ impl Hint {
                         .iter()
                         .map(|value| Ok(value.read_value(ctx.memory, ctx.fp)?.to_string()))
                         .collect::<Result<Vec<_>, _>>()?;
-                    if values[0] == "123456789" {
+                    if values.first().is_some_and(|v| v == "123456789") {
                         if values.len() == 1 {
                             *diag.std_out += "[CHECKPOINT]\n";
                         } else {
@@ -396,7 +413,7 @@ impl Hint {
             // Handled by the runner's parallel dispatch; no-op in sequential mode.
             Self::ParallelBatchStart { .. } => {}
             Self::HintWitness { name, destination } => {
-                let data = consume_next_hint_entry(ctx.hints.named_hints, name);
+                let data = consume_next_hint_entry(ctx.hints.named_hints, name)?;
                 let dest_addr = match destination {
                     HintWitnessDestination::Inline { offset } => ctx.fp + *offset,
                     HintWitnessDestination::Indirect { ptr_offset } => ctx.memory.get(ctx.fp + *ptr_offset)?.to_usize(),
@@ -408,19 +425,23 @@ impl Hint {
     }
 }
 
-fn consume_next_hint_entry<'h>(named_hints: &mut HashMap<String, NamedHintCursor<'h>>, name: &str) -> &'h [F] {
-    let cursor = named_hints.get_mut(name).unwrap_or_else(|| {
-        panic!("hint_witness: no hint named '{name}'");
-    });
+fn consume_next_hint_entry<'h>(
+    named_hints: &mut HashMap<String, NamedHintCursor<'h>>,
+    name: &str,
+) -> Result<&'h [F], RunnerError> {
+    let cursor = named_hints
+        .get_mut(name)
+        .ok_or_else(|| RunnerError::InvalidHintWitness(format!("no hint named '{name}'")))?;
     let entries = cursor.entries;
     let index = cursor.index;
-    assert!(
-        index < entries.len(),
-        "hint_witness: exhausted entries for '{name}' (index={index}, len={})",
-        entries.len()
-    );
+    if index >= entries.len() {
+        return Err(RunnerError::InvalidHintWitness(format!(
+            "exhausted entries for '{name}' (len={})",
+            entries.len()
+        )));
+    }
     cursor.index += 1;
-    &entries[index]
+    Ok(&entries[index])
 }
 
 impl Display for Hint {
