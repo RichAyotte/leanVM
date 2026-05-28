@@ -564,32 +564,40 @@ def whir_1_merkle_step_and_pow(v, state_in, path_chunk, state_out, power_shift):
 
 @inline
 def decompose_and_verify_merkle_query(a, domain_size, prev_root, num_chunks, leaf_iv):
-    # Decompose the full 64-bit Goldilocks FE `a` into 16 × 4-bit nibbles so
-    # that `a == partial_sum_low + partial_sum_high * 2^32` holds. The first
-    # `n_nibbles = ceil(domain_size/4)` nibbles encode the Merkle query index
-    # modulo 2^domain_size.
-    NUM_NIBBLES = F_BITS / 4
-    HALF_NIBBLES = NUM_NIBBLES / 2  # 8 nibbles = 32 bits
-    nibbles = Array(NUM_NIBBLES)
-    hint_decompose_bits_merkle_whir(nibbles, a, NUM_NIBBLES, 4)
+    # Only the low `n_nibbles = ceil(domain_size/4)` nibbles of `a` encode the Merkle
+    # query index; they are dispatched through `match_range` below so each needs an
+    # individual [0,16) check. The high bits only need a well-formed canonical 64-bit
+    # decomposition, so we bound them with coarser 16-bit chunk checks.
+    n_nibbles = div_ceil(domain_size, 4)
+    # A 16-bit chunk holds 4 nibbles, so the index nibbles span the first `n_index_16bit_chunks` chunks.
+    n_index_16bit_chunks = div_ceil(n_nibbles, 4)
+    n_idx_nibbles = n_index_16bit_chunks * 4  # nibbles we decompose & individually bound (>= n_nibbles)
 
-    for i in unroll(0, NUM_NIBBLES):
+    nibbles = Array(n_idx_nibbles)
+    hint_decompose_bits_merkle_whir(nibbles, a, n_idx_nibbles, 4)
+    for i in unroll(0, n_idx_nibbles):
         assert nibbles[i] < 16
 
-    # Split into low/high 32-bit halves so we can enforce canonicality:
-    # without this check, integers in [p, 2^64) reduce mod p to elements in
-    # F but provide an alternate nibble decomposition — a soundness break.
+    # Low 16*n_index_16bit_chunks bits, reconstructed from the bounded nibbles.
     partial_sum_low: Mut = nibbles[0]
-    for i in unroll(1, HALF_NIBBLES):
+    for i in unroll(1, n_idx_nibbles):
         partial_sum_low += nibbles[i] * 16**i
-    partial_sum_high: Mut = nibbles[HALF_NIBBLES]
-    for i in unroll(1, HALF_NIBBLES):
-        partial_sum_high += nibbles[HALF_NIBBLES + i] * 16**i
 
+    # Rest of `a` as 16-bit chunks (chunk c covers bits [16*c, 16*c+16)), bounded directly.
+    chunks16 = Array(4)
+    hint_decompose_bits_merkle_whir(chunks16, a, 4, 16)
+    for c in unroll(n_index_16bit_chunks, 4):
+        assert chunks16[c] < 2**16
+    # Add the low-half chunk(s) the nibbles didn't cover (chunk 1 when n_index_16bit_chunks == 1).
+    for c in unroll(n_index_16bit_chunks, 2):
+        partial_sum_low += chunks16[c] * 2 ** (16 * c)
+
+    partial_sum_high = chunks16[2] + chunks16[3] * 2**16
+
+    # Canonicality: a == low + high * 2^32 with both halves < 2^32. The edge check below
+    # rejects the alternate decomposition of integers in [p, 2^64) (a soundness break):
+    # the only canonical element with top half = 2^32 - 1 is p - 1 = 2^64 - 2^32.
     assert a == partial_sum_low + partial_sum_high * 2**HALF_BITS
-
-    # If the top 32 bits are all set, the bottom 32 bits must be zero
-    # (only canonical element with top = 2^32 - 1 is p - 1 = 2^64 - 2^32).
     if partial_sum_high == 2**HALF_BITS - 1:
         assert partial_sum_low == 0
 
@@ -600,7 +608,6 @@ def decompose_and_verify_merkle_query(a, domain_size, prev_root, num_chunks, lea
     merkle_path = Array(domain_size * DIGEST_LEN)
     hint_witness("merkle_path", merkle_path)
 
-    n_nibbles = div_ceil(domain_size, 4)
     states = Array((n_nibbles - 1) * DIGEST_LEN)
 
     prod: Mut = 1
