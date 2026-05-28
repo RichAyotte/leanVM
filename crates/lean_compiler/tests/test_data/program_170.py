@@ -15,7 +15,7 @@ def multi_return(a, b):
 
 def multi_line_params(
     a,
-    b: Mut,
+    b,
     c: Const,
 ):
     return a + b + c
@@ -30,14 +30,14 @@ def main():
 
     x = 5
     y = 10
-    z: Imu
+    z: Imm
     if x + y == 15:
         z = 1
     else:
         z = 0
     assert z == 1
 
-    w: Imu
+    w: Imm
     if x + y * 2 == 25:
         w = 100
     else:

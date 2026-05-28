@@ -11,20 +11,22 @@ fn test_poseidon() {
     // Goldilocks width-8 Poseidon: two 4-element halves in, one 4-element digest out.
     let program = r#"
 def main():
-    a = 0
-    b = a + 4
-    c = Array(4)
-    poseidon8_compress(a, b, c)
+    data = Array(8)
+    for i in unroll(0, 8):
+        data[i] = i
+    out = Array(4)
+    poseidon8_compress(data, data + 4, out)
 
     for i in range(0, 4):
-        cc = c[i]
+        cc = out[i]
         print(cc)
     return
    "#;
-    let public_input: [F; 8] = (0..8).map(F::new).collect::<Vec<F>>().try_into().unwrap();
+    let public_input = [F::ZERO; PUBLIC_INPUT_LEN];
     compile_and_run(&ProgramSource::Raw(program.to_string()), &public_input, false);
 
-    let _ = dbg!(poseidon8_compress(public_input));
+    let input: [F; 8] = std::array::from_fn(|i| F::new(i as u64));
+    let _ = dbg!(poseidon8_compress(input));
 }
 
 #[test]
@@ -33,13 +35,16 @@ fn test_div_extension_field() {
 DIM = 3
 
 def main():
-    n = 0
-    d = n + DIM
-    q = n + 2 * DIM
+    nd = Array(2 * DIM)
+    hint_witness("nd", nd)
+    n = nd
+    d = nd + DIM
+    expected_q = Array(DIM)
+    hint_witness("q", expected_q)
     computed_q_1 = div_ext_1(n, d)
     computed_q_2 = div_ext_2(n, d)
-    assert_eq_ext(computed_q_2, q)
-    assert_eq_ext(computed_q_1, q)
+    assert_eq_ext(computed_q_2, expected_q)
+    assert_eq_ext(computed_q_1, expected_q)
     return
 
 def assert_eq_ext(x, y):
@@ -62,12 +67,19 @@ def div_ext_2(n, d):
     let n: EF = rng.random();
     let d: EF = rng.random();
     let q = n / d;
-    let mut public_input = vec![];
-    public_input.extend(n.as_basis_coefficients_slice());
-    public_input.extend(d.as_basis_coefficients_slice());
-    public_input.extend(q.as_basis_coefficients_slice());
-    public_input.resize(16, F::ZERO);
-    compile_and_run(&ProgramSource::Raw(program.to_string()), &public_input, false);
+    let mut nd_buf: Vec<F> = Vec::new();
+    nd_buf.extend(n.as_basis_coefficients_slice());
+    nd_buf.extend(d.as_basis_coefficients_slice());
+    let q_buf: Vec<F> = q.as_basis_coefficients_slice().to_vec();
+    let mut hints = std::collections::HashMap::new();
+    hints.insert("nd".to_string(), vec![nd_buf]);
+    hints.insert("q".to_string(), vec![q_buf]);
+    let witness = ExecutionWitness {
+        hints,
+        ..ExecutionWitness::default()
+    };
+    let bytecode = compile_program(&ProgramSource::Raw(program.to_string()));
+    try_execute_bytecode(&bytecode, &Default::default(), &witness, false).unwrap();
 }
 
 fn test_data_dir() -> String {
@@ -117,6 +129,27 @@ fn test_all_errors() {
 }
 
 #[test]
+fn test_placeholder_replacement_respects_identifier_boundaries() {
+    let program = r#"
+def main():
+    x1 = 5
+    xPLACEHOLDER = 7
+    assert x1 == 5
+    assert xPLACEHOLDER == 7
+    assert PLACEHOLDER == 1
+    return
+"#;
+    let mut replacements = std::collections::BTreeMap::new();
+    replacements.insert("PLACEHOLDER".to_string(), "1".to_string());
+    let bytecode = try_compile_program_with_flags(
+        &ProgramSource::Raw(program.to_string()),
+        CompilationFlags { replacements },
+    )
+    .unwrap();
+    try_execute_bytecode(&bytecode, &Default::default(), &ExecutionWitness::default(), false).unwrap();
+}
+
+#[test]
 fn test_all_programs() {
     let test_dir = test_data_dir();
     let paths = find_files(&test_dir, "program_", ".py");
@@ -135,7 +168,7 @@ fn test_all_programs() {
             Ok(b) => b,
             Err(err) => panic!("Program {} failed to compile: {:?}", path, err),
         };
-        if let Err(err) = try_execute_bytecode(&bytecode, &[], &witness, false) {
+        if let Err(err) = try_execute_bytecode(&bytecode, &Default::default(), &witness, false) {
             panic!("Program {} failed with error: {:?}", path, err);
         }
     }
@@ -177,7 +210,7 @@ def func(a, b):
     return
    "#;
     let bytecode = compile_program(&ProgramSource::Raw(program.to_string()));
-    let n_cycles = execute_bytecode(&bytecode, &[], &ExecutionWitness::default(), false).n_cycles();
+    let n_cycles = execute_bytecode(&bytecode, &Default::default(), &ExecutionWitness::default(), false).n_cycles();
     assert!(n_cycles < 1100);
 }
 
@@ -206,10 +239,20 @@ def factorial(n):
     let compiled_parallel = compile_program(&ProgramSource::Raw(program.replace("loop", "parallel_range")));
 
     let time_sequential = Instant::now();
-    let exec_seq = execute_bytecode(&compiled_sequencial, &[], &ExecutionWitness::default(), false);
+    let exec_seq = execute_bytecode(
+        &compiled_sequencial,
+        &Default::default(),
+        &ExecutionWitness::default(),
+        false,
+    );
     let duration_sequential = time_sequential.elapsed();
     let time_parallel = Instant::now();
-    let exec_par = execute_bytecode(&compiled_parallel, &[], &ExecutionWitness::default(), false);
+    let exec_par = execute_bytecode(
+        &compiled_parallel,
+        &Default::default(),
+        &ExecutionWitness::default(),
+        false,
+    );
     let duration_parallel = time_parallel.elapsed();
 
     assert_eq!(exec_seq.metadata.stdout, exec_par.metadata.stdout);
@@ -242,15 +285,21 @@ def main():
 fn test_soundness_suite() {
     #[allow(clippy::type_complexity)]
     let cases: &[(&str, &[u32], &[(usize, u32)])] = &[
-        ("soundness_0", &[3, 6, 7, 10, 9, 20, 26, 1], &[(0, 4), (1, 7), (2, 8), (3, 11), (4, 10), (5, 21), (6, 27), (7, 0), (7, 2)]),
-        ("soundness_1", &[5, 10, 6, 7, 42, 9, 5, 4],  &[(0, 6), (1, 11), (2, 7), (3, 8), (4, 43), (5, 10), (6, 6), (7, 5)]),
-        ("soundness_2", &[3, 4, 5, 29, 7, 1, 17, 46], &[(0, 2), (1, 5), (2, 6), (3, 30), (4, 8), (5, 0), (5, 2), (6, 18), (7, 47)]),
-        ("soundness_3", &[4, 2, 14, 120, 5, 10, 50, 55], &[(0, 5), (1, 3), (2, 15), (3, 121), (4, 6), (5, 11), (6, 51), (7, 56)]),
-        ("soundness_4", &[5, 10, 10, 3, 4, 19, 20, 1], &[(0, 6), (1, 11), (2, 11), (3, 4), (4, 5), (5, 20), (6, 50), (7, 0), (7, 2)]),
-        ("soundness_5", &[3, 4, 7, 19, 49, 28, 1, 3],  &[(0, 4), (1, 5), (2, 8), (3, 20), (4, 50), (5, 29), (6, 0), (6, 2), (7, 4)]),
+        ("soundness_0", &[3, 6, 10, 7],   &[(0, 4), (1, 7), (2, 8), (3, 11)]),
+        ("soundness_1", &[5, 10, 4, 16],  &[(0, 6), (1, 11), (2, 5), (3, 17)]),
+        ("soundness_2", &[2, 4, 5, 20],   &[(0, 0), (1, 3), (2, 6), (3, 21)]),
+        ("soundness_3", &[2, 14, 120, 3], &[(0, 3), (1, 15), (2, 121), (3, 4)]),
+        ("soundness_4", &[20, 3, 15, 1],  &[(0, 21), (1, 4), (2, 16), (3, 0)]),
+        ("soundness_5", &[2, 7, 18, 4],   &[(0, 3), (1, 8), (2, 19), (3, 5)]),
     ];
 
-    let to_input = |v: &[u32]| v.iter().copied().map(|x| F::new(x as u64)).collect::<Vec<_>>();
+    let to_input = |v: &[u32]| -> [F; PUBLIC_INPUT_LEN] {
+        let mut out = [F::ZERO; PUBLIC_INPUT_LEN];
+        for (slot, &x) in out.iter_mut().zip(v) {
+            *slot = F::new(x as u64);
+        }
+        out
+    };
 
     for &(name, valid, perturbations) in cases {
         let path = format!("{}/{}.py", test_data_dir(), name);

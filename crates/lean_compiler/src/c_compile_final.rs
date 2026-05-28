@@ -128,6 +128,10 @@ pub fn compile_to_low_level_bytecode(
 
     debug_assert_eq!(instructions.len(), bytecode_size);
 
+    for instruction in &instructions {
+        validate_instruction(instruction)?;
+    }
+
     let instructions_encoded = instructions.par_iter().map(field_representation).collect::<Vec<_>>();
 
     let mut instructions_multilinear = vec![];
@@ -419,6 +423,16 @@ fn eval_constant_value(constant: &ConstantValue, compiler: &Compiler) -> usize {
         ConstantValue::MatchBlockSize { match_index } => compiler.match_block_sizes[*match_index],
         ConstantValue::MatchFirstBlockStart { match_index } => compiler.match_first_block_starts[*match_index],
     }
+}
+
+fn validate_instruction(instruction: &Instruction) -> Result<(), String> {
+    if let Instruction::Precompile(p) = instruction
+        && let PrecompileCompTimeArgs::ExtensionOp { size, .. } = &p.data
+        && *size == 0
+    {
+        return Err("extension_op precompile size must be >= 1, got 0".to_string());
+    }
+    Ok(())
 }
 
 fn eval_const_expression(constant: &ConstExpression, compiler: &Compiler) -> F {

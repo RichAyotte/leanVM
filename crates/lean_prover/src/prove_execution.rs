@@ -19,23 +19,14 @@ pub struct ExecutionProof {
 
 pub fn prove_execution(
     bytecode: &Bytecode,
-    public_input: &[F],
+    public_input: &[F; PUBLIC_INPUT_LEN],
     witness: &ExecutionWitness,
     whir_config: &WhirConfigBuilder,
     vm_profiler: bool,
 ) -> Result<ExecutionProof, ProverError> {
-    check_rate(whir_config.starting_log_inv_rate)
-        .map_err(|err| panic!("{err}"))
-        .unwrap();
-    if public_input.len() != PUBLIC_INPUT_LEN {
-        return Err(ProverError::InvalidPublicInputSize {
-            expected: PUBLIC_INPUT_LEN,
-            actual: public_input.len(),
-        });
-    }
+    check_rate(whir_config.starting_log_inv_rate).map_err(|_| ProverError::InvalidRate)?;
     let ExecutionTrace {
         traces,
-        public_memory_size,
         mut memory, // padded with zeros to next power of two
         metadata,
     } = info_span!("Witness generation").in_scope(|| -> Result<_, ProverError> {
@@ -91,7 +82,7 @@ pub fn prove_execution(
 
     // TODO parrallelize
     let mut memory_acc = F::zero_vec(memory.len());
-    info_span!("Building memory access count").in_scope(|| {
+    info_span!("Building memory access count").in_scope(|| -> Result<(), ProverError> {
         for (table, trace) in &traces {
             let buses = table.bus_interactions();
             for group in memory_lookup_groups(&buses) {
@@ -99,21 +90,24 @@ pub fn prove_execution(
                 let n = group.value_cols.len();
                 for idx in idx_col {
                     let base = idx.to_usize();
-                    for ofs in 0..n {
-                        memory_acc[base + ofs] += F::ONE;
+                    let cells = memory_acc.get_mut(base..base + n).ok_or(RunnerError::OutOfMemory)?;
+                    for cell in cells {
+                        *cell += F::ONE;
                     }
                 }
             }
         }
-    });
+        Ok(())
+    })?;
 
     // // TODO parrallelize
     let mut bytecode_acc = F::zero_vec(bytecode.padded_size());
-    info_span!("Building bytecode access count").in_scope(|| {
+    info_span!("Building bytecode access count").in_scope(|| -> Result<(), ProverError> {
         for pc in traces[&Table::execution()].columns[EXEC_COL_PC].iter() {
-            bytecode_acc[pc.to_usize()] += F::ONE;
+            *bytecode_acc.get_mut(pc.to_usize()).ok_or(RunnerError::PCOutOfBounds)? += F::ONE;
         }
-    });
+        Ok(())
+    })?;
 
     // 1st Commitment
     let stacked_pcs_witness = stack_polynomials_and_commit(
@@ -232,8 +226,8 @@ pub fn prove_execution(
         committed_statements.get_mut(table).unwrap().push(claim);
     }
 
-    let public_memory_random_point = MultilinearPoint(prover_state.sample_vec(log2_strict_usize(public_memory_size)));
-    let public_memory_eval = (&memory[..public_memory_size]).evaluate(&public_memory_random_point);
+    let public_memory_random_point = MultilinearPoint(prover_state.sample_vec(log2_strict_usize(PUBLIC_INPUT_LEN)));
+    let public_memory_eval = (&memory[..PUBLIC_INPUT_LEN]).evaluate(&public_memory_random_point);
 
     let previous_statements = vec![
         SparseStatement::new(

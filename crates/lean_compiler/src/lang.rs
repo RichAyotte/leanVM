@@ -32,7 +32,6 @@ impl Program {
 pub struct FunctionArg {
     pub name: Var,
     pub is_const: bool,
-    pub is_mutable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -47,9 +46,6 @@ pub struct Function {
 impl Function {
     pub fn has_const_arguments(&self) -> bool {
         self.arguments.iter().any(|arg| arg.is_const)
-    }
-    pub fn has_mutable_arguments(&self) -> bool {
-        self.arguments.iter().any(|arg| arg.is_mutable)
     }
 }
 
@@ -206,7 +202,7 @@ impl ConstExpression {
                 for arg in args {
                     eval_args.push(arg.eval_with(func)?);
                 }
-                Some(math_expr.eval(&eval_args))
+                math_expr.eval(&eval_args)
             }
         }
     }
@@ -334,28 +330,26 @@ impl MathOperation {
             | Self::DivFloor => 2,
         }
     }
-    pub fn eval(&self, args: &[F]) -> F {
+    pub fn eval(&self, args: &[F]) -> Option<F> {
         assert_eq!(args.len(), self.num_args());
-        match self {
+        let divisor_nonzero = |x: F| -> Option<F> { (!x.is_zero()).then_some(x) };
+        Some(match self {
             Self::Add => args[0] + args[1],
             Self::Mul => args[0] * args[1],
             Self::Sub => args[0] - args[1],
-            Self::Div => args[0] / args[1],
+            Self::Div => args[0] / divisor_nonzero(args[1])?,
             Self::Exp => args[0].exp_u64(args[1].as_canonical_u64()),
-            Self::Mod => F::from_usize(args[0].to_usize() % args[1].to_usize()),
+            Self::Mod => F::from_usize(args[0].to_usize() % divisor_nonzero(args[1])?.to_usize()),
             Self::Log2Ceil => F::from_usize(log2_ceil_usize(args[0].to_usize())),
             Self::NextMultipleOf => {
-                let value = args[0];
-                let multiple = args[1];
-                let value_usize = value.to_usize();
-                let multiple_usize = multiple.to_usize();
-                let res = value_usize.next_multiple_of(multiple_usize);
-                F::from_usize(res)
+                let value_usize = args[0].to_usize();
+                let multiple_usize = divisor_nonzero(args[1])?.to_usize();
+                F::from_usize(value_usize.next_multiple_of(multiple_usize))
             }
             Self::SaturatingSub => F::from_usize(args[0].to_usize().saturating_sub(args[1].to_usize())),
-            Self::DivCeil => F::from_usize(args[0].to_usize().div_ceil(args[1].to_usize())),
-            Self::DivFloor => F::from_usize(args[0].to_usize() / args[1].to_usize()),
-        }
+            Self::DivCeil => F::from_usize(args[0].to_usize().div_ceil(divisor_nonzero(args[1])?.to_usize())),
+            Self::DivFloor => F::from_usize(args[0].to_usize() / divisor_nonzero(args[1])?.to_usize()),
+        })
     }
 }
 
@@ -374,14 +368,15 @@ impl Expression {
                 .map(|e| e.compile_time_eval(const_arrays))
                 .collect::<Option<Vec<F>>>()?;
             let arr = const_arrays.get(array)?;
-            let target = arr.navigate(&idx)?;
-            return Some(F::from_usize(target.len()));
+            return match arr.navigate(&idx)? {
+                ConstArrayValue::Array(elems) => Some(F::from_usize(elems.len())),
+                ConstArrayValue::Scalar(_) => None, // len() of a scalar is undefined
+            };
         }
         self.eval_with(
             &|value: &SimpleExpr| value.as_constant()?.naive_eval(),
             &|arr, indexes| {
                 let array = const_arrays.get(arr.as_var()?)?;
-                assert_eq!(indexes.len(), array.depth());
                 array.navigate(&indexes)?.as_scalar()
             },
         )
@@ -406,7 +401,7 @@ impl Expression {
                 for arg in args {
                     eval_args.push(arg.eval_with(value_fn, array_fn)?);
                 }
-                Some(math_expr.eval(&eval_args))
+                math_expr.eval(&eval_args)
             }
             Self::FunctionCall { .. } => None,
             Self::Len { .. } => None,
@@ -666,7 +661,7 @@ impl Line {
                 if *is_mutable {
                     format!("{var}: Mut")
                 } else {
-                    format!("{var}: Imu")
+                    format!("{var}: Imm")
                 }
             }
             Self::Statement { targets, value, .. } => {
@@ -902,8 +897,6 @@ impl Display for Function {
             .map(|arg| {
                 if arg.is_const {
                     format!("const {}", arg.name)
-                } else if arg.is_mutable {
-                    format!("mut {}", arg.name)
                 } else {
                     arg.name.to_string()
                 }

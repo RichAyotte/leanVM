@@ -1,9 +1,9 @@
-use crate::MIN_LOG_MEMORY_SIZE;
 use crate::core::{F, Label, SourceLocation};
 use crate::diagnostics::RunnerError;
 use crate::execution::ExecutionHistory;
 use crate::execution::memory::MemoryAccess;
 use crate::isa::operands::{MemOrConstant, MemOrFpOrConstant};
+use crate::{MAX_LOG_MEMORY_SIZE, MIN_LOG_MEMORY_SIZE};
 use backend::*;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -191,7 +191,12 @@ impl CustomHint {
                 let to_decompose = args[0].read_value(ctx.memory, ctx.fp)?.to_usize();
                 let memory_index = args[1].read_value(ctx.memory, ctx.fp)?.to_usize();
                 let num_bits = args[2].read_value(ctx.memory, ctx.fp)?.to_usize();
-                assert!(num_bits <= F::bits());
+                if num_bits > F::bits() {
+                    return Err(RunnerError::InvalidHintArguments(format!(
+                        "DecomposeBits: num_bits {num_bits} exceeds field size {}",
+                        F::bits()
+                    )));
+                }
                 ctx.memory
                     .set_slice(memory_index, &to_big_endian_in_field::<F>(to_decompose, num_bits))?
             }
@@ -212,7 +217,9 @@ impl CustomHint {
                 let b = args[1].read_value(ctx.memory, ctx.fp)?.to_usize();
                 let q_ptr = args[2].memory_address(ctx.fp)?;
                 let r_ptr = args[3].memory_address(ctx.fp)?;
-                assert!(b != 0, "hint_div_floor: division by zero");
+                if b == 0 {
+                    return Err(RunnerError::DivByZero);
+                }
                 ctx.memory.set(q_ptr, F::from_usize(a / b))?;
                 ctx.memory.set(r_ptr, F::from_usize(a % b))?;
             }
@@ -289,6 +296,9 @@ impl Hint {
                 let size = size.read_value(ctx.memory, ctx.fp)?.to_usize();
 
                 let allocation_start_addr = *ctx.ap;
+                if allocation_start_addr + size > 1 << MAX_LOG_MEMORY_SIZE {
+                    return Err(RunnerError::OutOfMemory);
+                }
                 ctx.memory.set(ctx.fp + *offset, F::from_usize(allocation_start_addr))?;
                 *ctx.ap += size;
             }
@@ -306,7 +316,7 @@ impl Hint {
                         .iter()
                         .map(|value| Ok(value.read_value(ctx.memory, ctx.fp)?.to_string()))
                         .collect::<Result<Vec<_>, _>>()?;
-                    if values[0] == "123456789" {
+                    if values.first().is_some_and(|v| v == "123456789") {
                         if values.len() == 1 {
                             *diag.std_out += "[CHECKPOINT]\n";
                         } else {
@@ -384,7 +394,7 @@ impl Hint {
             // Handled by the runner's parallel dispatch; no-op in sequential mode.
             Self::ParallelBatchStart { .. } => {}
             Self::HintWitness { name, destination } => {
-                let data = consume_next_hint_entry(ctx.hints.named_hints, name);
+                let data = consume_next_hint_entry(ctx.hints.named_hints, name)?;
                 let dest_addr = match destination {
                     HintWitnessDestination::Inline { offset } => ctx.fp + *offset,
                     HintWitnessDestination::Indirect { ptr_offset } => ctx.memory.get(ctx.fp + *ptr_offset)?.to_usize(),
@@ -396,19 +406,23 @@ impl Hint {
     }
 }
 
-fn consume_next_hint_entry<'h>(named_hints: &mut HashMap<String, NamedHintCursor<'h>>, name: &str) -> &'h [F] {
-    let cursor = named_hints.get_mut(name).unwrap_or_else(|| {
-        panic!("hint_witness: no hint named '{name}'");
-    });
+fn consume_next_hint_entry<'h>(
+    named_hints: &mut HashMap<String, NamedHintCursor<'h>>,
+    name: &str,
+) -> Result<&'h [F], RunnerError> {
+    let cursor = named_hints
+        .get_mut(name)
+        .ok_or_else(|| RunnerError::InvalidHintWitness(format!("no hint named '{name}'")))?;
     let entries = cursor.entries;
     let index = cursor.index;
-    assert!(
-        index < entries.len(),
-        "hint_witness: exhausted entries for '{name}' (index={index}, len={})",
-        entries.len()
-    );
+    if index >= entries.len() {
+        return Err(RunnerError::InvalidHintWitness(format!(
+            "exhausted entries for '{name}' (len={})",
+            entries.len()
+        )));
+    }
     cursor.index += 1;
-    &entries[index]
+    Ok(&entries[index])
 }
 
 impl Display for Hint {

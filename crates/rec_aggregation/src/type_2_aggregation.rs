@@ -15,8 +15,12 @@ use crate::bytecode_claims::flatten_bytecode_claim;
 use crate::bytecode_claims::reduce_bytecode_claims;
 use crate::compilation::{
     BYTECODE_CLAIM_OFFSET, MAX_RECURSIONS, PREAMBLE_MEMORY_LEN, TYPE2_FLAG, get_aggregation_bytecode,
+    try_get_aggregation_bytecode,
 };
-use crate::type_1_aggregation::{TypeOneInfo, TypeOneMultiSignature, extract_merkle_hint_blobs, verify_type_1};
+use crate::decompress_size_prepended_bounded;
+use crate::type_1_aggregation::{
+    TypeOneInfo, TypeOneMultiSignature, check_type_one_pubkeys, extract_merkle_hint_blobs, verify_type_1,
+};
 use crate::verify_inner;
 
 /// A bundle of `n` type-1 multi-signatures with potentially distinct (message, slot) per component, attested by a single snark.
@@ -37,7 +41,9 @@ impl<'de> Deserialize<'de> for TypeTwoMultiSignature {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let (info, bytecode_claim_point, proof) =
             <(Vec<TypeOneInfo>, MultilinearPoint<EF>, ExecutionProof)>::deserialize(d)?;
-        if bytecode_claim_point.len() != get_aggregation_bytecode().cumulated_n_vars() {
+        let bytecode =
+            try_get_aggregation_bytecode().ok_or_else(|| serde::de::Error::custom("bytecode not initialized"))?;
+        if bytecode_claim_point.len() != bytecode.cumulated_n_vars() {
             return Err(serde::de::Error::custom("invalid bytecode point"));
         }
         let bytecode_value = compute_bytecode_value_at(&bytecode_claim_point);
@@ -56,8 +62,9 @@ impl TypeTwoMultiSignature {
     }
 
     pub fn decompress(bytes: &[u8]) -> Option<Self> {
-        let decompressed = lz4_flex::decompress_size_prepended(bytes).ok()?;
-        postcard::from_bytes(&decompressed).ok()
+        let decompressed = decompress_size_prepended_bounded(bytes)?;
+        let (value, rest) = postcard::take_from_bytes::<Self>(&decompressed).ok()?;
+        rest.is_empty().then_some(value)
     }
 
     pub(crate) fn bytecode_claim_flat(&self) -> Vec<F> {
@@ -94,23 +101,23 @@ pub fn merge_many_type_1(
 ) -> Result<TypeTwoMultiSignature, ProverError> {
     let n_components = types_1.len();
     assert!(n_components > 0, "merge_many_type_1 requires at least one input");
-    assert!(
-        n_components <= MAX_RECURSIONS,
-        "merge_many_type_1: at most {MAX_RECURSIONS} components are supported"
-    );
+    if n_components > MAX_RECURSIONS {
+        return Err(ProverError::LimitExceeded {
+            what: "type-1 components",
+            actual: n_components,
+            max: MAX_RECURSIONS,
+        });
+    }
     let whir_config = default_whir_config(log_inv_rate);
     let bytecode = get_aggregation_bytecode();
 
-    let verified_children: Vec<InnerVerified> = types_1
-        .iter()
-        .map(|sig| verify_type_1(sig).expect("component proof failed to verify"))
-        .collect();
+    let verified_children: Vec<InnerVerified> = types_1.iter().map(verify_type_1).collect::<Result<_, _>>()?;
 
     let reduced_claims = reduce_bytecode_claims(&verified_children);
 
     let digests: Vec<[F; DIGEST_LEN]> = verified_children.iter().map(|v| v.input_data_hash).collect();
     let pub_input_data = build_type2_input_data(&digests, &reduced_claims.final_claim_flat());
-    let public_input_digest = poseidon_compress_slice(&pub_input_data).to_vec();
+    let public_input_digest = poseidon_compress_slice(&pub_input_data);
 
     let bytecode_value_hint_blobs: Vec<Vec<F>> = verified_children
         .iter()
@@ -170,6 +177,9 @@ pub fn verify_type_2(sig: &TypeTwoMultiSignature) -> Result<InnerVerified, Proof
     if sig.info.is_empty() || sig.info.len() > MAX_RECURSIONS {
         return Err(ProofError::InvalidProof);
     }
+    for info in &sig.info {
+        check_type_one_pubkeys(&info.pubkeys).map_err(|_| ProofError::InvalidProof)?;
+    }
     let digests = sig
         .info
         .iter()
@@ -201,15 +211,20 @@ pub fn split_type_2(
     log_inv_rate: usize,
 ) -> Result<TypeOneMultiSignature, ProverError> {
     let n_components = type_2.info.len();
-    assert!(index < n_components, "split index {index} out of bounds");
-    assert!(
-        n_components <= MAX_RECURSIONS,
-        "split_type_2: at most {MAX_RECURSIONS} components are supported"
-    );
+    if index >= n_components {
+        return Err(ProverError::InvalidSplitIndex { index, n_components });
+    }
+    if n_components > MAX_RECURSIONS {
+        return Err(ProverError::LimitExceeded {
+            what: "type-2 components",
+            actual: n_components,
+            max: MAX_RECURSIONS,
+        });
+    }
     let whir_config = default_whir_config(log_inv_rate);
     let bytecode = get_aggregation_bytecode();
 
-    let outer_verified = verify_type_2(&type_2).expect("type-2 outer proof failed to verify");
+    let outer_verified = verify_type_2(&type_2)?;
 
     let reduced_claims = reduce_bytecode_claims(std::slice::from_ref(&outer_verified));
     let bytecode_value_hint_blob = flatten_scalars_to_base(&[outer_verified.bytecode_evaluation.value]);

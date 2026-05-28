@@ -72,7 +72,17 @@ pub enum ProverError {
     Runner(RunnerError),
     UnknownMessage,
     MultipleMessages,
-    InvalidPublicInputSize { expected: usize, actual: usize },
+    InvalidRate,
+    InvalidChildProof(ProofError),
+    InvalidSplitIndex {
+        index: usize,
+        n_components: usize,
+    },
+    LimitExceeded {
+        what: &'static str,
+        actual: usize,
+        max: usize,
+    },
 }
 
 impl From<TooBigTableError> for ProverError {
@@ -87,6 +97,12 @@ impl From<RunnerError> for ProverError {
     }
 }
 
+impl From<ProofError> for ProverError {
+    fn from(err: ProofError) -> Self {
+        Self::InvalidChildProof(err)
+    }
+}
+
 impl Display for ProverError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -94,8 +110,16 @@ impl Display for ProverError {
             Self::Runner(e) => write!(f, "{}", e),
             Self::UnknownMessage => write!(f, "Unknown message, not part of the type2"),
             Self::MultipleMessages => write!(f, "Multiple common messages in the type2"),
-            Self::InvalidPublicInputSize { expected, actual } => {
-                write!(f, "Invalid public input size: expected {}, actual {}", expected, actual)
+            Self::InvalidRate => write!(
+                f,
+                "LeanVM supports rate 1/2, 1/4, 1/8 and 1/16 (log_inv_rate in {{1, 2, 3, 4}})"
+            ),
+            Self::InvalidChildProof(e) => write!(f, "Invalid child proof: {}", e),
+            Self::InvalidSplitIndex { index, n_components } => {
+                write!(f, "Invalid split index {index} for {n_components} components")
+            }
+            Self::LimitExceeded { what, actual, max } => {
+                write!(f, "Too many {}: {} (max {})", what, actual, max)
             }
         }
     }
