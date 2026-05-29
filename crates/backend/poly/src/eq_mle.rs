@@ -1,16 +1,13 @@
 use crate::*;
 use crate::{EFPacking, PF};
-use ::utils::{iter_array_chunks_padded, log2_strict_usize};
+use ::utils::{iter_array_chunks_padded, log2_ceil_usize, log2_strict_usize};
 use field::*;
 use rayon::prelude::*;
+use system_info::NUM_THREADS;
 
-/// Log of number of threads to spawn.
-/// Long term this should be a modifiable parameter and potentially be in an optimization file somewhere.
-/// I've chosen 32 here as my machine has 20 logical cores.
-const LOG_NUM_THREADS: usize = 5;
-
-/// The number of threads to spawn for parallel computations.
-const NUM_THREADS: usize = 1 << LOG_NUM_THREADS;
+const LOG_NUM_THREADS: usize = log2_ceil_usize(NUM_THREADS);
+const NUM_THREADS_PADDED: usize = 1 << LOG_NUM_THREADS;
+const LOG_BATCHED_TILE_SIZE: usize = 14;
 
 /// Given `evals` = (α_1, ..., α_n), returns a multilinear polynomial P in n variables,
 /// defined on the boolean hypercube by: ∀ (x_1, ..., x_n) ∈ {0, 1}^n,
@@ -125,8 +122,8 @@ where
     // The last log_packing_width elements are the ones which will be packed.
 
     // We make a buffer of elements of size `NUM_THREADS`.
-    let mut parallel_buffer = EF::ExtensionPacking::zero_vec(NUM_THREADS);
-    let out_chunk_size = out.len() / NUM_THREADS;
+    let mut parallel_buffer = EF::ExtensionPacking::zero_vec(NUM_THREADS_PADDED);
+    let out_chunk_size = out.len() / NUM_THREADS_PADDED;
 
     // Compute the equality polynomial corresponding to the last log_packing_width elements
     // and pack these.
@@ -176,12 +173,12 @@ where
         let mut output_no_packing = EF::zero_vec(1 << eval.len());
         eval_eq_basic::<_, _, _, false>(eval, &mut output_no_packing, scalar);
         out.par_iter_mut()
-            .zip(output_no_packing.into_par_iter().chunks(packing_width))
+            .zip(output_no_packing.par_chunks_exact(packing_width))
             .for_each(|(out_elem, chunk)| {
                 if INITIALIZED {
-                    *out_elem += EF::ExtensionPacking::from_ext_slice(&chunk);
+                    *out_elem += EF::ExtensionPacking::from_ext_slice(chunk);
                 } else {
-                    *out_elem = EF::ExtensionPacking::from_ext_slice(&chunk);
+                    *out_elem = EF::ExtensionPacking::from_ext_slice(chunk);
                 }
             });
     } else {
@@ -196,8 +193,8 @@ where
         // The last log_packing_width elements are the ones which will be packed.
 
         // We make a buffer of elements of size `NUM_THREADS`.
-        let mut parallel_buffer = EF::ExtensionPacking::zero_vec(NUM_THREADS);
-        let out_chunk_size = out.len() / NUM_THREADS;
+        let mut parallel_buffer = EF::ExtensionPacking::zero_vec(NUM_THREADS_PADDED);
+        let out_chunk_size = out.len() / NUM_THREADS_PADDED;
 
         // Compute the equality polynomial corresponding to the last log_packing_width elements
         // and pack these.
@@ -272,8 +269,8 @@ where
     // Note that this is a slightly different strategy to `eval_eq` which instead
     // uses PackedExtensionField elements. Whilst this involves slightly more mathematical
     // operations, it seems to be faster in practice due to less data moving around.
-    let mut parallel_buffer = F::Packing::zero_vec(NUM_THREADS);
-    let out_chunk_size = out.len() / NUM_THREADS;
+    let mut parallel_buffer = F::Packing::zero_vec(NUM_THREADS_PADDED);
+    let out_chunk_size = out.len() / NUM_THREADS_PADDED;
 
     // Compute the equality polynomial corresponding to the last log_packing_width elements
     // and pack these.
@@ -322,12 +319,12 @@ pub fn compute_eval_eq_base_packed<F, EF, const INITIALIZED: bool>(
         let mut output_no_packing = EF::zero_vec(1 << eval.len());
         eval_eq_basic::<_, _, _, false>(eval, &mut output_no_packing, scalar);
         out.par_iter_mut()
-            .zip(output_no_packing.into_par_iter().chunks(packing_width))
+            .zip(output_no_packing.par_chunks_exact(packing_width))
             .for_each(|(out_elem, chunk)| {
                 if INITIALIZED {
-                    *out_elem += EF::ExtensionPacking::from_ext_slice(&chunk);
+                    *out_elem += EF::ExtensionPacking::from_ext_slice(chunk);
                 } else {
-                    *out_elem = EF::ExtensionPacking::from_ext_slice(&chunk);
+                    *out_elem = EF::ExtensionPacking::from_ext_slice(chunk);
                 }
             });
     } else {
@@ -345,8 +342,8 @@ pub fn compute_eval_eq_base_packed<F, EF, const INITIALIZED: bool>(
         // Note that this is a slightly different strategy to `eval_eq` which instead
         // uses PackedExtensionField elements. Whilst this involves slightly more mathematical
         // operations, it seems to be faster in practice due to less data moving around.
-        let mut parallel_buffer = F::Packing::zero_vec(NUM_THREADS);
-        let out_chunk_size = out.len() / NUM_THREADS;
+        let mut parallel_buffer = F::Packing::zero_vec(NUM_THREADS_PADDED);
+        let out_chunk_size = out.len() / NUM_THREADS_PADDED;
 
         // Compute the equality polynomial corresponding to the last log_packing_width elements
         // and pack these.
@@ -369,6 +366,67 @@ pub fn compute_eval_eq_base_packed<F, EF, const INITIALIZED: bool>(
                 );
             });
     }
+}
+
+#[inline]
+pub fn compute_eval_eq_base_packed_batched<F, EF>(
+    evals: &[MultilinearPoint<F>],
+    out: &mut [EF::ExtensionPacking],
+    scalars: &[EF],
+) where
+    F: Field,
+    EF: ExtensionField<F>,
+{
+    assert_eq!(evals.len(), scalars.len());
+    if evals.is_empty() {
+        return;
+    }
+
+    let n = evals[0].len();
+    let packing_width = F::Packing::WIDTH;
+    let log_packing_width = log2_strict_usize(packing_width);
+    assert!(log_packing_width <= n);
+    assert_eq!(out.len(), 1 << (n - log_packing_width));
+
+    let k = n.min(LOG_BATCHED_TILE_SIZE);
+
+    if k <= log_packing_width || k >= n {
+        for (eval, &scalar) in evals.iter().zip(scalars) {
+            compute_eval_eq_base_packed::<F, EF, true>(eval, out, scalar);
+        }
+        return;
+    }
+
+    let n_prefix_levels = n - k;
+    let tile_packed_size = 1 << (k - log_packing_width);
+
+    let per_query: Vec<_> = evals
+        .iter()
+        .zip(scalars)
+        .map(|(eval, &scalar)| {
+            let middle = &eval[n_prefix_levels..n - log_packing_width];
+            let eq_suffix = packed_eq_poly::<F, F>(&eval[n - log_packing_width..], F::ONE);
+            let mut eq_prefix: Vec<EF> = unsafe { uninitialized_vec(1 << n_prefix_levels) };
+            eval_eq_basic::<F, F, EF, false>(&eval[..n_prefix_levels], &mut eq_prefix, scalar);
+            (eq_prefix, middle, eq_suffix)
+        })
+        .collect();
+
+    out.par_chunks_exact_mut(tile_packed_size)
+        .enumerate()
+        .for_each(|(tile_idx, out_tile)| {
+            for (eq_prefix, middle, eq_suffix) in &per_query {
+                // Here e could precompute the eq poly, trading some memory for less computation
+                // (2x faster on M4 max, but 2x slower on machines with smaller caches.
+                // TODO implement both and choose based on cache size?)
+                base_eval_eq_packed_with_packed_output::<F, EF, true>(
+                    middle,
+                    out_tile,
+                    *eq_suffix,
+                    EF::ExtensionPacking::from(eq_prefix[tile_idx]),
+                );
+            }
+        });
 }
 
 /// Fills the `buffer` with evaluations of the equality polynomial
@@ -823,6 +881,105 @@ fn eval_eq_with_packed_output<F: Field, EF: ExtensionField<F>, const INITIALIZED
     }
 }
 
+#[inline]
+fn eval_eq_with_packed_output_dual<F: Field, EF: ExtensionField<F>>(
+    eval_a: &[EF],
+    eval_b: &[EF],
+    out: &mut [EF::ExtensionPacking],
+    scalar_a: EF::ExtensionPacking,
+    scalar_b: EF::ExtensionPacking,
+) {
+    debug_assert_eq!(eval_a.len(), eval_b.len());
+    debug_assert_eq!(out.len(), 1 << eval_a.len());
+
+    match eval_a.len() {
+        0 => {
+            out[0] = scalar_a + scalar_b;
+        }
+        1 => {
+            let [a0, a1] = eval_eq_1(eval_a, scalar_a);
+            let [b0, b1] = eval_eq_1(eval_b, scalar_b);
+            out[0] = a0 + b0;
+            out[1] = a1 + b1;
+        }
+        2 => {
+            let eq_a = eval_eq_2(eval_a, scalar_a);
+            let eq_b = eval_eq_2(eval_b, scalar_b);
+            for i in 0..4 {
+                out[i] = eq_a[i] + eq_b[i];
+            }
+        }
+        3 => {
+            let eq_a = eval_eq_3(eval_a, scalar_a);
+            let eq_b = eval_eq_3(eval_b, scalar_b);
+            for i in 0..8 {
+                out[i] = eq_a[i] + eq_b[i];
+            }
+        }
+        _ => {
+            let (low, high) = out.split_at_mut(out.len() / 2);
+            let sa1 = scalar_a * eval_a[0];
+            let sa0 = scalar_a - sa1;
+            let sb1 = scalar_b * eval_b[0];
+            let sb0 = scalar_b - sb1;
+            eval_eq_with_packed_output_dual::<F, EF>(&eval_a[1..], &eval_b[1..], low, sa0, sb0);
+            eval_eq_with_packed_output_dual::<F, EF>(&eval_a[1..], &eval_b[1..], high, sa1, sb1);
+        }
+    }
+}
+
+pub fn compute_eval_eq_packed_dual<EF>(
+    eval_a: &[EF],
+    eval_b: &[EF],
+    out: &mut [EF::ExtensionPacking],
+    scalar_a: EF,
+    scalar_b: EF,
+) where
+    EF: ExtensionField<PF<EF>>,
+{
+    let packing_width = packing_width::<EF>();
+    let log_packing_width = log2_strict_usize(packing_width);
+
+    assert_eq!(eval_a.len(), eval_b.len());
+    assert!(log_packing_width <= eval_a.len());
+    assert_eq!(out.len(), 1 << (eval_a.len() - log_packing_width));
+
+    if eval_a.len() <= log_packing_width + 1 + LOG_NUM_THREADS {
+        let mut output_no_packing = EF::zero_vec(1 << eval_a.len());
+        eval_eq_basic::<_, _, _, false>(eval_a, &mut output_no_packing, scalar_a);
+        eval_eq_basic::<_, _, _, true>(eval_b, &mut output_no_packing, scalar_b);
+        out.par_iter_mut()
+            .zip(output_no_packing.par_chunks_exact(packing_width))
+            .for_each(|(out_elem, chunk)| {
+                *out_elem = EF::ExtensionPacking::from_ext_slice(chunk);
+            });
+    } else {
+        let eval_len_min_packing = eval_a.len() - log_packing_width;
+
+        let mut parallel_buffer_a = EF::ExtensionPacking::zero_vec(NUM_THREADS_PADDED);
+        let mut parallel_buffer_b = EF::ExtensionPacking::zero_vec(NUM_THREADS_PADDED);
+        let out_chunk_size = out.len() / NUM_THREADS_PADDED;
+
+        parallel_buffer_a[0] = packed_eq_poly(&eval_a[eval_len_min_packing..], scalar_a);
+        fill_buffer(eval_a[..LOG_NUM_THREADS].iter().rev(), &mut parallel_buffer_a);
+
+        parallel_buffer_b[0] = packed_eq_poly(&eval_b[eval_len_min_packing..], scalar_b);
+        fill_buffer(eval_b[..LOG_NUM_THREADS].iter().rev(), &mut parallel_buffer_b);
+
+        out.par_chunks_exact_mut(out_chunk_size)
+            .enumerate()
+            .for_each(|(i, out_chunk)| {
+                eval_eq_with_packed_output_dual::<PF<EF>, EF>(
+                    &eval_a[LOG_NUM_THREADS..eval_len_min_packing],
+                    &eval_b[LOG_NUM_THREADS..eval_len_min_packing],
+                    out_chunk,
+                    parallel_buffer_a[i],
+                    parallel_buffer_b[i],
+                );
+            });
+    }
+}
+
 /// Computes the equality polynomial evaluations via a simple recursive algorithm.
 ///
 /// Unlike [`eval_eq_basic`], this function makes heavy use of packed values to speed up computations.
@@ -1197,6 +1354,30 @@ mod tests {
 
                 assert_eq!(out_2, out_3_packed);
             }
+        }
+    }
+
+    #[test]
+    fn test_compute_eval_eq_packed_dual() {
+        let packing_width = <F as Field>::Packing::WIDTH;
+        let log_packing_width = log2_strict_usize(packing_width);
+        let mut rng = StdRng::seed_from_u64(42);
+
+        for n_vars in log_packing_width..22 {
+            let eval_a: Vec<EF> = (0..n_vars).map(|_| rng.random()).collect();
+            let eval_b: Vec<EF> = (0..n_vars).map(|_| rng.random()).collect();
+            let scalar_a: EF = rng.random();
+            let scalar_b: EF = rng.random();
+
+            let packed_len = 1 << (n_vars - log_packing_width);
+            let mut out_dual = EFPacking::<EF>::zero_vec(packed_len);
+            compute_eval_eq_packed_dual::<EF>(&eval_a, &eval_b, &mut out_dual, scalar_a, scalar_b);
+
+            let mut out_separate = EFPacking::<EF>::zero_vec(packed_len);
+            compute_eval_eq_packed::<EF, false>(&eval_a, &mut out_separate, scalar_a);
+            compute_eval_eq_packed::<EF, true>(&eval_b, &mut out_separate, scalar_b);
+
+            assert_eq!(out_dual, out_separate, "Mismatch at n_vars={}", n_vars);
         }
     }
 }

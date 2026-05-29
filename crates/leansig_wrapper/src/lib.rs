@@ -13,7 +13,9 @@ use leansig::{
         tweak_hash::poseidon::PoseidonTweakHash,
     },
 };
-use leansig_fast_keygen::{signature::SignatureScheme as FastKeyGenSignatureScheme, symmetric::message_hash::encode_message};
+use leansig_fast_keygen::{
+    signature::SignatureScheme as FastKeyGenSignatureScheme, symmetric::message_hash::encode_message,
+};
 use p3_field::PrimeField32;
 use std::array;
 

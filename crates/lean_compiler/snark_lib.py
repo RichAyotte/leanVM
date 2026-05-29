@@ -6,7 +6,7 @@ from typing import Any
 # Type annotations
 Mut = Any
 Const = Any
-Imu = Any
+Imm = Any
 
 
 # @inline decorator (does nothing in Python execution)
@@ -17,13 +17,9 @@ def inline(fn):
 def unroll(a: int, b: int):
     return range(a, b)
 
+
 def parallel_range(a: int, b: int):
     return range(a, b)
-
-# dynamic_unroll(start, end, n_bits) returns range(start, end) for Python execution
-def dynamic_unroll(start: int, end: int, n_bits: int):
-    _ = n_bits
-    return range(start, end)
 
 
 # Array - simulates write-once memory with pointer arithmetic
@@ -49,26 +45,32 @@ class Array:
         return
 
 
-# DynArray - dynamic array with push/pop (compile-time construct)
-class DynArray:
-    def __init__(self, initial: list):
-        self._data = list(initial)
-
-    def __getitem__(self, idx):
-        return self._data[idx]
-
-    def __len__(self):
-        return len(self._data)
-
-    def push(self, value):
-        self._data.append(value)
-
-    def pop(self):
-        self._data.pop()
+def poseidon16_compress(left, right, output):
+    _ = left, right, output
 
 
-def poseidon16_compress(left, right, output, mode):
-    _ = left, right, output, mode
+def poseidon16_compress_half(left, right, output):
+    """Poseidon16 compression outputting only the first 4 FE (last 4 unconstrained)."""
+    _ = left, right, output
+
+
+def poseidon16_compress_hardcoded_left(left, right, output, offset):
+    """Poseidon16 compression where the first 4 FE of the left input are read from
+    memory[offset..offset+4] instead of memory[left..left+4]. The last 4 FE of the
+    left input come from memory[left..left+4]. `offset` must be a compile-time
+    constant expression."""
+    _ = left, right, output, offset
+
+
+def poseidon16_compress_half_hardcoded_left(left, right, output, offset):
+    """Composition of `poseidon16_compress_half` and `poseidon16_compress_hardcoded_left`."""
+    _ = left, right, output, offset
+
+
+def poseidon16_permute(left, right, output):
+    """Raw Poseidon1 permutation (no feed-forward). Writes the 16-cell result in natural order:
+    m[output .. output + 16] = poseidon(left || right)"""
+    _ = left, right, output
 
 
 def poseidon24_compress_0_9(left, right, output):
@@ -105,8 +107,9 @@ def poly_eq_ee(a, b, result, length=None):
     _ = a, b, result, length
 
 
-def hint_decompose_bits(value, bits, n_bits, endian):
-    _ = value, bits, n_bits, endian
+def hint_decompose_bits(value, bits, n_bits):
+    _ = value, bits, n_bits
+
 
 def hint_less_than(a, b, result_ptr):
     _ = a, b, result_ptr
@@ -120,8 +123,10 @@ def log2_ceil(x: int) -> int:
 def div_ceil(a: int, b: int) -> int:
     return (a + b - 1) // b
 
+
 def div_floor(a: int, b: int) -> int:
     return a // b
+
 
 def next_multiple_of(x: int, n: int) -> int:
     return x + (n - x % n) % n
@@ -163,6 +168,10 @@ def hint_decompose_bits_merkle_whir(*args):
 
 def hint_log2_ceil(n):
     return log2_ceil(n)
+
+
+def hint_div_floor(a, b, q_ptr, r_ptr):
+    _ = a, b, q_ptr, r_ptr
 
 
 def hint_witness(name, destination):

@@ -1,13 +1,13 @@
 use lean_vm::{Boolean, BooleanExpr};
 use utils::ToUsize;
 
-use super::expression::{ExpressionParser, VecElementParser, VecLiteralParser};
+use super::expression::ExpressionParser;
 use super::function::{AssignmentParser, TupleExpressionParser};
 use super::literal::ConstExprParser;
-use super::{Parse, ParseContext, next_inner_pair};
+use super::{Parse, ParseContext, next_inner_pair, push_statement_with_location};
 use crate::{
     SourceLineNumber,
-    lang::{Expression, Line, LoopKind, SourceLocation, VecLiteral},
+    lang::{Expression, Line, LoopKind, SourceLocation},
     parser::{
         error::{ParseResult, SemanticError},
         grammar::{ParsePair, Rule},
@@ -36,9 +36,6 @@ impl Parse<Line> for StatementParser {
                     Rule::return_statement => ReturnStatementParser.parse(simple_inner, ctx),
                     Rule::assert_statement => AssertParser::<false>.parse(simple_inner, ctx),
                     Rule::debug_assert_statement => AssertParser::<true>.parse(simple_inner, ctx),
-                    Rule::vec_declaration => VecDeclarationParser.parse(simple_inner, ctx),
-                    Rule::push_statement => PushStatementParser.parse(simple_inner, ctx),
-                    Rule::pop_statement => PopStatementParser.parse(simple_inner, ctx),
                     _ => Err(SemanticError::new("Unknown simple statement").into()),
                 }
             }
@@ -63,7 +60,7 @@ impl Parse<Line> for IfStatementParser {
         for item in inner {
             match item.as_rule() {
                 Rule::statement => {
-                    Self::add_statement_with_location(&mut then_branch, item, ctx)?;
+                    push_statement_with_location(&mut then_branch, item, ctx)?;
                 }
                 Rule::elif_clause => {
                     let line_number = item.line_col().0;
@@ -72,7 +69,7 @@ impl Parse<Line> for IfStatementParser {
                     let mut elif_branch = Vec::new();
                     for elif_item in inner {
                         if elif_item.as_rule() == Rule::statement {
-                            Self::add_statement_with_location(&mut elif_branch, elif_item, ctx)?;
+                            push_statement_with_location(&mut elif_branch, elif_item, ctx)?;
                         }
                     }
                     elif_branches.push((elif_condition, elif_branch, line_number));
@@ -80,7 +77,7 @@ impl Parse<Line> for IfStatementParser {
                 Rule::else_clause => {
                     for else_item in item.into_inner() {
                         if else_item.as_rule() == Rule::statement {
-                            Self::add_statement_with_location(&mut else_branch, else_item, ctx)?;
+                            push_statement_with_location(&mut else_branch, else_item, ctx)?;
                         }
                     }
                 }
@@ -118,27 +115,6 @@ impl Parse<Line> for IfStatementParser {
                 line_number,
             },
         })
-    }
-}
-
-impl IfStatementParser {
-    fn add_statement_with_location(
-        lines: &mut Vec<Line>,
-        pair: ParsePair<'_>,
-        ctx: &mut ParseContext,
-    ) -> ParseResult<()> {
-        let line_number = pair.line_col().0;
-        let line = StatementParser.parse(pair, ctx)?;
-
-        lines.push(Line::LocationReport {
-            location: SourceLocation {
-                file_id: ctx.current_file_id,
-                line_number,
-            },
-        });
-        lines.push(line);
-
-        Ok(())
     }
 }
 
@@ -193,10 +169,6 @@ impl Parse<Line> for ForStatementParser {
         let end = ExpressionParser.parse(next_inner_pair(&mut range_inner, "loop end")?, ctx)?;
         let loop_kind = match rule {
             Rule::unroll_range => LoopKind::Unroll,
-            Rule::dynamic_unroll_range => {
-                let n_bits = ExpressionParser.parse(next_inner_pair(&mut range_inner, "n_bits")?, ctx)?;
-                LoopKind::DynamicUnroll { n_bits }
-            }
             Rule::parallel_range => LoopKind::ParallelRange,
             _ => LoopKind::Range,
         };
@@ -204,7 +176,7 @@ impl Parse<Line> for ForStatementParser {
         let mut body = Vec::new();
         for item in inner {
             if item.as_rule() == Rule::statement {
-                Self::add_statement_with_location(&mut body, item, ctx)?;
+                push_statement_with_location(&mut body, item, ctx)?;
             }
         }
 
@@ -219,27 +191,6 @@ impl Parse<Line> for ForStatementParser {
                 line_number,
             },
         })
-    }
-}
-
-impl ForStatementParser {
-    fn add_statement_with_location(
-        lines: &mut Vec<Line>,
-        pair: ParsePair<'_>,
-        ctx: &mut ParseContext,
-    ) -> ParseResult<()> {
-        let line_number = pair.line_col().0;
-        let line = StatementParser.parse(pair, ctx)?;
-
-        lines.push(Line::LocationReport {
-            location: SourceLocation {
-                file_id: ctx.current_file_id,
-                line_number,
-            },
-        });
-        lines.push(line);
-
-        Ok(())
     }
 }
 
@@ -263,39 +214,21 @@ impl Parse<Line> for MatchStatementParser {
                 let mut statements = Vec::new();
                 for stmt in arm_inner {
                     if stmt.as_rule() == Rule::statement {
-                        Self::add_statement_with_location(&mut statements, stmt, ctx)?;
+                        push_statement_with_location(&mut statements, stmt, ctx)?;
                     }
                 }
 
                 arms.push((pattern, statements));
             }
         }
+        if arms.is_empty() {
+            return Err(SemanticError::new(format!("`match` at line {line_number} has no arms")).into());
+        }
         let location = SourceLocation {
             file_id: ctx.current_file_id,
             line_number,
         };
         Ok(Line::Match { value, arms, location })
-    }
-}
-
-impl MatchStatementParser {
-    fn add_statement_with_location(
-        lines: &mut Vec<Line>,
-        pair: ParsePair<'_>,
-        ctx: &mut ParseContext,
-    ) -> ParseResult<()> {
-        let line_number = pair.line_col().0;
-        let line = StatementParser.parse(pair, ctx)?;
-
-        lines.push(Line::LocationReport {
-            location: SourceLocation {
-                file_id: ctx.current_file_id,
-                line_number,
-            },
-        });
-        lines.push(line);
-
-        Ok(())
     }
 }
 
@@ -354,112 +287,7 @@ impl<const DEBUG: bool> Parse<Line> for AssertParser<DEBUG> {
     }
 }
 
-/// Parser for vector declarations: `var = vec![...]` (vectors are implicitly mutable for push)
-pub struct VecDeclarationParser;
-
-impl Parse<Line> for VecDeclarationParser {
-    fn parse(&self, pair: ParsePair<'_>, ctx: &mut ParseContext) -> ParseResult<Line> {
-        let line_number = pair.line_col().0;
-        let mut inner = pair.into_inner();
-
-        // Parse variable name
-        let var = next_inner_pair(&mut inner, "variable name")?.as_str().to_string();
-
-        // Parse the vec_literal
-        let vec_literal_pair = next_inner_pair(&mut inner, "vec literal")?;
-        let vec_literal = VecLiteralParser.parse(vec_literal_pair, ctx)?;
-
-        // Extract elements from the VecLiteral::Vec
-        let elements = match vec_literal {
-            VecLiteral::Vec(elems) => elems,
-            VecLiteral::Expr(_) => {
-                return Err(SemanticError::new("Expected vec literal, got expression").into());
-            }
-        };
-
-        Ok(Line::VecDeclaration {
-            var,
-            elements,
-            location: SourceLocation {
-                file_id: ctx.current_file_id,
-                line_number,
-            },
-        })
-    }
-}
-
-/// Parser for push statements: `vec_var.push(element);` or `vec_var[i][j].push(element);`
-pub struct PushStatementParser;
-
-impl Parse<Line> for PushStatementParser {
-    fn parse(&self, pair: ParsePair<'_>, ctx: &mut ParseContext) -> ParseResult<Line> {
-        let line_number = pair.line_col().0;
-        let mut inner = pair.into_inner();
-
-        // Parse the push_target (identifier with optional indices)
-        let push_target = next_inner_pair(&mut inner, "push target")?;
-        let mut target_inner = push_target.into_inner();
-
-        // First element is the vector variable name
-        let vector = next_inner_pair(&mut target_inner, "vector variable")?
-            .as_str()
-            .to_string();
-
-        // Remaining elements are index expressions
-        let indices: Vec<Expression> = target_inner
-            .map(|idx_pair| ExpressionParser.parse(idx_pair, ctx))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        // Parse the element to push (vec_element can be vec_literal or expression)
-        let element_pair = next_inner_pair(&mut inner, "push element")?;
-        let element = VecElementParser.parse(element_pair, ctx)?;
-
-        Ok(Line::Push {
-            vector,
-            indices,
-            element,
-            location: SourceLocation {
-                file_id: ctx.current_file_id,
-                line_number,
-            },
-        })
-    }
-}
-
-/// Parser for pop statements: `vec_var.pop();` or `vec_var[i][j].pop();`
-pub struct PopStatementParser;
-
-impl Parse<Line> for PopStatementParser {
-    fn parse(&self, pair: ParsePair<'_>, ctx: &mut ParseContext) -> ParseResult<Line> {
-        let line_number = pair.line_col().0;
-        let mut inner = pair.into_inner();
-
-        // Parse the pop_target (identifier with optional indices)
-        let pop_target = next_inner_pair(&mut inner, "pop target")?;
-        let mut target_inner = pop_target.into_inner();
-
-        // First element is the vector variable name
-        let vector = next_inner_pair(&mut target_inner, "vector variable")?
-            .as_str()
-            .to_string();
-
-        // Remaining elements are index expressions
-        let indices: Vec<Expression> = target_inner
-            .map(|idx_pair| ExpressionParser.parse(idx_pair, ctx))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(Line::Pop {
-            vector,
-            indices,
-            location: SourceLocation {
-                file_id: ctx.current_file_id,
-                line_number,
-            },
-        })
-    }
-}
-
-/// Parser for forward declarations: `x: Imu` or `x: Mut`
+/// Parser for forward declarations: `x: Imm` or `x: Mut`
 pub struct ForwardDeclarationParser;
 
 impl Parse<Line> for ForwardDeclarationParser {
@@ -469,7 +297,7 @@ impl Parse<Line> for ForwardDeclarationParser {
         // Parse variable name
         let var = next_inner_pair(&mut inner, "variable name")?.as_str().to_string();
 
-        // Check for : Mut or : Imu annotation
+        // Check for : Mut or : Imm annotation
         let annotation = next_inner_pair(&mut inner, "type annotation")?;
         let is_mutable = annotation.as_rule() == Rule::mut_annotation;
 

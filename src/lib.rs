@@ -1,7 +1,13 @@
 use backend::*;
 
 pub use backend::ProofError;
-pub use rec_aggregation::{AggregatedXMSS, AggregationTopology, xmss_aggregate, xmss_verify_aggregation};
+pub use leansig_wrapper::{
+    MESSAGE_LENGTH, XmssPublicKey, XmssSignature, xmss_keygen_fast, xmss_sign_fast, xmss_verify,
+};
+pub use rec_aggregation::{
+    AggregatedXMSS, AggregatedXMSSInfo, AggregationTopology, MAX_RECURSIONS, MAX_XMSS_AGGREGATED, MAX_XMSS_DUPLICATES,
+    xmss_aggregate, xmss_verify_aggregation,
+};
 
 pub type F = KoalaBear;
 
@@ -15,3 +21,16 @@ pub fn setup_prover() {
 pub fn setup_verifier() {
     rec_aggregation::init_aggregation_bytecode();
 }
+
+/// Bump-arena allocator.
+///
+/// **Optional.**
+///
+/// To enable, set it as the `#[global_allocator]` in your binary and call
+/// [`init_allocator`] once at startup. Then bracket each proving call with
+/// [`begin_phase`] / [`end_phase`] and **clone the outputs after
+/// [`end_phase`]** so the cloned copy lands in the system allocator before the
+/// next [`begin_phase`] resets the arena slabs.
+///
+/// See `tests/test_zk_alloc.rs` for a runnable end-to-end example.
+pub use zk_alloc::{ZkAllocator, begin_phase, end_phase, init as init_allocator};

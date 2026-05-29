@@ -19,6 +19,7 @@ struct Compiler {
     const_malloc_vars: BTreeMap<Var, isize>, // var -> start offset from fp (can be negative for intermediate derived vars)
     dead_fp_relative_vars: BTreeSet<Var>,    // vars whose pointer-storing ADD is dead
     dead_store_vars: BTreeSet<Var>,          // vars that are never used as runtime operands
+    coalesced_ret_vars: BTreeSet<Var>, // variable that are returned, and directly live at the return-slot (at fp + 2 + n_args + i, where i is the return slot index)
 }
 
 #[derive(Default)]
@@ -89,6 +90,18 @@ impl IntermediateValue {
     }
 }
 
+fn check_non_negative_fp_rel_sink(expr: &SimpleExpr, compiler: &Compiler) -> Result<(), String> {
+    if let SimpleExpr::Memory(VarOrConstMallocAccess::Var(v)) = expr
+        && let Some(&offset) = compiler.const_malloc_vars.get(v)
+        && offset < 0
+    {
+        return Err(format!(
+            "Derived fp-relative pointer '{v}' resolves to a negative offset ({offset})"
+        ));
+    }
+    Ok(())
+}
+
 /// Try to encode a precompile arg as FpRelative (fp + known_offset).
 /// Works for const_malloc vars and derived fp-relative vars (const_malloc + constant).
 fn try_precompile_fp_relative(expr: &SimpleExpr, compiler: &Compiler) -> Option<IntermediateValue> {
@@ -139,6 +152,17 @@ fn compile_function(
     }
     stack_pos += function.arguments.len();
 
+    // Coalesce returned variables with their ret-slots: if every `return v_0, ..., v_n`
+    // in the body uses the same variable for slot i, register that variable directly at
+    // `fp + 2 + n_args + i`.
+    let coalesced = collect_return_coalescings(&function.instructions, function.n_returned_vars, &function.arguments);
+    let mut coalesced_ret_vars = BTreeSet::new();
+    for (i, var) in coalesced.iter().enumerate() {
+        if let Some(v) = var {
+            function_scope_layout.var_positions.insert(v.clone(), stack_pos + i);
+            coalesced_ret_vars.insert(v.clone());
+        }
+    }
     stack_pos += function.n_returned_vars;
 
     compiler.func_name = function.name.clone();
@@ -147,6 +171,7 @@ fn compile_function(
     compiler.args_count = function.arguments.len();
     compiler.const_mallocs.clear();
     compiler.const_malloc_vars.clear();
+    compiler.coalesced_ret_vars = coalesced_ret_vars;
     (compiler.dead_fp_relative_vars, compiler.dead_store_vars) = compute_dead_vars(&function.instructions);
 
     let mut instructions = Vec::new();
@@ -180,7 +205,10 @@ fn compile_lines(
     for (i, line) in lines.iter().enumerate() {
         match line {
             SimpleLine::ForwardDeclaration { var } => {
-                if !compiler.dead_fp_relative_vars.contains(var) && !compiler.dead_store_vars.contains(var) {
+                if !compiler.dead_fp_relative_vars.contains(var)
+                    && !compiler.dead_store_vars.contains(var)
+                    && !compiler.coalesced_ret_vars.contains(var)
+                {
                     let current_scope_layout = compiler.stack_frame_layout.scopes.last_mut().unwrap();
                     current_scope_layout
                         .var_positions
@@ -189,19 +217,14 @@ fn compile_lines(
                 }
             }
 
-            SimpleLine::Assignment {
-                var,
-                operation,
-                arg0,
-                arg1,
-            } => {
+            SimpleLine::Assignment { var, op, arg0, arg1 } => {
                 // Track derived fp-relative variables: if result = fp_relative_var +/- constant,
                 // then the result is also fp-relative (e.g. `ptr = arr + 8` or `ptr = arr - 1`)
                 let mut is_dead_derived = false;
-                if let VarOrConstMallocAccess::Var(v) = var
-                    && (*operation == MathOperation::Add || *operation == MathOperation::Sub)
+                if let Some(v) = var.as_var()
+                    && (*op == MathOperation::Add || *op == MathOperation::Sub)
                 {
-                    let fp_offset = match (operation, arg0, arg1) {
+                    let fp_offset = match (op, arg0, arg1) {
                         // Add: commutative, either order
                         (
                             MathOperation::Add,
@@ -238,25 +261,22 @@ fn compile_lines(
                     continue;
                 }
 
-                // Skip assignments to vars that are never used as runtime operands
-                if let VarOrConstMallocAccess::Var(v) = var
-                    && compiler.dead_store_vars.contains(v)
-                {
-                    continue;
-                }
-
-                if let VarOrConstMallocAccess::Var(var) = var {
-                    compiler.register_var_if_needed(var);
+                if let Some(v) = var.as_var() {
+                    // Skip assignments to vars that are never used as runtime operands
+                    if compiler.dead_store_vars.contains(v) {
+                        continue;
+                    }
+                    compiler.register_var_if_needed(v);
                 }
 
                 let arg0 = IntermediateValue::from_simple_expr(arg0, compiler);
                 let arg1 = IntermediateValue::from_simple_expr(arg1, compiler);
 
                 instructions.push(IntermediateInstruction::computation(
-                    *operation,
+                    *op,
                     arg0,
                     arg1,
-                    IntermediateValue::from_simple_expr(&var.clone().into(), compiler),
+                    IntermediateValue::from_simple_expr(var, compiler),
                 ));
             }
 
@@ -464,19 +484,31 @@ fn compile_lines(
                 return_data,
                 location,
             } => {
+                if is_self_recursive_tail_call(callee_function_name, return_data, &lines[i + 1..], compiler) {
+                    emit_self_recursive_tail_call(
+                        &mut instructions,
+                        callee_function_name,
+                        args,
+                        &lines[i + 1..],
+                        compiler,
+                    );
+                    return Ok(instructions);
+                }
+
                 let call_id = compiler.call_counter;
                 compiler.call_counter += 1;
                 let return_label = Label::return_from_call(call_id, *location);
                 let new_fp_pos = compiler.stack_pos;
                 compiler.stack_pos += 1;
 
-                instructions.extend(setup_function_call(
+                instructions.extend(emit_call_frame(
                     callee_function_name,
                     args,
                     new_fp_pos,
-                    &return_label,
+                    ConstExpression::label(return_label.clone()).into(),
+                    IntermediateValue::fp_register(),
                     compiler,
-                )?);
+                ));
 
                 for var in return_data.iter() {
                     compiler.register_var_if_needed(var);
@@ -523,9 +555,12 @@ fn compile_lines(
                     compiler.stack_pos += 1;
                     IntermediateValue::MemoryAfterFp { offset: offset.into() }
                 } else {
+                    check_non_negative_fp_rel_sink(&precompile.res, compiler)?;
                     try_precompile_fp_relative(&precompile.res, compiler)
                         .unwrap_or_else(|| IntermediateValue::from_simple_expr(&precompile.res, compiler))
                 };
+                check_non_negative_fp_rel_sink(&precompile.arg_0, compiler)?;
+                check_non_negative_fp_rel_sink(&precompile.arg_1, compiler)?;
                 let (left, right) = match (
                     try_precompile_fp_relative(&precompile.arg_0, compiler),
                     try_precompile_fp_relative(&precompile.arg_1, compiler),
@@ -586,16 +621,20 @@ fn compile_lines(
                 let simplified_args = args
                     .iter()
                     .map(|expr| {
-                        try_precompile_fp_relative(expr, compiler)
-                            .unwrap_or_else(|| IntermediateValue::from_simple_expr(expr, compiler))
+                        check_non_negative_fp_rel_sink(expr, compiler)?;
+                        Ok(try_precompile_fp_relative(expr, compiler)
+                            .unwrap_or_else(|| IntermediateValue::from_simple_expr(expr, compiler)))
                     })
-                    .collect::<Vec<_>>();
+                    .collect::<Result<Vec<_>, String>>()?;
                 instructions.push(IntermediateInstruction::CustomHint(*hint, simplified_args));
             }
             SimpleLine::HintWitness { destination, name } => {
                 let SimpleExpr::Memory(VarOrConstMallocAccess::Var(ptr_var)) = destination else {
-                    panic!("hint_witness: destination must be a plain variable, got {destination}")
+                    return Err(format!(
+                        "hint_witness: destination must be a plain variable, got {destination}"
+                    ));
                 };
+                check_non_negative_fp_rel_sink(destination, compiler)?;
                 let hint_destination = if let Some(IntermediateValue::FpRelative { offset }) =
                     try_precompile_fp_relative(destination, compiler)
                 {
@@ -622,13 +661,21 @@ fn compile_lines(
             SimpleLine::LocationReport { location } => {
                 instructions.push(IntermediateInstruction::LocationReport { location: *location });
             }
-            SimpleLine::DebugAssert(boolean, location) => {
-                let boolean_simplified = BooleanExpr {
-                    kind: boolean.kind,
-                    left: IntermediateValue::from_simple_expr(&boolean.left, compiler),
-                    right: IntermediateValue::from_simple_expr(&boolean.right, compiler),
+            SimpleLine::DebugAssert {
+                expr,
+                location,
+                preceds_runtime_inequality,
+            } => {
+                let expr_simplified = BooleanExpr {
+                    kind: expr.kind,
+                    left: IntermediateValue::from_simple_expr(&expr.left, compiler),
+                    right: IntermediateValue::from_simple_expr(&expr.right, compiler),
                 };
-                instructions.push(IntermediateInstruction::DebugAssert(boolean_simplified, *location));
+                instructions.push(IntermediateInstruction::DebugAssert {
+                    expr: expr_simplified,
+                    location: *location,
+                    preceds_runtime_inequality: *preceds_runtime_inequality,
+                });
             }
             SimpleLine::AssertEq { left, right, .. } => {
                 let register_if_var = |expr: &SimpleExpr, c: &mut Compiler| {
@@ -762,29 +809,68 @@ fn handle_const_malloc(
     data_fp_offset
 }
 
-fn setup_function_call(
-    func_name: &str,
+fn is_self_recursive_tail_call(callee: &str, return_data: &[Var], rest: &[SimpleLine], compiler: &Compiler) -> bool {
+    if !return_data.is_empty() || callee != compiler.func_name {
+        return false;
+    }
+    let mut non_loc = rest.iter().filter(|l| !matches!(l, SimpleLine::LocationReport { .. }));
+    matches!(
+        non_loc.next(),
+        Some(SimpleLine::FunctionRet { return_data }) if return_data.is_empty()
+    ) && non_loc.next().is_none() // True when `rest` is exactly a single empty `FunctionRet`, modulo `LocationReport`s.
+}
+
+fn emit_self_recursive_tail_call(
+    instructions: &mut Vec<IntermediateInstruction>,
+    callee: &str,
+    args: &[SimpleExpr],
+    rest: &[SimpleLine],
+    compiler: &mut Compiler,
+) {
+    for line in rest {
+        if let SimpleLine::LocationReport { location } = line {
+            instructions.push(IntermediateInstruction::LocationReport { location: *location });
+        }
+    }
+    let callee_fp_pos = compiler.stack_pos; // slot in our frame that will hold the pointer to the callee's frame
+    compiler.stack_pos += 1;
+    instructions.extend(emit_call_frame(
+        callee,
+        args,
+        callee_fp_pos,
+        IntermediateValue::MemoryAfterFp {
+            offset: ConstExpression::zero(),
+        }, // m[fp + 0] stores the PC were the current frame should return after calling `callee`, i.e. our parent (TCO = tell `callee` to directly return to our parent)
+        IntermediateValue::MemoryAfterFp {
+            offset: ConstExpression::one(),
+        }, // m[fp + 1] stores the FP ... (same as above)
+        compiler,
+    ));
+    compiler.stack_size = compiler.stack_size.max(compiler.stack_pos);
+}
+
+fn emit_call_frame(
+    callee: &str,
     args: &[SimpleExpr],
     new_fp_pos: usize,
-    return_label: &Label,
+    return_pc: IntermediateValue,
+    return_fp: IntermediateValue,
     compiler: &Compiler,
-) -> Result<Vec<IntermediateInstruction>, String> {
+) -> Vec<IntermediateInstruction> {
     let mut instructions = vec![
         IntermediateInstruction::RequestMemory {
             offset: new_fp_pos.into(),
-            size: ConstExpression::function_size(Label::function(func_name)).into(),
+            size: ConstExpression::function_size(Label::function(callee)).into(),
         },
         IntermediateInstruction::Deref {
             shift_0: new_fp_pos.into(),
             shift_1: ConstExpression::zero(),
-            res: IntermediateValue::Constant(ConstExpression::label(return_label.clone())),
+            res: return_pc,
         },
         IntermediateInstruction::Deref {
             shift_0: new_fp_pos.into(),
             shift_1: ConstExpression::one(),
-            res: IntermediateValue::FpRelative {
-                offset: ConstExpression::zero(),
-            },
+            res: return_fp,
         },
     ];
 
@@ -798,13 +884,13 @@ fn setup_function_call(
     }
 
     instructions.push(IntermediateInstruction::Jump {
-        dest: IntermediateValue::label(Label::function(func_name)),
+        dest: IntermediateValue::label(Label::function(callee)),
         updated_fp: Some(IntermediateValue::MemoryAfterFp {
             offset: new_fp_pos.into(),
         }),
     });
 
-    Ok(instructions)
+    instructions
 }
 
 fn compile_function_ret(
@@ -813,6 +899,12 @@ fn compile_function_ret(
     compiler: &Compiler,
 ) {
     for (i, ret_var) in return_data.iter().enumerate() {
+        if let SimpleExpr::Memory(VarOrConstMallocAccess::Var(v)) = ret_var
+            && compiler.coalesced_ret_vars.contains(v)
+        {
+            // Variable already live at the return-slot
+            continue;
+        }
         instructions.push(IntermediateInstruction::equality(
             IntermediateValue::MemoryAfterFp {
                 offset: (2 + compiler.args_count + i).into(),
@@ -824,6 +916,58 @@ fn compile_function_ret(
         dest: IntermediateValue::MemoryAfterFp { offset: 0.into() },
         updated_fp: Some(IntermediateValue::MemoryAfterFp { offset: 1.into() }),
     });
+}
+
+/// For each return slot, return `Some(v)` if every `FunctionRet` in `lines` returns the
+/// same variable `v` for that slot, `v` is not a function argument (which has a fixed
+/// offset), and `v` isn't returned by another slot too. Otherwise `None`.
+fn collect_return_coalescings(lines: &[SimpleLine], n_ret: usize, arguments: &[Var]) -> Vec<Option<Var>> {
+    if n_ret == 0 {
+        return vec![];
+    }
+    let mut found: Vec<Option<Var>> = vec![None; n_ret];
+    let mut conflict: Vec<bool> = vec![false; n_ret];
+    walk_returns(lines, &mut found, &mut conflict);
+    let mut result: Vec<Option<Var>> = found
+        .into_iter()
+        .zip(conflict)
+        .map(|(v, c)| v.filter(|v| !c && !arguments.contains(v)))
+        .collect();
+    // Avoid two slots returning the same variable
+    let mut seen: BTreeSet<Var> = BTreeSet::new();
+    for slot in result.iter_mut() {
+        if let Some(v) = slot
+            && !seen.insert(v.clone())
+        {
+            *slot = None;
+        }
+    }
+    result
+}
+
+fn walk_returns(lines: &[SimpleLine], found: &mut [Option<Var>], conflict: &mut [bool]) {
+    for line in lines {
+        if let SimpleLine::FunctionRet { return_data } = line {
+            for (i, expr) in return_data.iter().enumerate() {
+                if conflict[i] {
+                    continue;
+                }
+                match (&found[i], expr) {
+                    (Some(prev), SimpleExpr::Memory(VarOrConstMallocAccess::Var(v))) if prev == v => {}
+                    (None, SimpleExpr::Memory(VarOrConstMallocAccess::Var(v))) => {
+                        found[i] = Some(v.clone());
+                    }
+                    _ => {
+                        conflict[i] = true;
+                        found[i] = None;
+                    }
+                }
+            }
+        }
+        for block in line.nested_blocks() {
+            walk_returns(block, found, conflict);
+        }
+    }
 }
 
 // ── Dead variable analysis ────────────────────────────────────────────────
@@ -849,12 +993,12 @@ fn collect_fp_rel_capable(
                 fp_rel_capable.insert(var.clone());
             }
             SimpleLine::Assignment {
-                var: VarOrConstMallocAccess::Var(v),
-                operation,
+                var: SimpleExpr::Memory(VarOrConstMallocAccess::Var(v)),
+                op,
                 arg0,
                 arg1,
-            } if *operation == MathOperation::Add || *operation == MathOperation::Sub => {
-                let base_var = match (operation, arg0, arg1) {
+            } if *op == MathOperation::Add || *op == MathOperation::Sub => {
+                let base_var = match (op, arg0, arg1) {
                     (
                         MathOperation::Add,
                         SimpleExpr::Memory(VarOrConstMallocAccess::Var(x)),
@@ -899,7 +1043,7 @@ fn collect_use_info(
                 declared.insert(var.clone());
             }
             SimpleLine::Assignment {
-                var: VarOrConstMallocAccess::Var(v),
+                var: SimpleExpr::Memory(VarOrConstMallocAccess::Var(v)),
                 ..
             } => {
                 declared.insert(v.clone());

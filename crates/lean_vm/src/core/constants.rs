@@ -1,8 +1,7 @@
 use crate::Table;
 
 /// Domain separation in logup
-pub const LOGUP_MEMORY_DOMAINSEP: usize = 0;
-pub const LOGUP_PRECOMPILE_DOMAINSEP: usize = 1;
+pub const LOGUP_MEMORY_DOMAINSEP: usize = 1;
 pub const LOGUP_BYTECODE_DOMAINSEP: usize = 2;
 
 /// Large field = extension field of degree DIMENSION over koala-bear
@@ -10,12 +9,17 @@ pub const DIMENSION: usize = 5;
 
 pub const DIGEST_LEN: usize = 8;
 
+pub const PUBLIC_INPUT_LEN: usize = DIGEST_LEN;
+
 pub const MIN_WHIR_LOG_INV_RATE: usize = 1;
 pub const MAX_WHIR_LOG_INV_RATE: usize = 4;
 
 /// Minimum and maximum memory size (as powers of two)
 pub const MIN_LOG_MEMORY_SIZE: usize = 16;
 pub const MAX_LOG_MEMORY_SIZE: usize = 26;
+
+pub const MIN_BYTECODE_LOG_SIZE: usize = 8;
+pub const MAX_BYTECODE_LOG_SIZE: usize = 22;
 
 /// Minimum and maximum number of rows per table (as powers of two), both inclusive
 pub const MIN_LOG_N_ROWS_PER_TABLE: usize = 8; // Zero padding will be added to each at least, if this minimum is not reached, (ensuring AIR / GKR work fine, with SIMD, without too much edge cases). Long term, we should find a more elegant solution.
@@ -26,11 +30,16 @@ pub const MAX_LOG_N_ROWS_PER_TABLE: [(Table, usize); 4] = [
     (Table::poseidon24(), 19),
 ];
 
-/// Starting program counter
-pub const STARTING_PC: usize = 1;
+pub fn max_log_n_rows_per_table(table: &Table) -> usize {
+    MAX_LOG_N_ROWS_PER_TABLE
+        .iter()
+        .find(|(t, _)| t == table)
+        .map(|(_, m)| *m)
+        .unwrap()
+}
 
-/// Ending program counter (the final block is a looping block of 1 instruction)
-pub const ENDING_PC: usize = 0;
+/// Starting program counter
+pub const STARTING_PC: usize = 0;
 
 #[cfg(test)]
 mod tests {
@@ -42,7 +51,7 @@ mod tests {
     #[test]
     fn ensure_no_overflow_in_logup() {
         fn memory_lookups_count<T: TableT>(t: &T) -> usize {
-            t.lookups().iter().map(|l| l.values.len()).sum::<usize>()
+            t.bus_interactions().iter().filter(|bus| bus.is_memory_lookup()).count()
         }
         // memory lookup
         let mut max_memory_logup_sum: u64 = 0;

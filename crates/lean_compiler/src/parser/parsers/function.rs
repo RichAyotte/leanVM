@@ -1,6 +1,5 @@
 use super::expression::ExpressionParser;
-use super::statement::StatementParser;
-use super::{Parse, ParseContext, next_inner_pair};
+use super::{Parse, ParseContext, next_inner_pair, push_statement_with_location};
 use crate::{
     a_simplify_lang::VarOrConstMallocAccess,
     lang::{AssignmentTarget, Expression, Function, FunctionArg, Line, MathOperation, SimpleExpr, SourceLocation},
@@ -16,13 +15,14 @@ pub const RESERVED_FUNCTION_NAMES: &[&str] = &[
     // Built-in functions
     "print",
     "Array",
-    "DynArray",
-    "push", // Compile-time vector push
+    "hint_witness",
     // Compile-time only functions
     "len",
     "log2_ceil",
     "next_multiple_of",
     "saturating_sub",
+    "div_ceil",
+    "div_floor",
     "range",
     "parallel_range",
     "match_range",
@@ -72,7 +72,7 @@ impl Parse<Function> for FunctionParser {
             return Err(SemanticError::new(format!("Cannot define function with reserved name '{name}'")).into());
         }
 
-        let mut arguments = Vec::new();
+        let mut arguments: Vec<FunctionArg> = Vec::new();
         let mut body = Vec::new();
 
         for pair in inner {
@@ -80,12 +80,20 @@ impl Parse<Function> for FunctionParser {
                 Rule::parameter_list => {
                     for param in pair.into_inner() {
                         if param.as_rule() == Rule::parameter {
-                            arguments.push(ParameterParser.parse(param, ctx)?);
+                            let arg = ParameterParser.parse(param, ctx)?;
+                            if arguments.iter().any(|a| a.name == arg.name) {
+                                return Err(SemanticError::new(format!(
+                                    "Function '{name}': duplicate parameter name '{}'",
+                                    arg.name,
+                                ))
+                                .into());
+                            }
+                            arguments.push(arg);
                         }
                     }
                 }
                 Rule::statement => {
-                    Self::add_statement_with_location(&mut body, pair, ctx)?;
+                    push_statement_with_location(&mut body, pair, ctx)?;
                 }
                 _ => {}
             }
@@ -104,25 +112,6 @@ impl Parse<Function> for FunctionParser {
 }
 
 impl FunctionParser {
-    fn add_statement_with_location(
-        lines: &mut Vec<Line>,
-        pair: ParsePair<'_>,
-        ctx: &mut ParseContext,
-    ) -> ParseResult<()> {
-        let line_number = pair.line_col().0;
-        let line = StatementParser.parse(pair, ctx)?;
-
-        lines.push(Line::LocationReport {
-            location: SourceLocation {
-                file_id: ctx.current_file_id,
-                line_number,
-            },
-        });
-        lines.push(line);
-
-        Ok(())
-    }
-
     /// Infer the number of return values from return statements in the function body.
     /// All return statements must return the same number of values.
     fn infer_return_count(func_name: &str, body: &[Line]) -> ParseResult<usize> {
@@ -158,26 +147,36 @@ impl FunctionParser {
 pub struct ParameterParser;
 
 impl Parse<FunctionArg> for ParameterParser {
-    fn parse(&self, pair: ParsePair<'_>, _ctx: &mut ParseContext) -> ParseResult<FunctionArg> {
+    fn parse(&self, pair: ParsePair<'_>, ctx: &mut ParseContext) -> ParseResult<FunctionArg> {
         let mut inner = pair.into_inner();
         let name = next_inner_pair(&mut inner, "parameter name")?.as_str().to_string();
 
-        // Check for optional type annotation (: Const or : Mut)
-        let (is_const, is_mutable) = if let Some(annotation) = inner.next() {
+        // Reject parameter names that shadow a top-level constant or const array.
+        if ctx.get_const_array(&name).is_some() || ctx.get_constant(&name).is_some() {
+            return Err(SemanticError::new(format!(
+                "Parameter '{name}' shadows a top-level constant of the same name"
+            ))
+            .into());
+        }
+
+        // Check for optional type annotation (: Const). ': Mut' parameters are forbidden.
+        let is_const = if let Some(annotation) = inner.next() {
             match annotation.as_str().trim() {
-                ": Const" => (true, false),
-                ": Mut" => (false, true),
+                ": Const" => true,
+                ": Mut" => {
+                    return Err(SemanticError::new(format!(
+                        "Parameter '{name}' cannot be declared ': Mut'. Mutable parameters are not allowed; \
+                         introduce a local '{name}_mut: Mut = {name}' instead."
+                    ))
+                    .into());
+                }
                 other => return Err(SemanticError::new(format!("Invalid parameter annotation: {other}")).into()),
             }
         } else {
-            (false, false)
+            false
         };
 
-        Ok(FunctionArg {
-            name,
-            is_const,
-            is_mutable,
-        })
+        Ok(FunctionArg { name, is_const })
     }
 }
 

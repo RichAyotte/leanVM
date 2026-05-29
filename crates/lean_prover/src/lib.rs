@@ -1,7 +1,11 @@
 #![cfg_attr(not(test), allow(unused_crate_dependencies))]
 
+use std::fmt::Display;
+
 use backend::*;
-use lean_vm::{EF, F, MAX_WHIR_LOG_INV_RATE, MIN_WHIR_LOG_INV_RATE};
+use lean_vm::{
+    Bytecode, EF, F, MAX_WHIR_LOG_INV_RATE, MIN_LOG_N_ROWS_PER_TABLE, MIN_WHIR_LOG_INV_RATE, RunnerError, Table, TableT,
+};
 use utils::*;
 
 mod trace_gen;
@@ -14,11 +18,10 @@ mod test_zkvm;
 
 use trace_gen::*;
 
-// Right now, hash digests = 8 koala-bear (p = 2^31 - 2^24 + 1, i.e. ≈ 30.98 bits per field element)
-// so ≈ 123.92 bits of security against collisions
-pub const SECURITY_BITS: usize = 123; // TODO 128 bits security? (with Poseidon over 20 field elements or with a more subtle soundness analysis (cf. https://eprint.iacr.org/2021/188.pdf))
+// Right now, hash digests = 8 koala-bear (p = 2^31 - 2^24 + 1, i.e. ≈ 31 bits per field element)
+pub const SECURITY_BITS: usize = 124; // TODO 128 bits security
 
-pub const GRINDING_BITS: usize = 18;
+pub const GRINDING_BITS: usize = 16;
 pub const MAX_NUM_VARIABLES_TO_SEND_COEFFS: usize = 8;
 pub const WHIR_INITIAL_FOLDING_FACTOR: usize = 7;
 pub const WHIR_SUBSEQUENT_FOLDING_FACTOR: usize = 5;
@@ -28,7 +31,13 @@ pub const SNARK_DOMAIN_SEP: [F; 8] = F::new_array([
     1046873597, 587403661, 1441000407, 1547181303, 1522249642, 1883305763, 367566943, 2033638717,
 ]);
 
+pub fn fiat_shamir_domain_sep(bytecode: &Bytecode) -> [F; 8] {
+    poseidon16_compress_pair(&bytecode.hash, &SNARK_DOMAIN_SEP)
+}
+
 pub fn default_whir_config(starting_log_inv_rate: usize) -> WhirConfigBuilder {
+    assert!(0 < starting_log_inv_rate);
+    assert!(starting_log_inv_rate <= MAX_WHIR_LOG_INV_RATE);
     WhirConfigBuilder {
         folding_factor: FoldingFactor::new(WHIR_INITIAL_FOLDING_FACTOR, WHIR_SUBSEQUENT_FOLDING_FACTOR),
         soundness_type: if cfg!(feature = "prox-gaps-conjecture") {
@@ -49,6 +58,65 @@ pub(crate) fn check_rate(log_inv_rate: usize) -> Result<(), ProofError> {
         Ok(())
     } else {
         Err(ProofError::InvalidRate)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ProverError {
+    TooBigTable(TooBigTableError),
+    Runner(RunnerError),
+    UnknownMessage,
+    MultipleMessages,
+    InvalidRate,
+    InvalidChildProof(ProofError),
+    InvalidSplitIndex {
+        index: usize,
+        n_components: usize,
+    },
+    LimitExceeded {
+        what: &'static str,
+        actual: usize,
+        max: usize,
+    },
+}
+
+impl From<TooBigTableError> for ProverError {
+    fn from(err: TooBigTableError) -> Self {
+        Self::TooBigTable(err)
+    }
+}
+
+impl From<RunnerError> for ProverError {
+    fn from(err: RunnerError) -> Self {
+        Self::Runner(err)
+    }
+}
+
+impl From<ProofError> for ProverError {
+    fn from(err: ProofError) -> Self {
+        Self::InvalidChildProof(err)
+    }
+}
+
+impl Display for ProverError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TooBigTable(e) => write!(f, "{}", e),
+            Self::Runner(e) => write!(f, "{}", e),
+            Self::UnknownMessage => write!(f, "Unknown message, not part of the type2"),
+            Self::MultipleMessages => write!(f, "Multiple common messages in the type2"),
+            Self::InvalidRate => write!(
+                f,
+                "LeanVM supports rate 1/2, 1/4, 1/8 and 1/16 (log_inv_rate in {{1, 2, 3, 4}})"
+            ),
+            Self::InvalidChildProof(e) => write!(f, "Invalid child proof: {}", e),
+            Self::InvalidSplitIndex { index, n_components } => {
+                write!(f, "Invalid split index {index} for {n_components} components")
+            }
+            Self::LimitExceeded { what, actual, max } => {
+                write!(f, "Too many {}: {} (max {})", what, actual, max)
+            }
+        }
     }
 }
 

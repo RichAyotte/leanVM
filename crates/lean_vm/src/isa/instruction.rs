@@ -2,12 +2,12 @@
 
 use super::Operation;
 use super::operands::{MemOrConstant, MemOrFpOrConstant};
-use crate::POSEIDON16_NAME;
 use crate::core::{F, Label};
 use crate::diagnostics::RunnerError;
 use crate::execution::memory::MemoryAccess;
 use crate::tables::TableT;
 use crate::{ExtensionOpMode, Poseidon24Mode, Table, TableTrace};
+use crate::{POSEIDON16_NAME, POSEIDON16_PERMUTE_NAME};
 use backend::*;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
@@ -63,23 +63,41 @@ pub struct PrecompileArgs<V, S> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 pub enum PrecompileCompTimeArgs<S> {
-    Poseidon16,
+    Poseidon16 {
+        half_output: bool,
+        //   hardcoded_offset_left = None:              left_input = m[arg_a..arg_a+8]
+        //   hardcoded_offset_left = Some(offset_left): left_input = m[offset_left..offset_left+4] | m[arg_a..arg_a+4] (arg_a is the first runtime parameter)
+        hardcoded_offset_left: Option<S>,
+        // Mutually exclusive with `half_output`.
+        permute: bool,
+    },
     Poseidon24(Poseidon24Mode),
-    ExtensionOp { size: S, mode: ExtensionOpMode },
+    ExtensionOp {
+        size: S,
+        mode: ExtensionOpMode,
+    },
 }
 
 impl<S> PrecompileCompTimeArgs<S> {
     pub fn table(&self) -> Table {
         match self {
-            Self::Poseidon16 => Table::poseidon16(),
+            Self::Poseidon16 { .. } => Table::poseidon16(),
             Self::Poseidon24(_) => Table::poseidon24(),
             Self::ExtensionOp { .. } => Table::extension_op(),
         }
     }
 
-    pub fn map_size<T>(self, f: impl FnOnce(S) -> T) -> PrecompileCompTimeArgs<T> {
+    pub fn map_size<T>(self, mut f: impl FnMut(S) -> T) -> PrecompileCompTimeArgs<T> {
         match self {
-            Self::Poseidon16 => PrecompileCompTimeArgs::Poseidon16,
+            Self::Poseidon16 {
+                half_output,
+                hardcoded_offset_left: hardcoded_left_4,
+                permute,
+            } => PrecompileCompTimeArgs::Poseidon16 {
+                half_output,
+                hardcoded_offset_left: hardcoded_left_4.map(&mut f),
+                permute,
+            },
             Self::Poseidon24(mode) => PrecompileCompTimeArgs::Poseidon24(mode),
             Self::ExtensionOp { size, mode } => PrecompileCompTimeArgs::ExtensionOp { size: f(size), mode },
         }
@@ -89,6 +107,9 @@ impl<S> PrecompileCompTimeArgs<S> {
 impl<V, S> PrecompileArgs<V, S> {
     pub fn operand_exprs(&self) -> [&V; 3] {
         [&self.arg_0, &self.arg_1, &self.res]
+    }
+    pub fn operand_exprs_mut(&mut self) -> [&mut V; 3] {
+        [&mut self.arg_0, &mut self.arg_1, &mut self.res]
     }
 }
 
@@ -199,7 +220,9 @@ impl Instruction {
                 updated_fp,
             } => {
                 let condition_value = condition.read_value(ctx.memory, *ctx.fp)?;
-                assert!([F::ZERO, F::ONE].contains(&condition_value),);
+                if ![F::ZERO, F::ONE].contains(&condition_value) {
+                    return Err(RunnerError::NonBooleanJumpCondition(condition_value));
+                }
                 if condition_value == F::ZERO {
                     *ctx.pc += 1;
                 } else {
@@ -236,8 +259,26 @@ impl<V: Display, S: Display> Display for PrecompileArgs<V, S> {
             data,
         } = self;
         match data {
-            PrecompileCompTimeArgs::Poseidon16 => {
-                write!(f, "{POSEIDON16_NAME}({arg_0}, {arg_1}, {res})")
+            PrecompileCompTimeArgs::Poseidon16 {
+                half_output,
+                hardcoded_offset_left: hardcoded_left_4,
+                permute,
+            } => {
+                if *permute {
+                    write!(f, "{POSEIDON16_PERMUTE_NAME}({arg_0}, {arg_1}, {res})")
+                } else {
+                    match (*half_output, hardcoded_left_4) {
+                        (false, None) => write!(f, "{POSEIDON16_NAME}({arg_0}, {arg_1}, {res})"),
+                        (true, None) => write!(f, "{POSEIDON16_NAME}({arg_0}, {arg_1}, {res}, half)"),
+                        (false, Some(off)) => {
+                            write!(f, "{POSEIDON16_NAME}({arg_0}, {arg_1}, {res}, hardcoded_left_4={off})")
+                        }
+                        (true, Some(off)) => write!(
+                            f,
+                            "{POSEIDON16_NAME}({arg_0}, {arg_1}, {res}, half, hardcoded_left_4={off})"
+                        ),
+                    }
+                }
             }
             PrecompileCompTimeArgs::Poseidon24(mode) => {
                 write!(f, "poseidon24(mode={mode:?}, {arg_0}, {arg_1}, {res})")

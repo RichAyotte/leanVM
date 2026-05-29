@@ -56,12 +56,11 @@ pub fn compile_to_low_level_bytecode(
     let mut hints = BTreeMap::new();
     let mut label_to_pc = BTreeMap::new();
 
-    label_to_pc.insert(Label::EndProgram, ENDING_PC);
     let exit_point = intermediate_bytecode
         .bytecode
         .remove(&Label::EndProgram)
         .ok_or("No end_program label found in the compiled program")?;
-    assert_eq!(count_real_instructions(&exit_point), STARTING_PC);
+    assert_eq!(count_real_instructions(&exit_point), 1);
 
     label_to_pc.insert(Label::function("main"), STARTING_PC);
     let entrypoint = intermediate_bytecode
@@ -69,8 +68,8 @@ pub fn compile_to_low_level_bytecode(
         .remove(&Label::function("main"))
         .ok_or("No main function found in the compiled program")?;
 
-    let mut pc = count_real_instructions(&exit_point) + count_real_instructions(&entrypoint);
-    let mut code_blocks = vec![(ENDING_PC, exit_point), (STARTING_PC, entrypoint)];
+    let mut pc = count_real_instructions(&entrypoint);
+    let mut code_blocks = vec![(STARTING_PC, entrypoint)];
 
     for (label, instructions) in &intermediate_bytecode.bytecode {
         label_to_pc.insert(label.clone(), pc);
@@ -100,6 +99,16 @@ pub fn compile_to_low_level_bytecode(
         }
     }
 
+    let n_real_instructions = pc;
+    let bytecode_size = (n_real_instructions + 1)
+        .max(1 << MIN_BYTECODE_LOG_SIZE)
+        .next_power_of_two();
+    let ending_pc = bytecode_size - 1;
+    label_to_pc.insert(Label::EndProgram, ending_pc);
+    let mut exit_block = vec![IntermediateInstruction::Panic; ending_pc - n_real_instructions];
+    exit_block.extend(exit_point);
+    code_blocks.push((n_real_instructions, exit_block));
+
     for (label, pc) in label_to_pc.clone() {
         hints.entry(pc).or_insert_with(Vec::new).push(Hint::Label { label });
     }
@@ -116,6 +125,13 @@ pub fn compile_to_low_level_bytecode(
     for (pc_start, block) in code_blocks {
         compile_block(&compiler, &block, pc_start, &mut instructions, &mut hints);
     }
+
+    debug_assert_eq!(instructions.len(), bytecode_size);
+
+    for instruction in &instructions {
+        validate_instruction(instruction)?;
+    }
+
     let instructions_encoded = instructions.par_iter().map(field_representation).collect::<Vec<_>>();
 
     let mut instructions_multilinear = vec![];
@@ -143,21 +159,29 @@ pub fn compile_to_low_level_bytecode(
         pc_to_location.push(current_location);
     }
 
-    let instructions_multilinear_packed = pack_extension(
-        &instructions_multilinear
-            .par_iter()
-            .map(|&pf| EF::from(pf))
-            .collect::<Vec<EF>>(),
-    );
-    let hash = poseidon_compress_slice(&instructions_multilinear, true);
+    let hash = poseidon_compress_slice(&instructions_multilinear);
+
+    let code: Vec<_> = instructions
+        .into_iter()
+        .enumerate()
+        .map(|(pc, instruction)| CodeEntry {
+            instruction,
+            hints: hints.remove(&pc).unwrap_or_default().into_boxed_slice(),
+        })
+        .collect();
+    assert!(hints.is_empty());
+
+    if log2_ceil_usize(code.len()) > MAX_BYTECODE_LOG_SIZE {
+        return Err("Bytecode too large".to_string());
+    }
 
     Ok(Bytecode {
-        instructions,
+        unpadded_size: n_real_instructions,
+        code,
         instructions_multilinear,
-        instructions_multilinear_packed,
         hash,
-        hints,
         starting_frame_memory,
+        ending_pc,
         function_locations,
         source_code,
         filepaths,
@@ -333,15 +357,20 @@ fn compile_block(
                 let hint = Hint::LocationReport { location };
                 hints.entry(pc).or_default().push(hint);
             }
-            IntermediateInstruction::DebugAssert(boolean, line_number) => {
-                let hint = Hint::DebugAssert(
-                    BooleanExpr {
-                        left: try_as_mem_or_constant(&boolean.left).unwrap(),
-                        right: try_as_mem_or_constant(&boolean.right).unwrap(),
-                        kind: boolean.kind,
+            IntermediateInstruction::DebugAssert {
+                expr,
+                location,
+                preceds_runtime_inequality,
+            } => {
+                let hint = Hint::DebugAssert {
+                    expr: BooleanExpr {
+                        left: try_as_mem_or_constant(&expr.left).unwrap(),
+                        right: try_as_mem_or_constant(&expr.right).unwrap(),
+                        kind: expr.kind,
                     },
-                    line_number,
-                );
+                    location,
+                    preceds_runtime_inequality,
+                };
                 hints.entry(pc).or_default().push(hint);
             }
             IntermediateInstruction::DerefHint {
@@ -394,6 +423,16 @@ fn eval_constant_value(constant: &ConstantValue, compiler: &Compiler) -> usize {
         ConstantValue::MatchBlockSize { match_index } => compiler.match_block_sizes[*match_index],
         ConstantValue::MatchFirstBlockStart { match_index } => compiler.match_first_block_starts[*match_index],
     }
+}
+
+fn validate_instruction(instruction: &Instruction) -> Result<(), String> {
+    if let Instruction::Precompile(p) = instruction
+        && let PrecompileCompTimeArgs::ExtensionOp { size, .. } = &p.data
+        && *size == 0
+    {
+        return Err("extension_op precompile size must be >= 1, got 0".to_string());
+    }
+    Ok(())
 }
 
 fn eval_const_expression(constant: &ConstExpression, compiler: &Compiler) -> F {

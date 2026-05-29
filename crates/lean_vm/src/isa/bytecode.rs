@@ -3,21 +3,26 @@
 use backend::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{CodeAddress, EF, F, FileId, FunctionName, Hint, SourceLocation};
+use crate::{DIMENSION, F, FileId, FunctionName, Hint, N_INSTRUCTION_COLUMNS, SourceLocation};
 
 use super::Instruction;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CodeEntry {
+    pub hints: Box<[Hint]>, // executed before the instruction
+    pub instruction: Instruction,
+}
+
+/// `instructions_multilinear`, `hash`, and `ending_pc` must be checked at initialization to match `code`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Bytecode {
-    pub instructions: Vec<Instruction>,
-    #[serde(skip)]
+    pub unpadded_size: usize,
+    pub code: Vec<CodeEntry>, // assumed to be well-formed
     pub instructions_multilinear: Vec<F>,
-    #[serde(skip)]
-    pub instructions_multilinear_packed: Vec<EFPacking<EF>>,
-    pub hints: BTreeMap<CodeAddress, Vec<Hint>>,
     pub starting_frame_memory: usize,
+    pub ending_pc: usize, // Must equal `code.len() - 1`.
     pub hash: [F; DIGEST_ELEMS],
     // debug
     pub function_locations: BTreeMap<SourceLocation, FunctionName>,
@@ -29,7 +34,7 @@ pub struct Bytecode {
 
 impl Bytecode {
     pub fn size(&self) -> usize {
-        self.instructions.len()
+        self.code.len()
     }
 
     pub fn padded_size(&self) -> usize {
@@ -39,17 +44,25 @@ impl Bytecode {
     pub fn log_size(&self) -> usize {
         log2_ceil_usize(self.size())
     }
+
+    pub fn cumulated_n_vars(&self) -> usize {
+        self.log_size() + log2_ceil_usize(N_INSTRUCTION_COLUMNS)
+    }
+
+    pub fn bytecode_claim_size(&self) -> usize {
+        (self.cumulated_n_vars() + 1) * DIMENSION
+    }
 }
 
 impl Display for Bytecode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for (pc, instruction) in self.instructions.iter().enumerate() {
-            for hint in self.hints.get(&pc).unwrap_or(&Vec::new()) {
+        for (pc, entry) in self.code.iter().enumerate() {
+            for hint in entry.hints.iter() {
                 if !matches!(hint, Hint::LocationReport { .. }) {
                     writeln!(f, "hint: {hint}")?;
                 }
             }
-            writeln!(f, "{pc:>4}: {instruction}")?;
+            writeln!(f, "{pc:>4}: {}", entry.instruction)?;
         }
         Ok(())
     }

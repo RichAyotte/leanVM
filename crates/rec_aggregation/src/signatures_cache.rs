@@ -1,4 +1,7 @@
 use backend::*;
+#[cfg(test)]
+use leansig_wrapper::xmss_verify;
+use leansig_wrapper::{MESSAGE_LENGTH, XmssPublicKey, XmssSignature, xmss_keygen_fast, xmss_sign_fast};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
@@ -9,7 +12,9 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
-use crate::*;
+pub fn message_for_benchmark() -> [u8; MESSAGE_LENGTH] {
+    BENCHMARK_MESSAGE
+}
 
 static SIGNERS_CACHE: OnceLock<Vec<(XmssPublicKey, XmssSignature)>> = OnceLock::new();
 
@@ -24,8 +29,11 @@ pub const BENCHMARK_MESSAGE: [u8; MESSAGE_LENGTH] = [
 ];
 pub const NUM_BENCHMARK_SIGNERS: usize = 10_000;
 
+const CACHE_SCHEMA_VERSION: u32 = 2;
+
 #[derive(Serialize, Deserialize)]
 struct SignersCacheFile {
+    schema_version: u32,
     signatures: Vec<(XmssPublicKey, XmssSignature)>,
 }
 
@@ -68,7 +76,8 @@ fn try_load_cache(path: &PathBuf) -> Option<Vec<(XmssPublicKey, XmssSignature)>>
     let data = fs::read(path).ok()?;
     let decompressed = lz4_flex::decompress_size_prepended(&data).ok()?;
     let cached: SignersCacheFile = postcard::from_bytes(&decompressed).ok()?;
-    Some(cached.signatures)
+    let valid = cached.schema_version == CACHE_SCHEMA_VERSION && cached.signatures.len() == NUM_BENCHMARK_SIGNERS;
+    valid.then_some(cached.signatures)
 }
 
 fn gen_benchmark_signers_cache() -> Vec<(XmssPublicKey, XmssSignature)> {
@@ -105,6 +114,7 @@ fn gen_benchmark_signers_cache() -> Vec<(XmssPublicKey, XmssSignature)> {
     signers.extend(rest);
 
     let cache_file = SignersCacheFile {
+        schema_version: CACHE_SCHEMA_VERSION,
         signatures: signers.clone(),
     };
     let encoded = postcard::to_allocvec(&cache_file).expect("serialization failed");
