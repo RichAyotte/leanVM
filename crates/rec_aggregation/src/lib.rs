@@ -3,6 +3,7 @@ mod aggregation;
 pub mod benchmark;
 mod bytecode_claims;
 mod compilation;
+mod error;
 pub mod signatures_cache;
 
 pub use aggregation::{
@@ -14,6 +15,8 @@ pub use compilation::{
     MAX_RECURSIONS, MAX_XMSS_AGGREGATED, MAX_XMSS_DUPLICATES, NUM_REPEATED_ONES, PREAMBLE_MEMORY_LEN, ZERO_VEC_LEN,
     get_aggregation_bytecode, init_aggregation_bytecode,
 };
+pub use error::AggregationError;
+pub use lean_prover::ProverError;
 use lean_prover::verify_execution::verify_execution;
 use lean_vm::{DIGEST_LEN, EF, F};
 use utils::poseidon_compress_slice;

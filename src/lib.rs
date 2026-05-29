@@ -5,8 +5,8 @@ pub use leansig_wrapper::{
     MESSAGE_LENGTH, XmssPublicKey, XmssSignature, xmss_keygen_fast, xmss_sign_fast, xmss_verify,
 };
 pub use rec_aggregation::{
-    AggregatedXMSS, AggregatedXMSSInfo, AggregationTopology, MAX_RECURSIONS, MAX_XMSS_AGGREGATED, MAX_XMSS_DUPLICATES,
-    xmss_aggregate, xmss_verify_aggregation,
+    AggregatedXMSS, AggregatedXMSSInfo, AggregationError, AggregationTopology, MAX_RECURSIONS, MAX_XMSS_AGGREGATED,
+    MAX_XMSS_DUPLICATES, ProverError, xmss_aggregate, xmss_verify_aggregation,
 };
 
 pub type F = KoalaBear;

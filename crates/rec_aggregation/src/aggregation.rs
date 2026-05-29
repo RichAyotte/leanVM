@@ -1,5 +1,5 @@
+use crate::error::AggregationError;
 use backend::*;
-use lean_prover::ProverError;
 use lean_prover::fiat_shamir_domain_sep;
 use lean_prover::prove_execution::{ExecutionProof, prove_execution};
 use lean_vm::*;
@@ -308,7 +308,7 @@ pub(crate) fn aggregate(
     message: [u8; MESSAGE_LENGTH],
     slot: u32,
     log_inv_rate: usize,
-) -> Result<AggregatedXMSS, ProverError> {
+) -> Result<AggregatedXMSS, AggregationError> {
     xmss_aggregate_with_min_padding(children, raw_xmss, message, slot, log_inv_rate, BTreeMap::new())
 }
 
@@ -323,7 +323,7 @@ pub fn xmss_aggregate(
     message: &[u8; MESSAGE_LENGTH],
     slot: u32,
     log_inv_rate: usize,
-) -> Result<(Vec<XmssPublicKey>, AggregatedXMSS), ProverError> {
+) -> Result<(Vec<XmssPublicKey>, AggregatedXMSS), AggregationError> {
     let mut child_sigs = Vec::with_capacity(children.len());
     for (pub_keys, agg) in children {
         let mut pub_keys = pub_keys.to_vec();
@@ -333,7 +333,7 @@ pub fn xmss_aggregate(
             || agg.info.without_pubkeys.message != *message
             || agg.info.without_pubkeys.slot != slot
         {
-            return Err(ProverError::InvalidChildProof(ProofError::InvalidProof));
+            return Err(AggregationError::InvalidChildProof(ProofError::InvalidProof));
         }
         child_sigs.push(agg.clone());
     }
@@ -349,23 +349,25 @@ pub(crate) fn xmss_aggregate_with_min_padding(
     slot: u32,
     log_inv_rate: usize,
     min_table_log_n_rows: BTreeMap<Table, usize>,
-) -> Result<AggregatedXMSS, ProverError> {
+) -> Result<AggregatedXMSS, AggregationError> {
     if children.len() > MAX_RECURSIONS {
-        return Err(ProverError::LimitExceeded {
+        return Err(AggregationError::LimitExceeded {
             what: "aggregation children",
             actual: children.len(),
             max: MAX_RECURSIONS,
         });
     }
     for child in children {
-        assert_eq!(
-            child.info.without_pubkeys.message, message,
-            "all children of a type-1 aggregation must share the same message"
-        );
-        assert_eq!(
-            child.info.without_pubkeys.slot, slot,
-            "all children of a type-1 aggregation must share the same slot"
-        );
+        if child.info.without_pubkeys.message != message {
+            return Err(AggregationError::InconsistentChildren {
+                what: "all children of a type-1 aggregation must share the same message",
+            });
+        }
+        if child.info.without_pubkeys.slot != slot {
+            return Err(AggregationError::InconsistentChildren {
+                what: "all children of a type-1 aggregation must share the same slot",
+            });
+        }
     }
     let message = &message;
     let verified_children: Vec<InnerVerified> = children.iter().map(verify_aggregation).collect::<Result<_, _>>()?;
@@ -385,14 +387,18 @@ pub(crate) fn xmss_aggregate_with_min_padding(
     // Build global_pub_keys as sorted deduplicated union
     let mut global_pub_keys: Vec<XmssPublicKey> = raw_xmss.iter().map(|(pk, _)| pk.clone()).collect();
     for child_pub_keys in children.iter() {
-        assert!(child_pub_keys.is_sorted(), "child pub_keys must be sorted");
         global_pub_keys.extend_from_slice(child_pub_keys);
     }
     global_pub_keys.sort();
     global_pub_keys.dedup();
     let n_sigs = global_pub_keys.len();
+    if n_sigs == 0 {
+        return Err(AggregationError::EmptyAggregation {
+            what: "aggregated public keys",
+        });
+    }
     if n_sigs > MAX_XMSS_AGGREGATED {
-        return Err(ProverError::LimitExceeded {
+        return Err(AggregationError::LimitExceeded {
             what: "aggregated public keys",
             actual: n_sigs,
             max: MAX_XMSS_AGGREGATED,
@@ -461,7 +467,7 @@ pub(crate) fn xmss_aggregate_with_min_padding(
 
     let n_dup = dup_pub_keys.len();
     if n_dup > MAX_XMSS_DUPLICATES {
-        return Err(ProverError::LimitExceeded {
+        return Err(AggregationError::LimitExceeded {
             what: "duplicate public keys",
             actual: n_dup,
             max: MAX_XMSS_DUPLICATES,
