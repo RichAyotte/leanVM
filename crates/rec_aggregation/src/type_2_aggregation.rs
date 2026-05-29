@@ -1,5 +1,5 @@
+use crate::error::AggregationError;
 use backend::*;
-use lean_prover::ProverError;
 use lean_prover::default_whir_config;
 use lean_prover::fiat_shamir_domain_sep;
 use lean_prover::prove_execution::ExecutionProof;
@@ -115,11 +115,15 @@ fn build_type2_input_data(digests: &[[F; DIGEST_LEN]], bytecode_claim_flat: &[F]
 pub fn merge_many_type_1(
     types_1: Vec<TypeOneMultiSignature>,
     log_inv_rate: usize,
-) -> Result<TypeTwoMultiSignature, ProverError> {
+) -> Result<TypeTwoMultiSignature, AggregationError> {
     let n_components = types_1.len();
-    assert!(n_components > 0, "merge_many_type_1 requires at least one input");
+    if n_components == 0 {
+        return Err(AggregationError::EmptyAggregation {
+            what: "type-1 components",
+        });
+    }
     if n_components > MAX_RECURSIONS {
-        return Err(ProverError::LimitExceeded {
+        return Err(AggregationError::LimitExceeded {
             what: "type-1 components",
             actual: n_components,
             max: MAX_RECURSIONS,
@@ -210,9 +214,9 @@ pub fn split_type_2_by_msg(
     type_2: TypeTwoMultiSignature,
     msg: [u8; MESSAGE_LENGTH],
     log_inv_rate: usize,
-) -> Result<TypeOneMultiSignature, ProverError> {
+) -> Result<TypeOneMultiSignature, AggregationError> {
     let Some(index) = type_2.info.iter().position(|info| info.without_pubkeys.message == msg) else {
-        return Err(ProverError::UnknownMessage);
+        return Err(AggregationError::UnknownMessage);
     };
     if type_2
         .info
@@ -221,7 +225,7 @@ pub fn split_type_2_by_msg(
         .count()
         > 1
     {
-        return Err(ProverError::MultipleMessages);
+        return Err(AggregationError::MultipleMessages);
     }
     split_type_2(type_2, index, log_inv_rate)
 }
@@ -232,13 +236,13 @@ pub fn split_type_2(
     type_2: TypeTwoMultiSignature,
     index: usize,
     log_inv_rate: usize,
-) -> Result<TypeOneMultiSignature, ProverError> {
+) -> Result<TypeOneMultiSignature, AggregationError> {
     let n_components = type_2.info.len();
     if index >= n_components {
-        return Err(ProverError::InvalidSplitIndex { index, n_components });
+        return Err(AggregationError::InvalidSplitIndex { index, n_components });
     }
     if n_components > MAX_RECURSIONS {
-        return Err(ProverError::LimitExceeded {
+        return Err(AggregationError::LimitExceeded {
             what: "type-2 components",
             actual: n_components,
             max: MAX_RECURSIONS,
