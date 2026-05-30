@@ -556,7 +556,7 @@ impl Poseidon1Goldilocks8 {
             // SAFETY: TypeId equality guarantees R has the same layout as Packing,
             // and the array is repr-transparent as a slice of W*8 Goldilocks.
             let s = unsafe { &mut *(state as *mut [R; POSEIDON1_WIDTH] as *mut [Packing; POSEIDON1_WIDTH]) };
-            self.compress_in_place_simd(s);
+            self.simd_core::<true>(s);
             return;
         }
         if TypeId::of::<R>() == TypeId::of::<Goldilocks>() {
@@ -577,6 +577,36 @@ impl Poseidon1Goldilocks8 {
         }
     }
 
+    /// Permutation-mode in-place permutation (no feedforward), mirroring
+    /// [`Self::compress_in_place`]'s SIMD dispatch. Used by the overwrite sponge
+    /// for Merkle leaf/node hashing — without this the packed `Permutation` impl
+    /// would fall back to the slow `permute_generic` (fully-reducing packed MDS),
+    /// regressing all Merkle tree building ~4x.
+    #[inline(always)]
+    pub fn permute_in_place<R>(&self, state: &mut [R; POSEIDON1_WIDTH])
+    where
+        R: Algebra<Goldilocks> + InjectiveMonomial<7> + Copy + 'static,
+    {
+        use core::any::TypeId;
+
+        type Packing = <Goldilocks as Field>::Packing;
+
+        if TypeId::of::<R>() == TypeId::of::<Packing>() {
+            // SAFETY: TypeId equality guarantees R has the same layout as Packing.
+            let s = unsafe { &mut *(state as *mut [R; POSEIDON1_WIDTH] as *mut [Packing; POSEIDON1_WIDTH]) };
+            self.simd_core::<false>(s);
+            return;
+        }
+        if TypeId::of::<R>() == TypeId::of::<Goldilocks>() {
+            // SAFETY: TypeId equality.
+            let s = unsafe { &mut *(state as *mut [R; POSEIDON1_WIDTH] as *mut [Goldilocks; POSEIDON1_WIDTH]) };
+            self.permute_mut(s);
+            return;
+        }
+
+        self.permute_generic(state);
+    }
+
     /// SIMD-parallel compression over `<Goldilocks as Field>::Packing`.
     ///
     /// On x86_64 (AVX2 or AVX512), keeps state in packed registers throughout
@@ -589,8 +619,11 @@ impl Poseidon1Goldilocks8 {
     /// across all W lanes. The MDS coefficients are tiny (max 9), so the
     /// scalar `mds_mul_scalar` (u128 accumulator + single `reduce128` per
     /// output) is far cheaper than the packed type's fully-reducing `Mul`.
+    ///
+    /// `FEEDFORWARD = true` adds back the original input (compression / Davies-Meyer);
+    /// `FEEDFORWARD = false` is the raw permutation (overwrite sponge).
     #[inline(always)]
-    fn compress_in_place_simd(&self, state: &mut [<Goldilocks as Field>::Packing; POSEIDON1_WIDTH]) {
+    fn simd_core<const FEEDFORWARD: bool>(&self, state: &mut [<Goldilocks as Field>::Packing; POSEIDON1_WIDTH]) {
         #[cfg(any(
             all(target_arch = "x86_64", target_feature = "avx2", not(target_feature = "avx512f")),
             all(target_arch = "x86_64", target_feature = "avx512f"),
@@ -680,15 +713,26 @@ impl Poseidon1Goldilocks8 {
                 [s0, s1, s2, s3, s4, s5, s6, s7] = mds_mul_simd([s0, s1, s2, s3, s4, s5, s6, s7]);
             }
 
-            // Compression-mode add-back of the original input.
-            state[0] = s0 + initial[0];
-            state[1] = s1 + initial[1];
-            state[2] = s2 + initial[2];
-            state[3] = s3 + initial[3];
-            state[4] = s4 + initial[4];
-            state[5] = s5 + initial[5];
-            state[6] = s6 + initial[6];
-            state[7] = s7 + initial[7];
+            if FEEDFORWARD {
+                // Compression-mode add-back of the original input.
+                state[0] = s0 + initial[0];
+                state[1] = s1 + initial[1];
+                state[2] = s2 + initial[2];
+                state[3] = s3 + initial[3];
+                state[4] = s4 + initial[4];
+                state[5] = s5 + initial[5];
+                state[6] = s6 + initial[6];
+                state[7] = s7 + initial[7];
+            } else {
+                state[0] = s0;
+                state[1] = s1;
+                state[2] = s2;
+                state[3] = s3;
+                state[4] = s4;
+                state[5] = s5;
+                state[6] = s6;
+                state[7] = s7;
+            }
         }
 
         #[cfg(not(any(
@@ -766,7 +810,11 @@ impl Poseidon1Goldilocks8 {
             }
 
             for i in 0..POSEIDON1_WIDTH {
-                state[i] = P::from_fn(|k| lanes[k][i] + initial[k][i]);
+                state[i] = if FEEDFORWARD {
+                    P::from_fn(|k| lanes[k][i] + initial[k][i])
+                } else {
+                    P::from_fn(|k| lanes[k][i])
+                };
             }
         }
     }

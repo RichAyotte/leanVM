@@ -36,6 +36,6 @@ impl<R: Algebra<Goldilocks> + InjectiveMonomial<7> + Copy + Send + Sync + 'stati
     for Poseidon1Goldilocks8
 {
     fn permute_mut(&self, input: &mut [R; 8]) {
-        self.permute_generic(input);
+        self.permute_in_place(input);
     }
 }
