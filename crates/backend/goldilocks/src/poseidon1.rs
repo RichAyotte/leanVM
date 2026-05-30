@@ -671,6 +671,15 @@ impl Poseidon1Goldilocks8 {
             }
 
             // Partial rounds.
+            //
+            // NB: the Appendix-B sparse partial-round decomposition (one dense
+            // `m_i` multiply + per-round rank-1 updates, as used by the AIR and
+            // the KoalaBear-16 permutation) was implemented and measured here and
+            // is ~13% SLOWER for Goldilocks: this circulant MDS has tiny entries
+            // {1,3,4,7,8,9} that strength-reduce to shift/adds and batch 8 terms
+            // into a single `reduce128` per output, whereas the sparse form needs
+            // arbitrary-constant 64x64 multiplies (one `reduce128` each → 15 vs 8
+            // reductions per round). Kept the full circulant MDS.
             for rc in GOLDILOCKS_POSEIDON1_RC_8
                 .iter()
                 .skip(POSEIDON1_HALF_FULL_ROUNDS)
