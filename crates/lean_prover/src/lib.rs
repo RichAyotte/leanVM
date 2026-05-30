@@ -100,7 +100,7 @@ impl Display for ProverError {
 
 #[cfg(test)]
 mod tests {
-    use backend::{PrimeCharacteristicRing, default_goldilocks_poseidon1_8, hash_slice};
+    use backend::{PrimeCharacteristicRing, default_goldilocks_poseidon1_8, hash_slice_rtl};
     use lean_vm::F;
     use rec_aggregation::{get_aggregation_bytecode, init_aggregation_bytecode};
     use utils::poseidon8_compress_pair;
@@ -109,7 +109,7 @@ mod tests {
     fn compute_snark_domain_sep() {
         init_aggregation_bytecode();
         let recursion_bytecode_hash = get_aggregation_bytecode().hash;
-        let name_fe = "leanMultisig-0.6.0"
+        let name_fe = "leanVM-0.6.0"
             .as_bytes()
             .iter()
             .map(|b| F::from_u8(*b))
@@ -122,7 +122,7 @@ mod tests {
         }
         prefix_free_name_fe.push(F::from_u64(len as u64));
         let comp = default_goldilocks_poseidon1_8();
-        let name_hash = hash_slice::<_, _, _, 8, 4>(&comp, &prefix_free_name_fe);
+        let name_hash = hash_slice_rtl::<_, _, _, 4, 4>(&comp, &prefix_free_name_fe);
 
         // We incorporate the recursion program hash, containing all the verifier logic, into fiat shamir domain separator
         // (likely not necessary but why not, is there a cleaner approach?)

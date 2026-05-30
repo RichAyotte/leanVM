@@ -79,7 +79,7 @@ where
         // SAFETY: We've confirmed PF<EF> == Goldilocks
         let paths: PrunedMerklePaths<Goldilocks, Goldilocks> = unsafe { std::mem::transmute(paths) };
         let perm = default_goldilocks_poseidon1_8();
-        let hash_fn = |data: &[Goldilocks]| symetric::hash_slice::<_, _, 8, 4, DIGEST_LEN_FE>(&perm, data);
+        let hash_fn = |data: &[Goldilocks]| symetric::hash_slice_rtl::<_, _, 8, 4, DIGEST_LEN_FE>(&perm, data);
         let combine_fn = |left: &[Goldilocks; DIGEST_LEN_FE], right: &[Goldilocks; DIGEST_LEN_FE]| {
             symetric::compress(&perm, [*left, *right])
         };

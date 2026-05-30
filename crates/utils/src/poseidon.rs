@@ -38,18 +38,15 @@ pub fn poseidon8_compress_pair(left: &[Goldilocks; 4], right: &[Goldilocks; 4]) 
     poseidon8_compress(input)
 }
 
-/// Absorbs `data` in rate-mode chunks of 4, starting from the IV `[data.len(), 0, 0, 0]`.
-pub fn poseidon_compress_slice(data: &[Goldilocks]) -> [Goldilocks; 4] {
+// Overwrite-sponge
+pub fn poseidon_hash_slice(data: &[Goldilocks]) -> [Goldilocks; DIGEST_ELEMS] {
     assert!(!data.is_empty());
-    // Goldilocks DIGEST_LEN = 4: input slice must align to one digest.
-    assert!(data.len().is_multiple_of(4));
-    let mut hash = [Goldilocks::default(); 4];
-    hash[0] = Goldilocks::from_usize(data.len());
-    for chunk in data.chunks(4) {
-        let mut block = [Goldilocks::default(); 8];
-        block[..4].copy_from_slice(&hash);
-        block[4..].copy_from_slice(chunk);
-        hash = poseidon8_compress(block);
+    assert!(data.len().is_multiple_of(RATE));
+    let mut state = [Goldilocks::default(); WIDTH];
+    state[0] = Goldilocks::from_usize(data.len());
+    for chunk in data.chunks(RATE) {
+        state[CAPACITY..].copy_from_slice(chunk);
+        state = poseidon8_permute(state);
     }
-    hash
+    state[CAPACITY..].try_into().unwrap()
 }

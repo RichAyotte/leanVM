@@ -15,7 +15,7 @@ def main():
     for i in unroll(0, 8):
         data[i] = i
     out = Array(4)
-    poseidon8_compress(data, data + 4, out)
+    poseidon8_compress_half(data, data + 4, out)
 
     for i in range(0, 4):
         cc = out[i]
@@ -206,7 +206,7 @@ def main():
 
 @inline
 def func(a, b):
-    poseidon8_compress(a, a, b)
+    poseidon8_compress_half(a, a, b)
     return
    "#;
     let bytecode = compile_program(&ProgramSource::Raw(program.to_string()));

@@ -3,8 +3,9 @@ use std::time::Instant;
 use backend::*;
 use lean_vm::{
     EF, ExtraDataForBuses, F, HALF_DIGEST_LEN, POSEIDON_8_COL_ADDR_LEFT_HI, POSEIDON_8_COL_ADDR_LEFT_LO,
-    POSEIDON_8_COL_INPUT_START, POSEIDON_8_COL_MULTIPLICITY, POSEIDON_8_COL_OUT_LO, POSEIDON_8_COL_ROUND_START,
-    Poseidon8Precompile, compute_poseidon8_witness, fill_trace_poseidon_8, num_cols_poseidon_8,
+    POSEIDON_8_COL_FLAG_OUT4, POSEIDON_8_COL_INPUT_START, POSEIDON_8_COL_MULTIPLICITY, POSEIDON_8_COL_OUT_LO,
+    POSEIDON_8_COL_ROUND_START, Poseidon8Precompile, compute_poseidon8_witness, fill_trace_poseidon_8,
+    num_cols_poseidon_8,
 };
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 use sub_protocols::{
@@ -33,6 +34,7 @@ fn prove_air_poseidon_8(log_n_rows: usize) {
         *t = (0..n_rows).map(|_| rng.random()).collect();
     }
     trace[POSEIDON_8_COL_MULTIPLICITY] = vec![F::ONE; n_rows];
+    trace[POSEIDON_8_COL_FLAG_OUT4] = vec![F::ONE; n_rows];
     trace[POSEIDON_8_COL_ADDR_LEFT_LO] = vec![F::ZERO; n_rows];
     trace[POSEIDON_8_COL_ADDR_LEFT_HI] = vec![F::from_usize(HALF_DIGEST_LEN); n_rows];
 

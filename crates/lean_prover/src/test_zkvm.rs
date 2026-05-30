@@ -22,21 +22,21 @@ LOOP_ITERS = LOOP_ITERS_PLACEHOLDER
 def main():
     scratch = Array(SCRATCH_SIZE)
     hint_witness("scratch", scratch)
-    poseidon8_compress(scratch + 4 * DIGEST_LEN, scratch + 5 * DIGEST_LEN, scratch + 6 * DIGEST_LEN)
+    poseidon8_compress_half(scratch + 4 * DIGEST_LEN, scratch + 5 * DIGEST_LEN, scratch + 6 * DIGEST_LEN)
 
-    # poseidon8_compress_half: only first 2 FE constrained
+    # poseidon8_compress_quarter: only first 2 FE constrained
     full_out = scratch + 6 * DIGEST_LEN
     half_out = scratch + 80
-    poseidon8_compress_half(scratch + 4 * DIGEST_LEN, scratch + 5 * DIGEST_LEN, half_out)
+    poseidon8_compress_quarter(scratch + 4 * DIGEST_LEN, scratch + 5 * DIGEST_LEN, half_out)
     for i in unroll(0, HALF_DIGEST_LEN):
         assert full_out[i] == half_out[i]
 
-    # poseidon8_compress_hardcoded_left: the 2-element prefix lives at a compile-time
+    # poseidon8_compress_half_hardcoded_left: the 2-element prefix lives at a compile-time
     # constant memory offset. Public input is the only region with such addresses, so we
     # place the prefix at public_input[0..2] (= memory address 0..2) and pass offset 0.
     hardcoded_left = scratch + 1496
     hardcoded_full_out = scratch + 1504
-    poseidon8_compress_hardcoded_left(
+    poseidon8_compress_half_hardcoded_left(
         hardcoded_left,
         scratch + 5 * DIGEST_LEN,
         hardcoded_full_out,
@@ -45,7 +45,7 @@ def main():
 
     # Same, but only first 2 FE of the output are constrained.
     hardcoded_half_out = scratch + 1512
-    poseidon8_compress_half_hardcoded_left(
+    poseidon8_compress_quarter_hardcoded_left(
         hardcoded_left,
         scratch + 5 * DIGEST_LEN,
         hardcoded_half_out,
@@ -58,6 +58,17 @@ def main():
     #   m[res .. res + 8] = poseidon(left || right)
     permute_out = scratch + 1600
     poseidon8_permute(scratch + 4 * DIGEST_LEN, scratch + 5 * DIGEST_LEN, permute_out)
+
+    # poseidon8_permute_half: same permutation, but only the low 4 elements are written/constrained.
+    permute_half_out = scratch + 1620
+    poseidon8_permute_half(scratch + 4 * DIGEST_LEN, scratch + 5 * DIGEST_LEN, permute_half_out)
+    for i in unroll(0, DIGEST_LEN):
+        assert permute_half_out[i] == permute_out[i]
+
+    # poseidon8_permute_half_hardcoded_left: permutation (low 4) with a hardcoded 2-element left prefix.
+    # Uses the same input as the hardcoded compression above, so it equals the permutation of that input.
+    permute_hardcoded_out = scratch + 1640
+    poseidon8_permute_half_hardcoded_left(hardcoded_left, scratch + 5 * DIGEST_LEN, permute_hardcoded_out, 0)
 
     base_ptr = scratch + 88
     ext_a_ptr = scratch + 88 + N
@@ -130,6 +141,14 @@ fn all_precompiles_witness() -> ([F; PUBLIC_INPUT_LEN], ExecutionWitness) {
     // poseidon8_permute output at 1600..1608: raw permutation result.
     let permute_output = poseidon8_permute(poseidon_8_compress_input);
     scratch[1600..1608].copy_from_slice(&permute_output);
+
+    // poseidon8_permute_half output at 1620..1624: low 4 of the same permutation.
+    scratch[1620..1624].copy_from_slice(&permute_output[..4]);
+
+    // poseidon8_permute_half_hardcoded_left output at 1640..1644: low 4 of the permutation of the
+    // hardcoded-left input (same input as the hardcoded compression above).
+    let permute_hardcoded_output = poseidon8_permute(hardcoded_input);
+    scratch[1640..1644].copy_from_slice(&permute_hardcoded_output[..4]);
 
     // Extension op operands: base[N], ext_a[N], ext_b[N]
     let base_slice: [F; N] = rng.random();

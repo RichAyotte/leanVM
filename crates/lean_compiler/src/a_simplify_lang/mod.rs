@@ -2,8 +2,9 @@ use crate::{F, a_simplify_lang::post_optimization::propagate_copies, lang::*, pa
 use backend::PrimeCharacteristicRing;
 use lean_vm::{
     ALL_POSEIDON8_NAMES, Boolean, BooleanExpr, CustomHint, ExtensionOpMode, FunctionName,
-    POSEIDON8_HALF_HARDCODED_LEFT_NAME, POSEIDON8_HALF_NAME, POSEIDON8_HARDCODED_LEFT_NAME, POSEIDON8_PERMUTE_NAME,
-    PrecompileArgs, PrecompileCompTimeArgs, SourceLocation,
+    POSEIDON8_HARDCODED_LEFT_NAME, POSEIDON8_PERMUTE_HALF_HARDCODED_LEFT_NAME, POSEIDON8_PERMUTE_HALF_NAME,
+    POSEIDON8_PERMUTE_NAME, POSEIDON8_QUARTER_HARDCODED_LEFT_NAME, POSEIDON8_QUARTER_NAME, PrecompileArgs,
+    PrecompileCompTimeArgs, SourceLocation,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -1859,11 +1860,25 @@ fn simplify_lines(
                                     "Precompile {function_name} should not return values, at {location}"
                                 ));
                             }
-                            let permute = function_name.as_str() == POSEIDON8_PERMUTE_NAME;
-                            let half_output = [POSEIDON8_HALF_NAME, POSEIDON8_HALF_HARDCODED_LEFT_NAME]
-                                .contains(&function_name.as_str());
-                            let is_hardcoded_left = [POSEIDON8_HARDCODED_LEFT_NAME, POSEIDON8_HALF_HARDCODED_LEFT_NAME]
-                                .contains(&function_name.as_str());
+                            let permute = [
+                                POSEIDON8_PERMUTE_NAME,
+                                POSEIDON8_PERMUTE_HALF_NAME,
+                                POSEIDON8_PERMUTE_HALF_HARDCODED_LEFT_NAME,
+                            ]
+                            .contains(&function_name.as_str());
+                            let half_output = [
+                                POSEIDON8_QUARTER_NAME,
+                                POSEIDON8_QUARTER_HARDCODED_LEFT_NAME,
+                                POSEIDON8_PERMUTE_HALF_NAME,
+                                POSEIDON8_PERMUTE_HALF_HARDCODED_LEFT_NAME,
+                            ]
+                            .contains(&function_name.as_str());
+                            let is_hardcoded_left = [
+                                POSEIDON8_HARDCODED_LEFT_NAME,
+                                POSEIDON8_QUARTER_HARDCODED_LEFT_NAME,
+                                POSEIDON8_PERMUTE_HALF_HARDCODED_LEFT_NAME,
+                            ]
+                            .contains(&function_name.as_str());
                             let expected_args = if is_hardcoded_left { 4 } else { 3 };
                             if args.len() != expected_args {
                                 let signature = if is_hardcoded_left {

@@ -45,32 +45,48 @@ class Array:
         return
 
 
-def poseidon8_compress(left, right, output):
-    _ = left, right, output
+# Poseidon8 precompiles on input x = m[left..left+4] || m[right..right+4], written at `output`:
+#   - `compress_*` adds the input back, i.e. feed-forward (Poseidon(x) + x); `permute_*` is the raw Poseidon(x).
+#   - `_half` keeps 4 elements, `_quarter` keeps 2, plain `permute` keeps 8
+#   - `_hardcoded_left`: the left half is m[offset..offset+2] || m[left..left+2], at the compile-time constant `offset`.
 
 
 def poseidon8_compress_half(left, right, output):
-    """Poseidon8 compression outputting only the first 2 FE (last 2 unconstrained)."""
+    """m[output..output+4] = (Poseidon(x) + x)[0..4]."""
     _ = left, right, output
 
 
-def poseidon8_compress_hardcoded_left(left, right, output, offset):
-    """Poseidon8 compression where the first 2 FE of the left input are read from
-    memory[offset..offset+2] instead of memory[left..left+2]. The last 2 FE of the
-    left input come from memory[left..left+2]. `offset` must be a compile-time
-    constant expression."""
-    _ = left, right, output, offset
+def poseidon8_compress_quarter(left, right, output):
+    """m[output..output+2] = (Poseidon(x) + x)[0..2]."""
+    _ = left, right, output
 
 
 def poseidon8_compress_half_hardcoded_left(left, right, output, offset):
-    """Composition of `poseidon8_compress_half` and `poseidon8_compress_hardcoded_left`."""
+    """`poseidon8_compress_half` with a hardcoded left prefix: the left half of the input is
+    m[offset..offset+2] || m[left..left+2]."""
+    _ = left, right, output, offset
+
+
+def poseidon8_compress_quarter_hardcoded_left(left, right, output, offset):
+    """`poseidon8_compress_quarter` with a hardcoded left prefix: the left half of the input is
+    m[offset..offset+2] || m[left..left+2]."""
     _ = left, right, output, offset
 
 
 def poseidon8_permute(left, right, output):
-    """Raw Poseidon1 permutation (no feed-forward). Writes the 8-cell result in natural order:
-    m[output .. output + 8] = poseidon(left || right)"""
+    """m[output..output+8] = Poseidon(x) (raw permutation, no feed-forward)."""
     _ = left, right, output
+
+
+def poseidon8_permute_half(left, right, output):
+    """m[output..output+4] = Poseidon(x)[0..4] (raw permutation, no feed-forward; high 4 discarded)."""
+    _ = left, right, output
+
+
+def poseidon8_permute_half_hardcoded_left(left, right, output, offset):
+    """`poseidon8_permute_half` with a hardcoded left prefix: the left half of the input is
+    m[offset..offset+2] || m[left..left+2]."""
+    _ = left, right, output, offset
 
 
 def add_be(a, b, result, length=None):

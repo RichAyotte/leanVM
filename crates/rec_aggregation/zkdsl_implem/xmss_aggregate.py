@@ -44,14 +44,14 @@ def xmss_verify(pub_key, message, merkle_chunks):
     randomness = wots
     chain_starts = wots + RANDOMNESS_LEN
 
-    # 1) Encode: poseidon8_compress(message[0:4], [randomness(3) | tweak_encoding(1)])
-    #            poseidon8_compress(pre_compressed, [pp(2) | zeros(2)])
+    # 1) Encode: poseidon8_compress_half(message[0:8], [randomness(6) | tweak_encoding(2))
+    #            poseidon8_compress_half(pre_compressed, [pp(4) | zeros(4)])
     encoding_tweak = TWEAK_TABLE_ADDR + TWEAK_ENCODING_OFFSET
     a_input_right = Array(DIGEST_LEN)
     copy_ef(randomness, a_input_right)
     a_input_right[3] = encoding_tweak[0]
     pre_compressed = Array(DIGEST_LEN)
-    poseidon8_compress(message, a_input_right, pre_compressed)
+    poseidon8_compress_half(message, a_input_right, pre_compressed)
 
     # `[0 | pp(2) | zeros(2) | 0]` so poseidon8_compress_hardcoded_left could be applied later
     # (here we just need the right operand layout `[pp(2) | zeros(2)]`).
@@ -60,7 +60,7 @@ def xmss_verify(pub_key, message, merkle_chunks):
     zero_ef(public_params_paded_buff + 3)
     public_params_paded = public_params_paded_buff + 1
     encoding_fe = Array(DIGEST_LEN)
-    poseidon8_compress(pre_compressed, public_params_paded, encoding_fe)
+    poseidon8_compress_half(pre_compressed, public_params_paded, encoding_fe)
 
     debug_assert(V % 2 == 0)
     encoding = Array(V / 2)
@@ -116,18 +116,18 @@ def chain_hash_inner(input, n, output, chain_i_tweaks, chain_right):
 
     if num_hashes == 1:
         first_tweak = chain_i_tweaks + starting_step * TWEAK_LEN
-        poseidon8_compress_half_hardcoded_left(input, chain_right, output, first_tweak)
+        poseidon8_compress_quarter_hardcoded_left(input, chain_right, output, first_tweak)
     else:
         digests = Array(num_hashes * XMSS_DIGEST_LEN)
 
         # Hash 0: input → digests[0..XMSS_DIGEST_LEN]
         first_tweak = chain_i_tweaks + starting_step * TWEAK_LEN
-        poseidon8_compress_half_hardcoded_left(input, chain_right, digests, first_tweak)
+        poseidon8_compress_quarter_hardcoded_left(input, chain_right, digests, first_tweak)
 
         # Hashes 1..num_hashes-2
         for j in unroll(1, num_hashes - 1):
             cur_tweak = chain_i_tweaks + (starting_step + j) * TWEAK_LEN
-            poseidon8_compress_half_hardcoded_left(
+            poseidon8_compress_quarter_hardcoded_left(
                 digests + (j - 1) * XMSS_DIGEST_LEN,
                 chain_right,
                 digests + j * XMSS_DIGEST_LEN,
@@ -136,7 +136,7 @@ def chain_hash_inner(input, n, output, chain_i_tweaks, chain_right):
 
         # Final hash → output
         last_tweak = chain_i_tweaks + (starting_step + num_hashes - 1) * TWEAK_LEN
-        poseidon8_compress_half_hardcoded_left(
+        poseidon8_compress_quarter_hardcoded_left(
             digests + (num_hashes - 2) * XMSS_DIGEST_LEN, chain_right, output, last_tweak
         )
     return
@@ -199,16 +199,17 @@ def wots_pk_hash(wots_public_key, public_param):
     # T-Sponge with replacement: IV = poseidon8([tweak(1)|0|pp(2)], zeros)
     # then absorb pairs of WOTS chain tips.
     N_CHUNKS = V / 2
-    states = Array((N_CHUNKS + 1) * DIGEST_LEN)
-    poseidon8_compress_hardcoded_left(public_param, ZERO_VEC_PTR, states, TWEAK_TABLE_ADDR + TWEAK_WOTS_PK_OFFSET)
-    for i in unroll(0, N_CHUNKS):
-        poseidon8_compress(
+    states = Array(N_CHUNKS * DIGEST_LEN)
+    poseidon8_permute_half_hardcoded_left(public_param, ZERO_VEC_PTR, states, TWEAK_TABLE_ADDR + TWEAK_WOTS_PK_OFFSET)
+    for i in unroll(0, N_CHUNKS - 1):
+        poseidon8_permute_half(
             states + i * DIGEST_LEN,
             wots_public_key + i * WOTS_PK_PAIR_STRIDE + 1,
             states + (i + 1) * DIGEST_LEN,
         )
-
-    return states + N_CHUNKS * DIGEST_LEN
+    return sponge_finalize(
+        states + (N_CHUNKS - 1) * DIGEST_LEN, wots_public_key + (N_CHUNKS - 1) * WOTS_PK_PAIR_STRIDE + 1
+    )
 
 
 @inline
@@ -236,19 +237,19 @@ def do_4_merkle_levels(b, state_in, state_out, public_param, merkle_tweaks_chunk
     # Level 0 hash → buf1
     buf1 = Array(XMSS_DIGEST_LEN * 2)
     if b1 == 1:
-        poseidon8_compress_half_hardcoded_left(public_param, buf0, buf1, merkle_tweaks_chunk)
+        poseidon8_compress_quarter_hardcoded_left(public_param, buf0, buf1, merkle_tweaks_chunk)
         hint_witness("xmss_merkle_node", buf1 + XMSS_DIGEST_LEN)
     else:
-        poseidon8_compress_half_hardcoded_left(public_param, buf0, buf1 + XMSS_DIGEST_LEN, merkle_tweaks_chunk)
+        poseidon8_compress_quarter_hardcoded_left(public_param, buf0, buf1 + XMSS_DIGEST_LEN, merkle_tweaks_chunk)
         hint_witness("xmss_merkle_node", buf1)
 
     # Level 1 hash → buf2
     buf2 = Array(XMSS_DIGEST_LEN * 2)
     if b2 == 1:
-        poseidon8_compress_half_hardcoded_left(public_param, buf1, buf2, merkle_tweaks_chunk + 1 * TWEAK_LEN)
+        poseidon8_compress_quarter_hardcoded_left(public_param, buf1, buf2, merkle_tweaks_chunk + 1 * TWEAK_LEN)
         hint_witness("xmss_merkle_node", buf2 + XMSS_DIGEST_LEN)
     else:
-        poseidon8_compress_half_hardcoded_left(
+        poseidon8_compress_quarter_hardcoded_left(
             public_param, buf1, buf2 + XMSS_DIGEST_LEN, merkle_tweaks_chunk + 1 * TWEAK_LEN
         )
         hint_witness("xmss_merkle_node", buf2)
@@ -256,15 +257,15 @@ def do_4_merkle_levels(b, state_in, state_out, public_param, merkle_tweaks_chunk
     # Level 2 hash → buf3
     buf3 = Array(XMSS_DIGEST_LEN * 2)
     if b3 == 1:
-        poseidon8_compress_half_hardcoded_left(public_param, buf2, buf3, merkle_tweaks_chunk + 2 * TWEAK_LEN)
+        poseidon8_compress_quarter_hardcoded_left(public_param, buf2, buf3, merkle_tweaks_chunk + 2 * TWEAK_LEN)
         hint_witness("xmss_merkle_node", buf3 + XMSS_DIGEST_LEN)
     else:
-        poseidon8_compress_half_hardcoded_left(
+        poseidon8_compress_quarter_hardcoded_left(
             public_param, buf2, buf3 + XMSS_DIGEST_LEN, merkle_tweaks_chunk + 2 * TWEAK_LEN
         )
         hint_witness("xmss_merkle_node", buf3)
 
-    poseidon8_compress_half_hardcoded_left(public_param, buf3, state_out, merkle_tweaks_chunk + 3 * TWEAK_LEN)
+    poseidon8_compress_quarter_hardcoded_left(public_param, buf3, state_out, merkle_tweaks_chunk + 3 * TWEAK_LEN)
     return
 
 

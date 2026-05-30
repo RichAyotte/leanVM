@@ -16,7 +16,7 @@ pub const HALF_DIGEST_LEN: usize = DIGEST / 2; // 2
 // domainsep encoding: see `tables/mod.rs`.
 pub const POSEIDON_DOMAINSEP_BASE: usize = 3;
 pub const POSEIDON_FLAG_PERMUTE_SHIFT: usize = 1 << 1;
-pub const POSEIDON_FLAG_SHORT_SHIFT: usize = 1 << 2;
+pub const POSEIDON_FLAG_OUT4_SHIFT: usize = 1 << 2;
 pub const POSEIDON_FLAG_LEFT_SHIFT: usize = 1 << 3;
 pub const POSEIDON_OFFSET_LEFT_SHIFT: usize = 1 << 4;
 
@@ -24,33 +24,43 @@ pub const POSEIDON_OFFSET_LEFT_SHIFT: usize = 1 << 4;
 pub const POSEIDON_8_COL_MULTIPLICITY: ColIndex = 0;
 pub const POSEIDON_8_COL_NU_B: ColIndex = 1;
 pub const POSEIDON_8_COL_NU_C: ColIndex = 2;
-pub const POSEIDON_8_COL_FLAG_SHORT: ColIndex = 3;
-pub const POSEIDON_8_COL_FLAG_LEFT: ColIndex = 4;
-pub const POSEIDON_8_COL_OFFSET_LEFT: ColIndex = 5;
-pub const POSEIDON_8_COL_ADDR_LEFT_LO: ColIndex = 6;
-pub const POSEIDON_8_COL_ADDR_LEFT_HI: ColIndex = 7;
-pub const POSEIDON_8_COL_FLAG_PERMUTE: ColIndex = 8;
-pub const POSEIDON_8_COL_INPUT_START: ColIndex = 9;
+// Output width flags (compression only for out2; out4 also covers permute_half):
+//   out2 set  => output is 2 elements (HALF_DIGEST_LEN), compression only.
+//   out4 set  => output is 4 elements (DIGEST); for compression a full digest,
+//                for permutation the low half (permute_half).
+//   neither   => output is 8 elements (WIDTH), full permutation only.
+pub const POSEIDON_8_COL_FLAG_OUT2: ColIndex = 3;
+pub const POSEIDON_8_COL_FLAG_OUT4: ColIndex = 4;
+pub const POSEIDON_8_COL_FLAG_LEFT: ColIndex = 5;
+pub const POSEIDON_8_COL_OFFSET_LEFT: ColIndex = 6;
+pub const POSEIDON_8_COL_ADDR_LEFT_LO: ColIndex = 7;
+pub const POSEIDON_8_COL_ADDR_LEFT_HI: ColIndex = 8;
+pub const POSEIDON_8_COL_FLAG_PERMUTE: ColIndex = 9;
+pub const POSEIDON_8_COL_INPUT_START: ColIndex = 10;
 // Output is the full WIDTH-element permutation state: `out_lo` (WIDTH/2)
 // followed by `out_hi` (WIDTH/2). Compression only uses `out_lo`.
-pub const POSEIDON_8_COL_OUT_LO: ColIndex = POSEIDON_8_COL_INPUT_START + WIDTH; // 17
-pub const POSEIDON_8_COL_OUT_HI: ColIndex = POSEIDON_8_COL_OUT_LO + WIDTH / 2; // 21
-pub const POSEIDON_8_COL_ROUND_START: ColIndex = POSEIDON_8_COL_OUT_LO + WIDTH; // 25
+pub const POSEIDON_8_COL_OUT_LO: ColIndex = POSEIDON_8_COL_INPUT_START + WIDTH; // 18
+pub const POSEIDON_8_COL_OUT_HI: ColIndex = POSEIDON_8_COL_OUT_LO + WIDTH / 2; // 22
+pub const POSEIDON_8_COL_ROUND_START: ColIndex = POSEIDON_8_COL_OUT_LO + WIDTH; // 26
 /// Non-committed columns ("virtual"):
 pub const POSEIDON_8_COL_NU_A: ColIndex = num_cols_poseidon_8();
 pub const POSEIDON_8_COL_DOMAINSEP: ColIndex = num_cols_poseidon_8() + 1;
 
-pub const POSEIDON8_NAME: &str = "poseidon8_compress";
-pub const POSEIDON8_HALF_NAME: &str = "poseidon8_compress_half";
-pub const POSEIDON8_HARDCODED_LEFT_NAME: &str = "poseidon8_compress_hardcoded_left";
-pub const POSEIDON8_HALF_HARDCODED_LEFT_NAME: &str = "poseidon8_compress_half_hardcoded_left";
+pub const POSEIDON8_NAME: &str = "poseidon8_compress_half";
+pub const POSEIDON8_QUARTER_NAME: &str = "poseidon8_compress_quarter";
+pub const POSEIDON8_HARDCODED_LEFT_NAME: &str = "poseidon8_compress_half_hardcoded_left";
+pub const POSEIDON8_QUARTER_HARDCODED_LEFT_NAME: &str = "poseidon8_compress_quarter_hardcoded_left";
 pub const POSEIDON8_PERMUTE_NAME: &str = "poseidon8_permute";
-pub const ALL_POSEIDON8_NAMES: [&str; 5] = [
+pub const POSEIDON8_PERMUTE_HALF_NAME: &str = "poseidon8_permute_half";
+pub const POSEIDON8_PERMUTE_HALF_HARDCODED_LEFT_NAME: &str = "poseidon8_permute_half_hardcoded_left";
+pub const ALL_POSEIDON8_NAMES: [&str; 7] = [
     POSEIDON8_NAME,
-    POSEIDON8_HALF_NAME,
+    POSEIDON8_QUARTER_NAME,
     POSEIDON8_HARDCODED_LEFT_NAME,
-    POSEIDON8_HALF_HARDCODED_LEFT_NAME,
+    POSEIDON8_QUARTER_HARDCODED_LEFT_NAME,
     POSEIDON8_PERMUTE_NAME,
+    POSEIDON8_PERMUTE_HALF_NAME,
+    POSEIDON8_PERMUTE_HALF_HARDCODED_LEFT_NAME,
 ];
 
 // ---------- Per-round aux columns ----------
@@ -259,7 +269,9 @@ impl<const BUS: bool> TableT for Poseidon8Precompile<BUS> {
         row[POSEIDON_8_COL_MULTIPLICITY] = F::ZERO;
         row[POSEIDON_8_COL_NU_B] = F::from_usize(zero_vec_ptr);
         row[POSEIDON_8_COL_NU_C] = F::from_usize(null_hash_ptr);
-        row[POSEIDON_8_COL_FLAG_SHORT] = F::ZERO;
+        // Padding rows are full-digest compression rows (out4).
+        row[POSEIDON_8_COL_FLAG_OUT2] = F::ZERO;
+        row[POSEIDON_8_COL_FLAG_OUT4] = F::ONE;
         row[POSEIDON_8_COL_FLAG_LEFT] = F::ZERO;
         row[POSEIDON_8_COL_OFFSET_LEFT] = F::ZERO;
         row[POSEIDON_8_COL_ADDR_LEFT_LO] = F::from_usize(zero_vec_ptr);
@@ -275,7 +287,7 @@ impl<const BUS: bool> TableT for Poseidon8Precompile<BUS> {
         }
         // Non-committed columns
         row[POSEIDON_8_COL_NU_A] = F::from_usize(zero_vec_ptr);
-        row[POSEIDON_8_COL_DOMAINSEP] = F::from_usize(POSEIDON_DOMAINSEP_BASE);
+        row[POSEIDON_8_COL_DOMAINSEP] = F::from_usize(POSEIDON_DOMAINSEP_BASE + POSEIDON_FLAG_OUT4_SHIFT);
         // Sanity: Davies-Meyer witness must agree with the direct primitive.
         debug_assert_eq!(&perm_state[..DIGEST], &poseidon8_compress([F::ZERO; WIDTH])[..]);
         row
@@ -298,10 +310,11 @@ impl<const BUS: bool> TableT for Poseidon8Precompile<BUS> {
         else {
             unreachable!("Poseidon8 table called with non-Poseidon8 args");
         };
-        assert!(
-            !(permute && (half_output || hardcoded_offset_left.is_some())),
-            "Poseidon8 permute is mutually exclusive with half_output and hardcoded_left"
-        );
+        // out2: half-width compression output (2 elements), compression only.
+        // out4: full digest compression output (4 elements) or permute_half (low 4).
+        // neither: full 8-element permutation.
+        let out2 = half_output && !permute;
+        let out4 = (!half_output && !permute) || (half_output && permute);
         let trace = ctx.traces.get_mut(&self.table()).unwrap();
 
         let arg_a_usize = arg_a.to_usize();
@@ -336,7 +349,9 @@ impl<const BUS: bool> TableT for Poseidon8Precompile<BUS> {
         let mut output_cols = [F::ZERO; WIDTH];
         if permute {
             output_cols = perm_state;
-            ctx.memory.set_slice(res_addr, &perm_state)?;
+            // permute_half (half_output) writes the low DIGEST elements only.
+            let out_len = if half_output { DIGEST } else { WIDTH };
+            ctx.memory.set_slice(res_addr, &perm_state[..out_len])?;
         } else {
             for i in 0..DIGEST {
                 output_cols[i] = perm_state[i] + input[i];
@@ -353,7 +368,8 @@ impl<const BUS: bool> TableT for Poseidon8Precompile<BUS> {
         trace.columns[POSEIDON_8_COL_MULTIPLICITY].push(F::ONE);
         trace.columns[POSEIDON_8_COL_NU_B].push(arg_b);
         trace.columns[POSEIDON_8_COL_NU_C].push(index_res_a);
-        trace.columns[POSEIDON_8_COL_FLAG_SHORT].push(F::from_bool(half_output));
+        trace.columns[POSEIDON_8_COL_FLAG_OUT2].push(F::from_bool(out2));
+        trace.columns[POSEIDON_8_COL_FLAG_OUT4].push(F::from_bool(out4));
         trace.columns[POSEIDON_8_COL_FLAG_LEFT].push(F::from_bool(flag_hardcoded));
         trace.columns[POSEIDON_8_COL_OFFSET_LEFT].push(F::from_usize(hardcoded_offset_left_val));
         trace.columns[POSEIDON_8_COL_ADDR_LEFT_LO].push(F::from_usize(left_first_addr));
@@ -376,7 +392,7 @@ impl<const BUS: bool> TableT for Poseidon8Precompile<BUS> {
         trace.columns[POSEIDON_8_COL_NU_A].push(arg_a);
         let domainsep = POSEIDON_DOMAINSEP_BASE
             + POSEIDON_FLAG_PERMUTE_SHIFT * (permute as usize)
-            + POSEIDON_FLAG_SHORT_SHIFT * (half_output as usize)
+            + POSEIDON_FLAG_OUT4_SHIFT * (out4 as usize)
             + POSEIDON_FLAG_LEFT_SHIFT * (flag_hardcoded as usize)
             + POSEIDON_OFFSET_LEFT_SHIFT * hardcoded_offset_left_val;
         trace.columns[POSEIDON_8_COL_DOMAINSEP].push(F::from_usize(domainsep));
@@ -390,17 +406,17 @@ impl<const BUS: bool> TableT for Poseidon8Precompile<BUS> {
 /// `eval()` exactly; used by the proving pipeline for pre-allocation.
 const fn poseidon8_n_constraints(bus: bool) -> usize {
     // 1 boolean flag (active).
-    // 3 boolean flags (half_output, hardcoded_left, permute).
-    // 1 mutex: permute excludes half_output and hardcoded_left.
-    // 2 effective_index constraints (linking effective_index_left_first/second to flag_hardcoded).
+    // 4 boolean flags (out2, out4, hardcoded_left, permute).
+    // 3 mutex constraints: permute excludes out2; out4 excludes out2; some output mode set.
+    // 2 effective_index constraints (linking addr_left_lo/hi to flag_hardcoded).
     // Initial + terminal full rounds: 8 MDS equality gates per round (deg 7).
     // Partial rounds: 1 post_sbox gate per round (deg 7).
-    // Output: 3 gates per WIDTH/2 lane (compression / permute-left / permute-right).
+    // Output: 2 gates per WIDTH/2 lane (out_lo + out_hi).
     // + 2 bus gates (multiplicity + fingerprint) if enabled.
     let full_gates = 2 * POSEIDON1_HALF_FULL_ROUNDS * WIDTH;
     let partial_gates = POSEIDON1_PARTIAL_ROUNDS;
     let bus_gates = if bus { 2 } else { 0 };
-    1 + 3 + 1 + 2 + full_gates + partial_gates + 3 * (WIDTH / 2) + bus_gates
+    1 + 4 + 3 + 2 + full_gates + partial_gates + 2 * (WIDTH / 2) + bus_gates
 }
 
 impl<const BUS: bool> Air for Poseidon8Precompile<BUS> {
@@ -409,8 +425,9 @@ impl<const BUS: bool> Air for Poseidon8Precompile<BUS> {
         num_cols_poseidon_8()
     }
     fn degree_air(&self) -> usize {
-        // S-box is x⁷ → max degree 7. The flag_short gating multiplies by (1 - flag_short)
-        // so output gates are at most 8.
+        // S-box is x⁷ → max degree 7. The output gates multiply the linear
+        // Davies-Meyer expression by a single linear flag factor, so output
+        // gates are at most degree 2; the round gates dominate at degree 7.
         8
     }
     fn n_shift_columns(&self) -> usize {
@@ -427,7 +444,8 @@ impl<const BUS: bool> Air for Poseidon8Precompile<BUS> {
         let multiplicity;
         let nu_b;
         let nu_c;
-        let flag_short;
+        let flag_out2;
+        let flag_out4;
         let flag_left;
         let flag_permute;
         let offset_left;
@@ -444,7 +462,8 @@ impl<const BUS: bool> Air for Poseidon8Precompile<BUS> {
             multiplicity = flat[POSEIDON_8_COL_MULTIPLICITY];
             nu_b = flat[POSEIDON_8_COL_NU_B];
             nu_c = flat[POSEIDON_8_COL_NU_C];
-            flag_short = flat[POSEIDON_8_COL_FLAG_SHORT];
+            flag_out2 = flat[POSEIDON_8_COL_FLAG_OUT2];
+            flag_out4 = flat[POSEIDON_8_COL_FLAG_OUT4];
             flag_left = flat[POSEIDON_8_COL_FLAG_LEFT];
             flag_permute = flat[POSEIDON_8_COL_FLAG_PERMUTE];
             offset_left = flat[POSEIDON_8_COL_OFFSET_LEFT];
@@ -468,7 +487,7 @@ impl<const BUS: bool> Air for Poseidon8Precompile<BUS> {
         // Reconstruct domainsep and nu_a (virtual columns) from the committed flags.
         let domainsep_reconstructed = AB::IF::from_usize(POSEIDON_DOMAINSEP_BASE)
             + flag_permute * AB::F::from_usize(POSEIDON_FLAG_PERMUTE_SHIFT)
-            + flag_short * AB::F::from_usize(POSEIDON_FLAG_SHORT_SHIFT)
+            + flag_out4 * AB::F::from_usize(POSEIDON_FLAG_OUT4_SHIFT)
             + flag_left * AB::F::from_usize(POSEIDON_FLAG_LEFT_SHIFT)
             + flag_left * offset_left * AB::F::from_usize(POSEIDON_OFFSET_LEFT_SHIFT);
 
@@ -497,11 +516,16 @@ impl<const BUS: bool> Air for Poseidon8Precompile<BUS> {
         }
 
         builder.assert_bool(multiplicity);
-        builder.assert_bool(flag_short);
+        builder.assert_bool(flag_out2);
+        builder.assert_bool(flag_out4);
         builder.assert_bool(flag_left);
         builder.assert_bool(flag_permute);
-        // permute is mutually exclusive with short and left.
-        builder.assert_zero(flag_permute * (flag_short + flag_left));
+        // permute is mutually exclusive with the half-width compression output.
+        builder.assert_zero(flag_permute * flag_out2);
+        // out2 / out4 are mutually exclusive.
+        builder.assert_zero(flag_out4 * flag_out2);
+        // A non-permutation row must specify a compression output width.
+        builder.assert_zero((AB::IF::ONE - flag_permute) * (AB::IF::ONE - flag_out4) * (AB::IF::ONE - flag_out2));
 
         // Constrain addr_left_lo to match its semantics.
         builder.assert_zero(flag_left * (offset_left - addr_left_lo));
@@ -595,23 +619,25 @@ impl<const BUS: bool> Air for Poseidon8Precompile<BUS> {
             state = post;
         }
 
-        // Output gates (WIDTH/2 lanes, 3 gates each):
-        //  - compression: `out_lo[i] = state[i] + inputs[i]` (Davies-Meyer).
-        //      first HALF_DIGEST_LEN lanes always; the rest only when not flag_short.
-        //  - permute: `out_lo[i] = state[i]`, `out_hi[i] = state[i+WIDTH/2]`.
-        // The `flag_permute * flag_short = 0` mutex keeps `compression_last`
-        // boolean, so the gated compression constraint stays low-degree.
-        let not_permute = AB::IF::ONE - flag_permute;
-        let compression_last = not_permute - flag_short;
+        // Output gates (WIDTH/2 lanes, 2 gates each):
+        //   value = state[i] + feedforward * inputs[i]   (feedforward = 1 - permute)
+        //  - out_lo[i] = value, always for i < HALF_DIGEST_LEN; for the rest only
+        //    when the output is not the half-width compression (gate `1 - out2`).
+        //  - out_hi[i] = state[i + WIDTH/2], only on the full permutation
+        //    (gate `1 - out4 - out2`).
+        // For compression rows feedforward = 1 (Davies-Meyer); for permutation
+        // rows feedforward = 0 (raw permutation output).
+        let feedforward = AB::IF::ONE - flag_permute;
+        let gate_lo_full = AB::IF::ONE - flag_out2;
+        let gate_hi = AB::IF::ONE - flag_out4 - flag_out2;
         for i in 0..WIDTH / 2 {
-            let compression_gate = if i < HALF_DIGEST_LEN {
-                not_permute
+            let value = state[i] + feedforward * inputs[i];
+            if i < HALF_DIGEST_LEN {
+                builder.assert_zero(value - out_lo[i]);
             } else {
-                compression_last
-            };
-            builder.assert_zero(compression_gate * (state[i] + inputs[i] - out_lo[i]));
-            builder.assert_zero(flag_permute * (state[i] - out_lo[i]));
-            builder.assert_zero(flag_permute * (state[i + WIDTH / 2] - out_hi[i]));
+                builder.assert_zero(gate_lo_full * (value - out_lo[i]));
+            }
+            builder.assert_zero(gate_hi * (state[i + WIDTH / 2] - out_hi[i]));
         }
     }
 }
