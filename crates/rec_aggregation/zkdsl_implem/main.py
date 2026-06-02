@@ -23,6 +23,10 @@ TYPE_1_TWEAKS_HASH_OFFSET = TYPE_1_MERKLE_CHUNKS_OFFSET + N_MERKLE_CHUNKS
 TYPE_1_INPUT_DATA_SIZE_PADDED = next_multiple_of(TYPE_1_TWEAKS_HASH_OFFSET + DIGEST_LEN, DIGEST_LEN)
 TYPE_1_INPUT_DATA_NUM_CHUNKS = TYPE_1_INPUT_DATA_SIZE_PADDED / DIGEST_LEN
 
+# Component data (pubkeys_hash | message | merkle_chunks | tweaks_hash) is a whole number of
+# DIGEST_LEN chunks; its size depends on the config (N_MERKLE_CHUNKS scales with LOG_LIFETIME).
+COMPONENT_DATA_NUM_CHUNKS = (TYPE_1_INPUT_DATA_SIZE_PADDED - COMPONENT_DATA_OFFSET) / DIGEST_LEN
+
 
 
 def main():
@@ -83,7 +87,7 @@ def main():
         if n_raw_xmss == 0:
             type1_data_buf = Array(TYPE_1_INPUT_DATA_SIZE_PADDED)
             copy_8(data_buf, type1_data_buf)  # prefix
-            copy_40(data_buf + COMPONENT_DATA_OFFSET, type1_data_buf + COMPONENT_DATA_OFFSET)
+            copy_8n(data_buf + COMPONENT_DATA_OFFSET, type1_data_buf + COMPONENT_DATA_OFFSET, COMPONENT_DATA_NUM_CHUNKS)
             hint_witness("inner_bytecode_claim", type1_data_buf + BYTECODE_CLAIM_OFFSET)
             ensure_well_formed_input_data(type1_data_buf, initial_fiat_shamir_cap, TYPE_1_FLAG)
             inner_pub_mem = Array(INNER_PUB_MEM_SIZE)
