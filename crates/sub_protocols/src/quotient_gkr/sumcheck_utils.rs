@@ -67,14 +67,15 @@ where
     N: PrimeCharacteristicRing + Copy,
     T: Algebra<N> + Algebra<T> + Copy,
 {
-    let (c0_den, c2_den) = sumcheck_quadratic(((&dl.0, &dl.1), (&dr.0, &dr.1)));
-    let (c0_a, c2_a) = sumcheck_quadratic(((&nl.0, &nl.1), (&dr.0, &dr.1)));
-    let (c0_b, c2_b) = sumcheck_quadratic(((&nr.0, &nr.1), (&dl.0, &dl.1)));
+    let ddl = dl.1 - dl.0;
+    let ddr = dr.1 - dr.0;
+    let dnl = nl.1 - nl.0;
+    let dnr = nr.1 - nr.0;
     RoundCoeffs {
-        c0_den,
-        c2_den,
-        c0_num: c0_a + c0_b,
-        c2_num: c2_a + c2_b,
+        c0_den: dr.0 * dl.0,
+        c2_den: ddl * ddr,
+        c0_num: dr.0 * nl.0 + dl.0 * nr.0,
+        c2_num: ddr * dnl + ddl * dnr,
     }
 }
 
@@ -291,25 +292,18 @@ pub(super) fn run_phase2_sumcheck<EF: ExtensionField<PF<EF>>>(
     mut sum: EF,
     mut mmf: EF,
 ) -> (Vec<EF>, [EF; 4]) {
+    let eq_prefix_init = &remaining_eq[..remaining_eq.len().saturating_sub(1)];
+    let mut eq_table = eval_eq(eq_prefix_init);
+
     for _round in 0..remaining_eq.len() {
         let eq_alpha = *remaining_eq.last().unwrap();
-        let eq_prefix = &remaining_eq[..remaining_eq.len() - 1];
-        let eq_table = eval_eq(eq_prefix);
 
         let active_l = num_l.len();
         let active_r = num_r.len();
         let active_pairs = active_l.div_ceil(2);
         let fully_active = active_r / 2;
 
-        let pair = |arr: &[EF], idx: usize, pad: EF| {
-            (
-                arr.get(idx).copied().unwrap_or(pad),
-                arr.get(idx + 1).copied().unwrap_or(pad),
-            )
-        };
-
-        let mut acc = RoundCoeffs::<EF>::zero();
-        for j in 0..active_pairs {
+        let term = |j: usize| -> RoundCoeffs<EF> {
             let coeffs = if j < fully_active {
                 pair_coeffs::<EF, EF>(
                     (num_l[2 * j], num_l[2 * j + 1]),
@@ -318,16 +312,32 @@ pub(super) fn run_phase2_sumcheck<EF: ExtensionField<PF<EF>>>(
                     (den_r[2 * j], den_r[2 * j + 1]),
                 )
             } else {
+                let get_pair = |arr: &[EF], idx: usize, pad: EF| {
+                    (
+                        arr.get(idx).copied().unwrap_or(pad),
+                        arr.get(idx + 1).copied().unwrap_or(pad),
+                    )
+                };
                 pair_coeffs::<EF, EF>(
-                    pair(&num_l, 2 * j, EF::ZERO),
-                    pair(&num_r, 2 * j, EF::ZERO),
-                    pair(&den_l, 2 * j, EF::ONE),
-                    pair(&den_r, 2 * j, EF::ONE),
+                    get_pair(&num_l, 2 * j, EF::ZERO),
+                    get_pair(&num_r, 2 * j, EF::ZERO),
+                    get_pair(&den_l, 2 * j, EF::ONE),
+                    get_pair(&den_r, 2 * j, EF::ONE),
                 )
             };
-            acc += coeffs * eq_table[j];
-        }
+            coeffs * eq_table[j]
+        };
 
+        let acc: RoundCoeffs<EF> = if active_pairs > PARALLEL_THRESHOLD {
+            (0..active_pairs)
+                .into_par_iter()
+                .map(term)
+                .reduce(RoundCoeffs::zero, Add::add)
+        } else {
+            (0..active_pairs).map(term).fold(RoundCoeffs::<EF>::zero(), Add::add)
+        };
+
+        let eq_prefix = &remaining_eq[..remaining_eq.len() - 1];
         let padding_sum = alpha * mle_of_zeros_then_ones(active_pairs, eq_prefix);
 
         let bare = build_bare_from_coeffs(
@@ -348,6 +358,16 @@ pub(super) fn run_phase2_sumcheck<EF: ExtensionField<PF<EF>>>(
         num_r = fold_normal_with_padding(&num_r, r, EF::ZERO);
         den_l = fold_normal_with_padding(&den_l, r, EF::ONE);
         den_r = fold_normal_with_padding(&den_r, r, EF::ONE);
+
+        let new_eq_len = eq_table.len() / 2;
+        if new_eq_len > 0 {
+            let fold_eq = |i: usize| eq_table[2 * i] + eq_table[2 * i + 1];
+            eq_table = if new_eq_len >= PARALLEL_THRESHOLD {
+                (0..new_eq_len).into_par_iter().map(fold_eq).collect()
+            } else {
+                (0..new_eq_len).map(fold_eq).collect()
+            };
+        }
 
         q_natural.push(r);
         remaining_eq.pop();

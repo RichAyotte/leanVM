@@ -2,7 +2,7 @@ use crate::{F, instruction_encoder::field_representation, ir::*, lang::*};
 use backend::*;
 use lean_vm::*;
 use std::collections::BTreeMap;
-use utils::{ToUsize, poseidon_compress_slice};
+use utils::{ToUsize, poseidon_hash_slice};
 
 impl IntermediateInstruction {
     const fn is_hint(&self) -> bool {
@@ -39,13 +39,7 @@ pub fn compile_to_low_level_bytecode(
     function_locations: BTreeMap<SourceLocation, FunctionName>,
     source_code: BTreeMap<FileId, String>,
     filepaths: BTreeMap<FileId, String>,
-    public_input_size: usize,
 ) -> Result<Bytecode, String> {
-    if !is_valid_public_input_size(public_input_size) {
-        return Err(format!(
-            "public_input_size must be a power of 2 and a multiple of DIGEST_LEN ({DIGEST_LEN}), got {public_input_size}"
-        ));
-    }
     intermediate_bytecode.bytecode.insert(
         Label::EndProgram,
         vec![IntermediateInstruction::Jump {
@@ -90,7 +84,7 @@ pub fn compile_to_low_level_bytecode(
             .iter()
             .map(|block| count_real_instructions(block))
             .max()
-            .unwrap();
+            .ok_or_else(|| "match statement has no cases (e.g. `match_range` over an empty range)".to_string())?;
         match_first_block_starts.push(pc);
         match_block_sizes.push(max_block_size);
 
@@ -134,6 +128,10 @@ pub fn compile_to_low_level_bytecode(
 
     debug_assert_eq!(instructions.len(), bytecode_size);
 
+    for instruction in &instructions {
+        validate_instruction(instruction)?;
+    }
+
     let instructions_encoded = instructions.par_iter().map(field_representation).collect::<Vec<_>>();
 
     let mut instructions_multilinear = vec![];
@@ -161,7 +159,7 @@ pub fn compile_to_low_level_bytecode(
         pc_to_location.push(current_location);
     }
 
-    let hash = poseidon_compress_slice(&instructions_multilinear);
+    let hash = poseidon_hash_slice(&instructions_multilinear);
 
     let code: Vec<_> = instructions
         .into_iter()
@@ -178,12 +176,12 @@ pub fn compile_to_low_level_bytecode(
     }
 
     Ok(Bytecode {
+        unpadded_size: n_real_instructions,
         code,
         instructions_multilinear,
         hash,
         starting_frame_memory,
         ending_pc,
-        public_input_size,
         function_locations,
         source_code,
         filepaths,
@@ -425,6 +423,16 @@ fn eval_constant_value(constant: &ConstantValue, compiler: &Compiler) -> usize {
         ConstantValue::MatchBlockSize { match_index } => compiler.match_block_sizes[*match_index],
         ConstantValue::MatchFirstBlockStart { match_index } => compiler.match_first_block_starts[*match_index],
     }
+}
+
+fn validate_instruction(instruction: &Instruction) -> Result<(), String> {
+    if let Instruction::Precompile(p) = instruction
+        && let PrecompileCompTimeArgs::ExtensionOp { size, .. } = &p.data
+        && *size == 0
+    {
+        return Err("extension_op precompile size must be >= 1, got 0".to_string());
+    }
+    Ok(())
 }
 
 fn eval_const_expression(constant: &ConstExpression, compiler: &Compiler) -> F {

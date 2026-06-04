@@ -83,7 +83,8 @@ where
         });
 
         let full = 1 << folding_factor_next;
-        let (prover_data, root) = MerkleData::build(folded_matrix, full);
+        // Round commitments have no zero-column suffix, so effective == full.
+        let (prover_data, root) = MerkleData::build(folded_matrix, full, full);
 
         prover_state.add_base_scalars(&root);
 

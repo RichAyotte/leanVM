@@ -18,12 +18,13 @@ pub fn fill_trace_poseidon_16(trace: &mut [Vec<F>]) {
     let m = n - (n % packing_width::<F>());
     let trace_packed: Vec<_> = trace.iter().map(|col| FPacking::<F>::pack_slice(&col[..m])).collect();
 
+    const N_COLS: usize = super::num_cols_poseidon_16();
+
     // fill the packed rows
+    let cols: &[&[FPacking<F>]; N_COLS] = (&trace_packed[..N_COLS]).try_into().unwrap();
     (0..m / packing_width::<F>()).into_par_iter().for_each(|i| {
-        let ptrs: Vec<*mut FPacking<F>> = trace_packed
-            .iter()
-            .map(|col| unsafe { (col.as_ptr() as *mut FPacking<F>).add(i) })
-            .collect();
+        let ptrs: [*mut FPacking<F>; N_COLS] =
+            std::array::from_fn(|c| unsafe { (cols[c].as_ptr() as *mut FPacking<F>).add(i) });
         let perm: &mut Poseidon1Cols16<&mut FPacking<F>> =
             unsafe { &mut *(ptrs.as_ptr() as *mut Poseidon1Cols16<&mut FPacking<F>>) };
 
@@ -31,11 +32,9 @@ pub fn fill_trace_poseidon_16(trace: &mut [Vec<F>]) {
     });
 
     // fill the remaining rows (non packed)
+    let cols: &[Vec<F>; N_COLS] = (&trace[..N_COLS]).try_into().unwrap();
     for i in m..n {
-        let ptrs: Vec<*mut F> = trace
-            .iter()
-            .map(|col| unsafe { (col.as_ptr() as *mut F).add(i) })
-            .collect();
+        let ptrs: [*mut F; N_COLS] = std::array::from_fn(|c| unsafe { (cols[c].as_ptr() as *mut F).add(i) });
         let perm: &mut Poseidon1Cols16<&mut F> = unsafe { &mut *(ptrs.as_ptr() as *mut Poseidon1Cols16<&mut F>) };
         generate_trace_rows_for_perm(perm);
     }
@@ -103,8 +102,8 @@ pub(super) fn generate_trace_rows_for_perm<F: Algebra<KoalaBear> + Copy>(perm: &
     generate_last_2_full_rounds(
         &mut state,
         &inputs,
-        &mut perm.outputs_left,
-        &mut perm.outputs_right,
+        &mut perm.out_lo,
+        &mut perm.out_hi,
         flag_permute,
         &poseidon1_final_constants()[2 * n_ending_full_rounds],
         &poseidon1_final_constants()[2 * n_ending_full_rounds + 1],
@@ -139,8 +138,8 @@ fn generate_2_full_round<F: Algebra<KoalaBear> + Copy>(
 fn generate_last_2_full_rounds<F: Algebra<KoalaBear> + Copy>(
     state: &mut [F; WIDTH],
     inputs: &[F; WIDTH],
-    outputs_left: &mut [&mut F; WIDTH / 2],
-    outputs_right: &mut [&mut F; WIDTH / 2],
+    out_lo: &mut [&mut F; WIDTH / 2],
+    out_hi: &mut [&mut F; WIDTH / 2],
     flag_permute: F,
     round_constants_1: &[KoalaBear; WIDTH],
     round_constants_2: &[KoalaBear; WIDTH],
@@ -159,7 +158,7 @@ fn generate_last_2_full_rounds<F: Algebra<KoalaBear> + Copy>(
 
     for i in 0..(WIDTH / 2) {
         let compression_value = state[i] + inputs[i];
-        *outputs_left[i] = (F::ONE - flag_permute) * compression_value + flag_permute * state[i];
-        *outputs_right[i] = flag_permute * state[i + WIDTH / 2];
+        *out_lo[i] = (F::ONE - flag_permute) * compression_value + flag_permute * state[i];
+        *out_hi[i] = flag_permute * state[i + WIDTH / 2];
     }
 }

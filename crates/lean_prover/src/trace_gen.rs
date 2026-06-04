@@ -6,7 +6,6 @@ use utils::{ToUsize, get_poseidon_16_of_zero, transposed_par_iter_mut};
 #[derive(Debug)]
 pub struct ExecutionTrace {
     pub traces: BTreeMap<Table, TableTrace>,
-    pub public_memory_size: usize,
     pub memory: Vec<F>, // of length a multiple of public_memory_size
     pub metadata: ExecutionMetadata,
 }
@@ -36,32 +35,32 @@ pub fn get_execution_trace(
             let field_repr = &bytecode.instructions_multilinear[pc * N_INSTRUCTION_COLUMNS.next_power_of_two()..]
                 [..N_INSTRUCTION_COLUMNS];
 
-            let flag_a = field_repr[instr_idx(COL_FLAG_A)];
-            let flag_b = field_repr[instr_idx(COL_FLAG_B)];
-            let flag_c = field_repr[instr_idx(COL_FLAG_C)];
-            let flag_c_fp = field_repr[instr_idx(COL_FLAG_C_FP)];
-            let flag_ab_fp = field_repr[instr_idx(COL_FLAG_AB_FP)];
-            let aux = field_repr[instr_idx(COL_AUX)];
-            let is_deref = aux == F::TWO;
+            let flag_a = field_repr[instr_idx(EXEC_COL_FLAG_A)];
+            let flag_b = field_repr[instr_idx(EXEC_COL_FLAG_B)];
+            let flag_c = field_repr[instr_idx(EXEC_COL_FLAG_C)];
+            let flag_c_fp = field_repr[instr_idx(EXEC_COL_FLAG_C_FP)];
+            let flag_ab_fp = field_repr[instr_idx(EXEC_COL_FLAG_AB_FP)];
+            let aux_1 = field_repr[instr_idx(EXEC_COL_AUX_1)];
+            let is_deref = aux_1 == F::TWO;
 
             let mut addr_a = F::ZERO;
             if flag_a.is_zero() && flag_ab_fp.is_zero() {
-                addr_a = F::from_usize(fp) + field_repr[instr_idx(COL_OPERAND_A)];
+                addr_a = F::from_usize(fp) + field_repr[instr_idx(EXEC_COL_OPERAND_A)];
             }
             let value_a = memory.0.get(addr_a.to_usize()).copied().flatten().unwrap_or_default();
 
             let mut addr_b = F::ZERO;
             if flag_b.is_zero() && flag_ab_fp.is_zero() {
-                addr_b = F::from_usize(fp) + field_repr[instr_idx(COL_OPERAND_B)];
+                addr_b = F::from_usize(fp) + field_repr[instr_idx(EXEC_COL_OPERAND_B)];
             } else if is_deref {
                 // DEREF: addr_B = value_A + operand_B
-                addr_b = value_a + field_repr[instr_idx(COL_OPERAND_B)];
+                addr_b = value_a + field_repr[instr_idx(EXEC_COL_OPERAND_B)];
             }
             let value_b = memory.0.get(addr_b.to_usize()).copied().flatten().unwrap_or_default();
 
             let mut addr_c = F::ZERO;
             if flag_c.is_zero() && flag_c_fp.is_zero() {
-                addr_c = F::from_usize(fp) + field_repr[instr_idx(COL_OPERAND_C)];
+                addr_c = F::from_usize(fp) + field_repr[instr_idx(EXEC_COL_OPERAND_C)];
             }
             let value_c = memory.0.get(addr_c.to_usize()).copied().flatten().unwrap_or_default();
 
@@ -69,30 +68,30 @@ pub fn get_execution_trace(
                 *trace_row[j + N_RUNTIME_COLUMNS] = *field;
             }
 
-            let nu_a = flag_a * field_repr[instr_idx(COL_OPERAND_A)]
+            let nu_a = flag_a * field_repr[instr_idx(EXEC_COL_OPERAND_A)]
                 + (F::ONE - flag_a - flag_ab_fp) * value_a
-                + flag_ab_fp * (F::from_usize(fp) + field_repr[instr_idx(COL_OPERAND_A)]);
-            let nu_b = flag_b * field_repr[instr_idx(COL_OPERAND_B)]
+                + flag_ab_fp * (F::from_usize(fp) + field_repr[instr_idx(EXEC_COL_OPERAND_A)]);
+            let nu_b = flag_b * field_repr[instr_idx(EXEC_COL_OPERAND_B)]
                 + (F::ONE - flag_b - flag_ab_fp) * value_b
-                + flag_ab_fp * (F::from_usize(fp) + field_repr[instr_idx(COL_OPERAND_B)]);
-            let nu_c = flag_c * field_repr[instr_idx(COL_OPERAND_C)]
+                + flag_ab_fp * (F::from_usize(fp) + field_repr[instr_idx(EXEC_COL_OPERAND_B)]);
+            let nu_c = flag_c * field_repr[instr_idx(EXEC_COL_OPERAND_C)]
                 + (F::ONE - flag_c - flag_c_fp) * value_c
-                + flag_c_fp * (F::from_usize(fp) + field_repr[instr_idx(COL_OPERAND_C)]);
+                + flag_c_fp * (F::from_usize(fp) + field_repr[instr_idx(EXEC_COL_OPERAND_C)]);
             if let Instruction::Precompile(..) = instruction {
-                *trace_row[COL_IS_PRECOMPILE] = F::ONE;
+                *trace_row[EXEC_COL_FLAG_PRECOMPILE] = F::ONE;
             }
-            *trace_row[COL_EXEC_NU_A] = nu_a;
-            *trace_row[COL_EXEC_NU_B] = nu_b;
-            *trace_row[COL_EXEC_NU_C] = nu_c;
+            *trace_row[EXEC_COL_NU_A] = nu_a;
+            *trace_row[EXEC_COL_NU_B] = nu_b;
+            *trace_row[EXEC_COL_NU_C] = nu_c;
 
-            *trace_row[COL_MEM_VALUE_A] = value_a;
-            *trace_row[COL_MEM_VALUE_B] = value_b;
-            *trace_row[COL_MEM_VALUE_C] = value_c;
-            *trace_row[COL_PC] = F::from_usize(pc);
-            *trace_row[COL_FP] = F::from_usize(fp);
-            *trace_row[COL_MEM_ADDRESS_A] = addr_a;
-            *trace_row[COL_MEM_ADDRESS_B] = addr_b;
-            *trace_row[COL_MEM_ADDRESS_C] = addr_c;
+            *trace_row[EXEC_COL_VALUE_A] = value_a;
+            *trace_row[EXEC_COL_VALUE_B] = value_b;
+            *trace_row[EXEC_COL_VALUE_C] = value_c;
+            *trace_row[EXEC_COL_PC] = F::from_usize(pc);
+            *trace_row[EXEC_COL_FP] = F::from_usize(fp);
+            *trace_row[EXEC_COL_ADDR_A] = addr_a;
+            *trace_row[EXEC_COL_ADDR_B] = addr_b;
+            *trace_row[EXEC_COL_ADDR_C] = addr_c;
         });
 
     let mut memory_padded = memory.0.par_iter().map(|&v| v.unwrap_or(F::ZERO)).collect::<Vec<F>>();
@@ -112,29 +111,31 @@ pub fn get_execution_trace(
     let poseidon_trace = traces.get_mut(&Table::poseidon16()).unwrap();
     fill_trace_poseidon_16(&mut poseidon_trace.columns);
 
-    // For permute=0 rows, override unconstrained output columns with memory values
-    // so the lookup matches. Same when half_output=1.
+    // Override the output columns the AIR leaves unconstrained with the actual memory values,
+    // so the 16-cell output lookup matches. out_lo[4..8] is free when the output is only 4
+    // elements (out4); out_hi is free for everything except the full 16-element
+    // permutation
     {
-        let split = POSEIDON_16_COL_OUTPUT_LEFT + HALF_DIGEST_LEN;
+        let split = POSEIDON_COL_OUT_LO + HALF_DIGEST_LEN;
         let (left, right) = poseidon_trace.columns.split_at_mut(split);
-        let half_output_col = &left[POSEIDON_16_COL_FLAG_HALF_OUTPUT];
-        let permute_col = &left[POSEIDON_16_COL_FLAG_PERMUTE];
-        let res_col = &left[POSEIDON_16_COL_INDEX_INPUT_RES];
+        let flag_out4_col = &left[POSEIDON_COL_FLAG_OUT4];
+        let flag_out8_col = &left[POSEIDON_COL_FLAG_OUT8];
+        let nu_c_col = &left[POSEIDON_COL_NU_C];
         const N: usize = HALF_DIGEST_LEN + DIGEST_LEN;
         let cols: &mut [Vec<F>; N] = (&mut right[..N]).try_into().unwrap();
 
         transposed_par_iter_mut(cols)
-            .zip(half_output_col)
-            .zip(permute_col)
-            .zip(res_col)
-            .for_each(|(((row, &half), &permute), &res)| {
-                if permute == F::ZERO {
-                    let base = res.to_usize();
-                    if half == F::ONE {
-                        for j in 0..HALF_DIGEST_LEN {
-                            *row[j] = memory_padded[base + HALF_DIGEST_LEN + j];
-                        }
+            .zip(flag_out4_col)
+            .zip(flag_out8_col)
+            .zip(nu_c_col)
+            .for_each(|(((row, &flag_out4), &flag_out8), &nu_c)| {
+                let base = nu_c.to_usize();
+                if flag_out4 == F::ONE {
+                    for j in 0..HALF_DIGEST_LEN {
+                        *row[j] = memory_padded[base + HALF_DIGEST_LEN + j];
                     }
+                }
+                if flag_out8 == F::ONE || flag_out4 == F::ONE {
                     for j in 0..DIGEST_LEN {
                         *row[HALF_DIGEST_LEN + j] = memory_padded[base + DIGEST_LEN + j];
                     }
@@ -171,7 +172,6 @@ pub fn get_execution_trace(
 
     ExecutionTrace {
         traces,
-        public_memory_size: execution_result.public_memory_size,
         memory: memory_padded,
         metadata: execution_result.metadata,
     }

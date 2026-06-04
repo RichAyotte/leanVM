@@ -2,38 +2,35 @@ use std::time::Instant;
 
 use backend::*;
 use lean_vm::{
-    EF, ExtraDataForBuses, F, POSEIDON_16_COL_EFFECTIVE_INDEX_LEFT_FIRST, POSEIDON_16_COL_EFFECTIVE_INDEX_LEFT_SECOND,
-    POSEIDON_16_COL_INPUT_START, POSEIDON_16_COL_MULTIPLICITY, Poseidon16Precompile, fill_trace_poseidon_16,
+    EF, ExtraDataForBuses, F, POSEIDON_COL_ADDR_LEFT_HI, POSEIDON_COL_ADDR_LEFT_LO, POSEIDON_COL_FLAG_OUT8,
+    POSEIDON_COL_INPUT_START, POSEIDON_COL_MULTIPLICITY, Poseidon16Precompile, fill_trace_poseidon_16,
     num_cols_poseidon_16,
 };
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 use sub_protocols::{
     AirSumcheckSession, OuterSumcheckSession, natural_ordering_point_for_session, prove_batched_air_sumcheck,
 };
-use utils::{build_prover_state, build_verifier_state, padd_with_zero_to_next_power_of_two};
+use utils::{get_poseidon16, padd_with_zero_to_next_power_of_two};
 
 const WIDTH: usize = 16;
 const HALF_DIGEST_LEN: usize = 4;
 
 #[test]
-fn test_prove_poseidon_16() {
-    // LOG_N_ROWS=20 cargo test --release --package sub_protocols --test prove_poseidon_16 -- test_prove_poseidon_16 --exact --nocapture
-    let log_n_rows: usize = std::env::var("LOG_N_ROWS").unwrap_or("11".to_string()).parse().unwrap();
-    prove_air_poseidon_16(log_n_rows);
-}
-
 #[allow(clippy::too_many_lines)]
-fn prove_air_poseidon_16(log_n_rows: usize) {
+fn test_prove_poseidon() {
+    // LOG_N_ROWS=20 cargo test --release --package sub_protocols --test prove_poseidon -- test_prove_poseidon --exact --nocapture
+    let log_n_rows: usize = std::env::var("LOG_N_ROWS").unwrap_or("11".to_string()).parse().unwrap();
     let n_rows = 1 << log_n_rows;
     let mut rng = StdRng::seed_from_u64(0);
     let n_cols = num_cols_poseidon_16();
     let mut trace = vec![vec![F::ZERO; n_rows]; n_cols];
-    for t in trace.iter_mut().skip(POSEIDON_16_COL_INPUT_START).take(WIDTH) {
+    for t in trace.iter_mut().skip(POSEIDON_COL_INPUT_START).take(WIDTH) {
         *t = (0..n_rows).map(|_| rng.random()).collect();
     }
-    trace[POSEIDON_16_COL_MULTIPLICITY] = vec![F::ONE; n_rows];
-    trace[POSEIDON_16_COL_EFFECTIVE_INDEX_LEFT_FIRST] = vec![F::ZERO; n_rows];
-    trace[POSEIDON_16_COL_EFFECTIVE_INDEX_LEFT_SECOND] = vec![F::from_usize(HALF_DIGEST_LEN); n_rows];
+    trace[POSEIDON_COL_MULTIPLICITY] = vec![F::ONE; n_rows];
+    trace[POSEIDON_COL_FLAG_OUT8] = vec![F::ONE; n_rows];
+    trace[POSEIDON_COL_ADDR_LEFT_LO] = vec![F::ZERO; n_rows];
+    trace[POSEIDON_COL_ADDR_LEFT_HI] = vec![F::from_usize(HALF_DIGEST_LEN); n_rows];
     fill_trace_poseidon_16(&mut trace);
 
     let air = Poseidon16Precompile::<false>;
@@ -53,7 +50,7 @@ fn prove_air_poseidon_16(log_n_rows: usize) {
     let packed_n_vars = log2_ceil_usize(n_cols << log_n_rows);
     let whir_config = WhirConfig::new(&whir_config_builder, packed_n_vars);
 
-    let mut prover_state = build_prover_state();
+    let mut prover_state = ProverState::<EF, _>::new(get_poseidon16().clone(), Default::default());
 
     let time = Instant::now();
 
@@ -62,7 +59,7 @@ fn prove_air_poseidon_16(log_n_rows: usize) {
         commitmed_pol[i << log_n_rows..(i + 1) << log_n_rows].copy_from_slice(col);
     }
     let committed_pol = MleOwned::Base(commitmed_pol);
-    let witness = whir_config.commit_with_prefix_len(&mut prover_state, &committed_pol, n_cols << log_n_rows);
+    let witness = whir_config.commit(&mut prover_state, &committed_pol, n_cols << log_n_rows);
 
     let alpha = prover_state.sample();
     let air_alpha_powers: Vec<EF> = alpha.powers().collect_n(n_constraints);
@@ -103,7 +100,8 @@ fn prove_air_poseidon_16(log_n_rows: usize) {
         (n_rows as f64 / time.elapsed().as_secs_f64()) as usize
     );
 
-    let mut verifier_state = build_verifier_state(prover_state).unwrap();
+    let mut verifier_state =
+        VerifierState::<EF, _>::new(prover_state.into_proof(), get_poseidon16().clone(), Default::default()).unwrap();
 
     let parsed_commitment = whir_config.parse_commitment::<F>(&mut verifier_state).unwrap();
 

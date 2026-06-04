@@ -7,7 +7,11 @@ use crate::diagnostics::RunnerError;
 use crate::execution::memory::MemoryAccess;
 use crate::tables::TableT;
 use crate::{ExtensionOpMode, Table, TableTrace};
-use crate::{POSEIDON16_NAME, POSEIDON16_PERMUTE_NAME};
+use crate::{
+    POSEIDON16_COMPRESS_HALF_NAME, POSEIDON16_HARDCODED_LEFT_NAME, POSEIDON16_PERMUTE_HALF_HARDCODED_LEFT_NAME,
+    POSEIDON16_PERMUTE_HALF_NAME, POSEIDON16_PERMUTE_NAME, POSEIDON16_QUARTER_HARDCODED_LEFT_NAME,
+    POSEIDON16_QUARTER_NAME,
+};
 use backend::*;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
@@ -68,8 +72,7 @@ pub enum PrecompileCompTimeArgs<S> {
         //   hardcoded_offset_left = None:              left_input = m[arg_a..arg_a+8]
         //   hardcoded_offset_left = Some(offset_left): left_input = m[offset_left..offset_left+4] | m[arg_a..arg_a+4] (arg_a is the first runtime parameter)
         hardcoded_offset_left: Option<S>,
-        // Mutually exclusive with `half_output`.
-        permute: bool,
+        permute: bool, // if false: compression (feedforward), if true: permutation
     },
     ExtensionOp {
         size: S,
@@ -217,7 +220,9 @@ impl Instruction {
                 updated_fp,
             } => {
                 let condition_value = condition.read_value(ctx.memory, *ctx.fp)?;
-                assert!([F::ZERO, F::ONE].contains(&condition_value),);
+                if ![F::ZERO, F::ONE].contains(&condition_value) {
+                    return Err(RunnerError::NonBooleanJumpCondition(condition_value));
+                }
                 if condition_value == F::ZERO {
                     *ctx.pc += 1;
                 } else {
@@ -260,17 +265,29 @@ impl<V: Display, S: Display> Display for PrecompileArgs<V, S> {
                 permute,
             } => {
                 if *permute {
-                    write!(f, "{POSEIDON16_PERMUTE_NAME}({arg_0}, {arg_1}, {res})")
+                    match (*half_output, hardcoded_left_4) {
+                        (true, Some(off)) => {
+                            write!(
+                                f,
+                                "{POSEIDON16_PERMUTE_HALF_HARDCODED_LEFT_NAME}({arg_0}, {arg_1}, {res}, off={off})"
+                            )
+                        }
+                        (true, None) => write!(f, "{POSEIDON16_PERMUTE_HALF_NAME}({arg_0}, {arg_1}, {res})"),
+                        (false, _) => write!(f, "{POSEIDON16_PERMUTE_NAME}({arg_0}, {arg_1}, {res})"),
+                    }
                 } else {
                     match (*half_output, hardcoded_left_4) {
-                        (false, None) => write!(f, "{POSEIDON16_NAME}({arg_0}, {arg_1}, {res})"),
-                        (true, None) => write!(f, "{POSEIDON16_NAME}({arg_0}, {arg_1}, {res}, half)"),
+                        (false, None) => write!(f, "{POSEIDON16_COMPRESS_HALF_NAME}({arg_0}, {arg_1}, {res})"),
+                        (true, None) => write!(f, "{POSEIDON16_QUARTER_NAME}({arg_0}, {arg_1}, {res})"),
                         (false, Some(off)) => {
-                            write!(f, "{POSEIDON16_NAME}({arg_0}, {arg_1}, {res}, hardcoded_left_4={off})")
+                            write!(
+                                f,
+                                "{POSEIDON16_HARDCODED_LEFT_NAME}({arg_0}, {arg_1}, {res}, off={off})"
+                            )
                         }
                         (true, Some(off)) => write!(
                             f,
-                            "{POSEIDON16_NAME}({arg_0}, {arg_1}, {res}, half, hardcoded_left_4={off})"
+                            "{POSEIDON16_QUARTER_HARDCODED_LEFT_NAME}({arg_0}, {arg_1}, {res}, off={off})"
                         ),
                     }
                 }

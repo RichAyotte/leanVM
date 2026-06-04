@@ -236,7 +236,7 @@ def mle_of_01234567_etc(point, n):
 
 @inline
 def checked_less_than(a, b):
-    res: Imu
+    res: Imm
     hint_less_than(a, b, res)
     assert res * (1 - res) == 0
     if res == 1:
@@ -249,7 +249,7 @@ def checked_less_than(a, b):
 @inline
 def maximum(a, b):
     is_a_less_than_b = checked_less_than(a, b)
-    res: Imu
+    res: Imm
     if is_a_less_than_b == 1:
         res = b
     else:
@@ -580,7 +580,7 @@ def decompose_and_verify_merkle_query(a, domain_size, prev_root, num_chunks, lea
 
     leaf_data = Array(num_chunks * DIGEST_LEN)
     hint_witness("merkle_leaf", leaf_data)
-    leaf_hash = slice_hash_iv(leaf_data, num_chunks, leaf_iv)
+    leaf_hash = slice_hash_rtl(leaf_data, num_chunks, leaf_iv)
 
     merkle_path = Array(domain_size * DIGEST_LEN)
     hint_witness("merkle_path", merkle_path)
@@ -589,6 +589,7 @@ def decompose_and_verify_merkle_query(a, domain_size, prev_root, num_chunks, lea
     states = Array((n_nibbles - 1) * DIGEST_LEN)
 
     prod: Mut = 1
+    nib_pow: Mut
 
     # First nibble: leaf_hash -> states[0]
     nib_pow = match_range(
@@ -707,10 +708,13 @@ def mle_of_zeros_then_ones(point, n_zeros, n_vars):
 
     bits, _ = checked_decompose_bits(n_zeros)
 
-    res: Mut = Array(DIM)
-    set_to_one(res)
+    res_0 = Array(DIM)
+    set_to_one(res_0)
 
+    res_buf = Array(n_vars + 1)
+    res_buf[0] = res_0
     for i in range(0, n_vars):
+        res: Mut = res_buf[i]
         p = point + (n_vars - 1 - i) * DIM
         if bits[F_BITS - 1 - i] == 0:
             one_minus_p = one_minus_self_extension_ret(p)
@@ -718,7 +722,8 @@ def mle_of_zeros_then_ones(point, n_zeros, n_vars):
             res = add_extension_ret(tmp, p)
         else:
             res = mul_extension_ret(p, res)
-    return res
+        res_buf[i + 1] = res
+    return res_buf[n_vars]
 
 
 def mle_of_zeros_then_ones_pow2(point, log_n_zeros: Const, n_vars):
@@ -726,11 +731,11 @@ def mle_of_zeros_then_ones_pow2(point, log_n_zeros: Const, n_vars):
     if log_n_zeros == n_vars:
         return ZERO_VEC_PTR
     n_factors = n_vars - log_n_zeros
-    prod: Mut = one_minus_self_extension_ret(point)
+    prod_buf = Array(n_factors)
+    prod_buf[0] = one_minus_self_extension_ret(point)
     for i in range(1, n_factors):
-        new_prod = mul_extension_ret(prod, one_minus_self_extension_ret(point + i * DIM))
-        prod = new_prod
-    return sub_base_extension_ret(1, prod)
+        prod_buf[i] = mul_extension_ret(prod_buf[i - 1], one_minus_self_extension_ret(point + i * DIM))
+    return sub_base_extension_ret(1, prod_buf[n_factors - 1])
 
 
 @inline
@@ -809,7 +814,7 @@ def _verify_log2_large(n, log2: Const):
 
 def log2_ceil_runtime(n):
     # requires: 2 < n <= 2^30
-    log2: Imu
+    log2: Imm
     hint_log2_ceil(n, log2)
     assert log2 < 31
     if two_exp(log2) != n:
@@ -822,3 +827,4 @@ def log2_ceil_runtime(n):
             lambda i: _verify_log2_large(n, i),
         )
     return log2
+

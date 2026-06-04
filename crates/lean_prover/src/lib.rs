@@ -32,11 +32,7 @@ pub const SNARK_DOMAIN_SEP: [F; 8] = F::new_array([
 ]);
 
 pub fn fiat_shamir_domain_sep(bytecode: &Bytecode) -> [F; 8] {
-    let mut block = [F::ZERO; 16];
-    block[..8].copy_from_slice(&SNARK_DOMAIN_SEP);
-    block[8] = F::from_usize(bytecode.public_input_size);
-    let extended = poseidon16_compress(block);
-    poseidon16_compress_pair(&bytecode.hash, &extended)
+    poseidon16_compress_pair(&bytecode.hash, &SNARK_DOMAIN_SEP)
 }
 
 pub fn default_whir_config(starting_log_inv_rate: usize) -> WhirConfigBuilder {
@@ -69,9 +65,7 @@ pub(crate) fn check_rate(log_inv_rate: usize) -> Result<(), ProofError> {
 pub enum ProverError {
     TooBigTable(TooBigTableError),
     Runner(RunnerError),
-    UnknownMessage,
-    MultipleMessages,
-    InvalidPunlicInputSize { expected: usize, actual: usize },
+    InvalidRate,
 }
 
 impl From<TooBigTableError> for ProverError {
@@ -91,18 +85,17 @@ impl Display for ProverError {
         match self {
             Self::TooBigTable(e) => write!(f, "{}", e),
             Self::Runner(e) => write!(f, "{}", e),
-            Self::UnknownMessage => write!(f, "Unknown message, not part of the type2"),
-            Self::MultipleMessages => write!(f, "Multiple common messages in the type2"),
-            Self::InvalidPunlicInputSize { expected, actual } => {
-                write!(f, "Invalid public input size: expected {}, actual {}", expected, actual)
-            }
+            Self::InvalidRate => write!(
+                f,
+                "LeanVM supports rate 1/2, 1/4, 1/8 and 1/16 (log_inv_rate in {{1, 2, 3, 4}})"
+            ),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use backend::{PrimeCharacteristicRing, default_koalabear_poseidon1_16, hash_slice};
+    use backend::{PrimeCharacteristicRing, default_koalabear_poseidon1_16, hash_slice_rtl};
     use lean_vm::F;
     use rec_aggregation::{get_aggregation_bytecode, init_aggregation_bytecode};
     use utils::poseidon16_compress_pair;
@@ -111,7 +104,7 @@ mod tests {
     fn compute_snark_domain_sep() {
         init_aggregation_bytecode();
         let recursion_bytecode_hash = get_aggregation_bytecode().hash;
-        let name_fe = "leanMultisig-0.6.0"
+        let name_fe = "leanVM-0.6.0"
             .as_bytes()
             .iter()
             .map(|b| F::from_u8(*b))
@@ -124,7 +117,7 @@ mod tests {
         }
         prefix_free_name_fe.push(F::from_u64(len as u64));
         let comp = default_koalabear_poseidon1_16();
-        let name_hash = hash_slice::<_, _, _, 8, 8>(&comp, &prefix_free_name_fe);
+        let name_hash = hash_slice_rtl::<_, _, _, 8, 8>(&comp, &prefix_free_name_fe);
 
         // We incorporate the recursion program hash, containing all the verifier logic, into fiat shamir domain separator
         // (likely not necessary but why not, is there a cleaner approach?)

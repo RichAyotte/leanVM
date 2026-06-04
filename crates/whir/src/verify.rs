@@ -2,7 +2,7 @@
 
 use std::{fmt::Debug, marker::PhantomData};
 
-use fiat_shamir::{FSVerifier, ProofError, ProofResult, pack_scalars_to_extension};
+use fiat_shamir::{FSVerifier, ProofError, ProofResult, try_pack_scalars_to_extension};
 use field::{ExtensionField, Field, PrimeCharacteristicRing, TwoAdicField};
 use poly::*;
 
@@ -294,40 +294,53 @@ where
         F: Field + ExtensionField<PF<EF>>,
         EF: ExtensionField<F>,
     {
-        if leafs_base_field {
-            let answers = self.open_and_verify_leaves::<F>(verifier_state, root, indices, dimensions)?;
-            Ok(answers
+        // DoS-hardened (main): bound the opening batch and reject malformed leaf_data lengths
+        // instead of panicking. Single `dimensions` (branch): no per-leaf padding/skip variants.
+        verifier_state.begin_merkle_opening_batch(indices.len())?;
+        let res = if leafs_base_field {
+            let mut answers = Vec::<Vec<F>>::new();
+            let mut merkle_proofs = Vec::new();
+
+            for _ in 0..indices.len() {
+                let opening = verifier_state.next_merkle_opening()?;
+                answers.push(
+                    try_pack_scalars_to_extension::<PF<EF>, F>(&opening.leaf_data).ok_or(ProofError::InvalidProof)?,
+                );
+                merkle_proofs.push(opening.path);
+            }
+
+            for (i, &index) in indices.iter().enumerate() {
+                if !merkle_verify::<PF<EF>, F>(*root, index, dimensions, answers[i].clone(), &merkle_proofs[i]) {
+                    return Err(ProofError::InvalidProof);
+                }
+            }
+
+            answers
                 .into_iter()
                 .map(|inner| inner.into_iter().map(Into::into).collect())
-                .collect())
+                .collect()
         } else {
-            self.open_and_verify_leaves::<EF>(verifier_state, root, indices, dimensions)
-        }
-    }
+            let mut answers = Vec::<Vec<EF>>::new();
+            let mut merkle_proofs = Vec::new();
 
-    fn open_and_verify_leaves<T>(
-        &self,
-        verifier_state: &mut impl FSVerifier<EF>,
-        root: &[PF<EF>; DIGEST_ELEMS],
-        indices: &[usize],
-        dimensions: Dimensions,
-    ) -> ProofResult<Vec<Vec<T>>>
-    where
-        T: Field + ExtensionField<PF<EF>>,
-    {
-        let mut answers = Vec::with_capacity(indices.len());
-        let mut paths = Vec::with_capacity(indices.len());
-        for _ in 0..indices.len() {
-            let opening = verifier_state.next_merkle_opening()?;
-            answers.push(pack_scalars_to_extension::<PF<EF>, T>(&opening.leaf_data));
-            paths.push(opening.path);
-        }
-        for (i, &index) in indices.iter().enumerate() {
-            if !merkle_verify::<PF<EF>, T>(*root, index, dimensions, answers[i].clone(), &paths[i]) {
-                return Err(ProofError::InvalidProof);
+            for _ in 0..indices.len() {
+                let opening = verifier_state.next_merkle_opening()?;
+                answers.push(
+                    try_pack_scalars_to_extension::<PF<EF>, EF>(&opening.leaf_data).ok_or(ProofError::InvalidProof)?,
+                );
+                merkle_proofs.push(opening.path);
             }
-        }
-        Ok(answers)
+
+            for (i, &index) in indices.iter().enumerate() {
+                if !merkle_verify::<PF<EF>, EF>(*root, index, dimensions, answers[i].clone(), &merkle_proofs[i]) {
+                    return Err(ProofError::InvalidProof);
+                }
+            }
+
+            answers
+        };
+
+        Ok(res)
     }
 
     fn eval_constraints_poly(

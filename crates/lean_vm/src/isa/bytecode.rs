@@ -2,7 +2,7 @@
 
 use backend::*;
 
-use crate::{DIGEST_LEN, DIMENSION, F, FileId, FunctionName, Hint, N_INSTRUCTION_COLUMNS, SourceLocation};
+use crate::{DIMENSION, F, FileId, FunctionName, Hint, N_INSTRUCTION_COLUMNS, SourceLocation};
 
 use super::Instruction;
 use std::collections::BTreeMap;
@@ -14,14 +14,15 @@ pub struct CodeEntry {
     pub instruction: Instruction,
 }
 
+/// `instructions_multilinear`, `hash`, and `ending_pc` must be checked at initialization to match `code`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Bytecode {
-    pub code: Vec<CodeEntry>,
+    pub unpadded_size: usize,
+    pub code: Vec<CodeEntry>, // assumed to be well-formed
     pub instructions_multilinear: Vec<F>,
     pub starting_frame_memory: usize,
-    pub ending_pc: usize,
+    pub ending_pc: usize, // Must equal `code.len() - 1`.
     pub hash: [F; DIGEST_ELEMS],
-    pub public_input_size: usize,
     // debug
     pub function_locations: BTreeMap<SourceLocation, FunctionName>,
     pub filepaths: BTreeMap<FileId, String>,
@@ -64,8 +65,4 @@ impl Display for Bytecode {
         }
         Ok(())
     }
-}
-
-pub fn is_valid_public_input_size(size: usize) -> bool {
-    size.is_power_of_two() && size.is_multiple_of(DIGEST_LEN)
 }

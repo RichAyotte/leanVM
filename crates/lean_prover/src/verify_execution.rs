@@ -12,9 +12,10 @@ pub struct ProofVerificationDetails {
     pub sorted_table_perm: Vec<usize>,
 }
 
+/// `bytecode` is trusted to be well-formed here (valid hash, valid instructions, etc)
 pub fn verify_execution(
     bytecode: &Bytecode,
-    public_input: &[F],
+    public_input: &[F; PUBLIC_INPUT_LEN],
     proof: Proof<F>,
 ) -> Result<(ProofVerificationDetails, RawProof<F>), ProofError> {
     if bytecode.log_size() > MAX_BYTECODE_LOG_SIZE {
@@ -23,12 +24,9 @@ pub fn verify_execution(
             max_log_size: MAX_BYTECODE_LOG_SIZE,
         });
     }
-    if public_input.len() != bytecode.public_input_size {
-        return Err(ProofError::InvalidProof);
-    }
-    let mut verifier_state = VerifierState::<EF, _>::new(proof, get_poseidon16().clone())?;
+    let mut verifier_state =
+        VerifierState::<EF, _>::new(proof, get_poseidon16().clone(), fiat_shamir_domain_sep(bytecode))?;
     verifier_state.observe_scalars(public_input);
-    verifier_state.observe_scalars(&fiat_shamir_domain_sep(bytecode));
     let dims = verifier_state
         .next_base_scalars_vec(2 + N_TABLES)?
         .into_iter()
@@ -38,9 +36,6 @@ pub fn verify_execution(
     let log_memory = dims[1];
     let table_n_vars: BTreeMap<Table, VarCount> = (0..N_TABLES).map(|i| (ALL_TABLES[i], dims[i + 2])).collect();
     check_rate(log_inv_rate)?;
-    if log_memory < log2_strict_usize(bytecode.public_input_size) {
-        return Err(ProofError::InvalidProof);
-    }
     let whir_config = default_whir_config(log_inv_rate);
     for (table, &log_n_rows) in &table_n_vars {
         if log_n_rows < MIN_LOG_N_ROWS_PER_TABLE {
@@ -60,8 +55,6 @@ pub fn verify_execution(
     if log_memory < (*table_n_vars.values().max().unwrap()).max(bytecode.log_size()) {
         return Err(ProofError::InvalidProof);
     }
-
-    let public_memory = padd_with_zero_to_next_power_of_two(public_input);
 
     if !(MIN_LOG_MEMORY_SIZE..=MAX_LOG_MEMORY_SIZE).contains(&log_memory) {
         return Err(ProofError::InvalidProof);
@@ -178,9 +171,8 @@ pub fn verify_execution(
         return Err(ProofError::InvalidProof);
     }
 
-    let public_memory_random_point =
-        MultilinearPoint(verifier_state.sample_vec(log2_strict_usize(public_memory.len())));
-    let public_memory_eval = public_memory.evaluate(&public_memory_random_point);
+    let public_memory_random_point = MultilinearPoint(verifier_state.sample_vec(log2_strict_usize(public_input.len())));
+    let public_memory_eval = public_input.evaluate(&public_memory_random_point);
 
     let previous_statements = vec![
         SparseStatement::new(
@@ -230,6 +222,7 @@ pub fn verify_execution(
         .into_iter()
         .map(|(t, _)| t.index())
         .collect();
+    verifier_state.check_fully_consumed()?;
     Ok((
         ProofVerificationDetails {
             bytecode_evaluation: logup_statements.bytecode_evaluation.unwrap(),

@@ -1,6 +1,6 @@
 use backend::*;
 use lean_vm::{
-    ALL_TABLES, COL_PC, ColIndex, CommittedStatements, MIN_LOG_MEMORY_SIZE, MIN_LOG_N_ROWS_PER_TABLE,
+    ALL_TABLES, ColIndex, CommittedStatements, EXEC_COL_PC, MIN_LOG_MEMORY_SIZE, MIN_LOG_N_ROWS_PER_TABLE,
     N_INSTRUCTION_COLUMNS, STARTING_PC, sort_tables_by_height,
 };
 use lean_vm::{EF, F, Table, TableT, TableTrace};
@@ -66,12 +66,12 @@ pub fn stacked_pcs_global_statements(
             // Important: ensure both initial and final PC conditions are correct
             global_statements.push(SparseStatement::unique_value(
                 stacked_n_vars,
-                offset + (COL_PC << n_vars),
+                offset + (EXEC_COL_PC << n_vars),
                 EF::from_usize(STARTING_PC),
             ));
             global_statements.push(SparseStatement::unique_value(
                 stacked_n_vars,
-                offset + ((COL_PC + 1) << n_vars) - 1,
+                offset + ((EXEC_COL_PC + 1) << n_vars) - 1,
                 EF::from_usize(ending_pc),
             ));
         }
@@ -151,11 +151,8 @@ pub fn stack_polynomials_and_commit(
 
     let global_polynomial = MleOwned::Base(global_polynomial);
 
-    let inner_witness = WhirConfig::new(whir_config_builder, stacked_n_vars).commit_with_prefix_len(
-        prover_state,
-        &global_polynomial,
-        offset,
-    );
+    let inner_witness =
+        WhirConfig::new(whir_config_builder, stacked_n_vars).commit(prover_state, &global_polynomial, offset);
     StackedPcsWitness {
         stacked_n_vars,
         inner_witness,

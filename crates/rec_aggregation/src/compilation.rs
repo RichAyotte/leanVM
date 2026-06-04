@@ -13,7 +13,7 @@ use utils::Counter;
 use xmss::{LOG_LIFETIME, MESSAGE_LEN_FE, PUBLIC_PARAM_LEN_FE, RANDOMNESS_LEN_FE, TARGET_SUM, V, W, XMSS_DIGEST_LEN};
 
 use crate::bytecode_claims::bytecode_reduction_sumcheck_proof_size;
-use crate::type_1_aggregation::TWEAK_TABLE_SIZE_FE_PADDED;
+use crate::single_message_aggregation::TWEAK_TABLE_SIZE_FE_PADDED;
 
 // preamble memory layout: see `build_preamble_memory` in utils.py:
 // [000.. (ZERO_VEC_LEN)][10000000 (fiat-shamir domain sep)][10000 (one in extension field)][111... (NUM_REPEATED_ONES)][tweak table]
@@ -33,6 +33,10 @@ pub fn get_aggregation_bytecode() -> &'static Bytecode {
         .unwrap_or_else(|| panic!("call init_aggregation_bytecode() first"))
 }
 
+pub fn try_get_aggregation_bytecode() -> Option<&'static Bytecode> {
+    BYTECODE.get()
+}
+
 pub fn init_aggregation_bytecode() {
     BYTECODE.get_or_init(compile_main_program_self_referential);
 }
@@ -43,11 +47,11 @@ pub const MAX_RECURSIONS: usize = 16;
 pub const MAX_XMSS_AGGREGATED: usize = 1 << 15; // TODO increase (we would need a bigger minimal memory size, totally doable)
 pub const MAX_XMSS_DUPLICATES: usize = 1 << 15; // ...same
 
-pub(crate) const TYPE1_FLAG: usize = 1;
-pub(crate) const TYPE2_FLAG: usize = 0;
+pub(crate) const SINGLE_MESSAGE_FLAG: usize = 1;
+pub(crate) const MULTI_MESSAGE_FLAG: usize = 0;
 
 pub(crate) const BYTECODE_CLAIM_OFFSET: usize = DIGEST_LEN;
-/// Type-1's component data: pubkeys_hash | message | merkle_chunks | tweaks_hash.
+/// Single-message component data: pubkeys_hash | message | merkle_chunks | tweaks_hash.
 pub(crate) const COMPONENT_DATA_SIZE: usize = DIGEST_LEN + MESSAGE_LEN_FE + N_MERKLE_CHUNKS_FOR_SLOT + DIGEST_LEN;
 
 pub(crate) fn bytecode_claim_size_padded(program_log_size: usize) -> usize {
@@ -55,15 +59,15 @@ pub(crate) fn bytecode_claim_size_padded(program_log_size: usize) -> usize {
     ((bytecode_point_n_vars + 1) * DIMENSION).next_multiple_of(DIGEST_LEN)
 }
 
-pub(crate) fn bytecode_hash_domsep_offset(program_log_size: usize) -> usize {
+pub(crate) fn initial_fiat_shamir_cap_offset(program_log_size: usize) -> usize {
     BYTECODE_CLAIM_OFFSET + bytecode_claim_size_padded(program_log_size)
 }
 
 pub(crate) fn component_data_offset(program_log_size: usize) -> usize {
-    bytecode_hash_domsep_offset(program_log_size) + DIGEST_LEN
+    initial_fiat_shamir_cap_offset(program_log_size) + DIGEST_LEN
 }
 
-pub(crate) fn type1_input_data_size_padded(program_log_size: usize) -> usize {
+pub(crate) fn single_message_input_data_size_padded(program_log_size: usize) -> usize {
     component_data_offset(program_log_size) + COMPONENT_DATA_SIZE
 }
 
@@ -74,7 +78,7 @@ fn compile_main_program(program_log_size: usize, bytecode_zero_eval: F) -> Bytec
         entry: "main.py".to_string(),
         dir: &EMBEDDED_ZK_DSL,
     };
-    compile_program_with_flags(&source, CompilationFlags { replacements }, DIGEST_LEN)
+    compile_program_with_flags(&source, CompilationFlags { replacements })
 }
 
 #[instrument(skip_all)]
@@ -89,7 +93,7 @@ fn compile_main_program_self_referential() -> Bytecode {
         if actual_log_size == log_size_guess {
             return bytecode;
         }
-        println!(
+        eprintln!(
             "Wrong guess at `compile_main_program_self_referential` (log_size {log_size_guess}->{actual_log_size})"
         );
         log_size_guess = actual_log_size;
@@ -259,7 +263,7 @@ fn build_replacements(log_inner_bytecode: usize, bytecode_zero_eval: F) -> BTree
         "LOG_GUEST_BYTECODE_LEN_PLACEHOLDER".to_string(),
         log_inner_bytecode.to_string(),
     );
-    replacements.insert("COL_PC_PLACEHOLDER".to_string(), COL_PC.to_string());
+    replacements.insert("COL_PC_PLACEHOLDER".to_string(), EXEC_COL_PC.to_string());
     let bytecode_point_n_vars = log_inner_bytecode + log2_ceil_usize(N_INSTRUCTION_COLUMNS);
     replacements.insert(
         "BYTECODE_SUMCHECK_PROOF_SIZE_PLACEHOLDER".to_string(),
@@ -275,6 +279,7 @@ fn build_replacements(log_inner_bytecode: usize, bytecode_zero_eval: F) -> BTree
     let mut n_air_columns = vec![];
     let mut n_air_shift_columns = vec![];
     let mut n_air_constraints = vec![];
+    let mut one_buses_all_cols = vec![];
     for table in ALL_TABLES {
         let mut table_domseps = vec![];
         let mut table_data_cols = vec![];
@@ -322,12 +327,25 @@ fn build_replacements(log_inner_bytecode: usize, bytecode_zero_eval: F) -> BTree
         one_buses_data_offsets.push(format!("[{}]", table_data_offsets.join(", ")));
         one_buses_new_cols.push(format!("[{}]", table_new_cols.join(", ")));
 
+        let mut sorted_seen: Vec<ColIndex> = seen_cols.iter().copied().collect();
+        sorted_seen.sort();
+        one_buses_all_cols.push(format!(
+            "[{}]",
+            sorted_seen.iter().map(usize::to_string).collect::<Vec<_>>().join(", ")
+        ));
+
         num_cols_air.push(table.n_columns().to_string());
         air_degrees.push(table.degree_air().to_string());
         n_air_columns.push(table.n_columns().to_string());
         n_air_shift_columns.push(table.n_shift_columns().to_string());
         n_air_constraints.push(table.n_constraints().to_string());
     }
+    let max_num_cols_air = ALL_TABLES.iter().map(|t| t.n_columns()).max().unwrap();
+    replacements.insert("MAX_NUM_COLS_AIR_PLACEHOLDER".to_string(), max_num_cols_air.to_string());
+    replacements.insert(
+        "ONE_BUSES_ALL_COLS_PLACEHOLDER".to_string(),
+        format!("[{}]", one_buses_all_cols.join(", ")),
+    );
     replacements.insert(
         "ONE_BUSES_DOMSEPS_PLACEHOLDER".to_string(),
         format!("[{}]", one_buses_domseps.join(", ")),
@@ -422,8 +440,14 @@ fn build_replacements(log_inner_bytecode: usize, bytecode_zero_eval: F) -> BTree
     );
     replacements.insert("XMSS_DIGEST_LEN_PLACEHOLDER".to_string(), XMSS_DIGEST_LEN.to_string());
 
-    replacements.insert("TYPE_1_FLAG_PLACEHOLDER".to_string(), TYPE1_FLAG.to_string());
-    replacements.insert("TYPE_2_FLAG_PLACEHOLDER".to_string(), TYPE2_FLAG.to_string());
+    replacements.insert(
+        "SINGLE_MESSAGE_FLAG_PLACEHOLDER".to_string(),
+        SINGLE_MESSAGE_FLAG.to_string(),
+    );
+    replacements.insert(
+        "MULTI_MESSAGE_FLAG_PLACEHOLDER".to_string(),
+        MULTI_MESSAGE_FLAG.to_string(),
+    );
     replacements.insert(
         "MAX_XMSS_AGGREGATED_PLACEHOLDER".to_string(),
         MAX_XMSS_AGGREGATED.to_string(),
