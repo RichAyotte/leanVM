@@ -49,14 +49,14 @@ where
         self.shift
     }
 
-    #[inline]
+    #[inline(always)]
     fn assert_zero(&mut self, x: IF) {
         let alpha_power = self.extra_data.alpha_powers()[self.constraint_index];
         self.accumulator += EFPacking::<EF>::from(alpha_power) * x;
         self.constraint_index += 1;
     }
 
-    #[inline]
+    #[inline(always)]
     fn assert_zero_ef(&mut self, x: EFPacking<EF>) {
         let alpha_power = self.extra_data.alpha_powers()[self.constraint_index];
         self.accumulator += EFPacking::<EF>::from(alpha_power) * x;

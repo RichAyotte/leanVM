@@ -17,34 +17,33 @@ use symetric::merkle::unpack_array;
 use tracing::instrument;
 use utils::log2_ceil_usize;
 
-use crate::DenseMatrix;
 use crate::Dimensions;
 use crate::Matrix;
 pub use symetric::DIGEST_ELEMS;
 
-pub(crate) type RoundMerkleTree<F> = WhirMerkleTree<F, DenseMatrix<F>, DIGEST_ELEMS>;
+pub(crate) type RoundMerkleTree<F> = WhirMerkleTree<F, DIGEST_ELEMS>;
 
 #[allow(clippy::missing_transmute_annotations)]
 pub(crate) fn merkle_commit<F: Field, EF: ExtensionField<F>>(
-    matrix: DenseMatrix<EF>,
+    matrix: Matrix<EF>,
     full_n_cols: usize,
     effective_n_cols: usize,
 ) -> ([F; DIGEST_ELEMS], RoundMerkleTree<F>) {
     if TypeId::of::<(F, EF)>() == TypeId::of::<(Goldilocks, CubicExtensionFieldGL)>() {
-        let matrix = unsafe { std::mem::transmute::<_, DenseMatrix<CubicExtensionFieldGL>>(matrix) };
+        let matrix = unsafe { std::mem::transmute::<_, Matrix<CubicExtensionFieldGL>>(matrix) };
         let dim = <CubicExtensionFieldGL as BasedVectorSpace<Goldilocks>>::DIMENSION;
         let dft_base_width = matrix.width * dim;
         let full_base_width = full_n_cols * dim;
         let effective_base_width = effective_n_cols * dim;
         let base_values = CubicExtensionFieldGL::flatten_to_base(matrix.values);
-        let base_matrix = DenseMatrix::<Goldilocks>::new(base_values, dft_base_width);
+        let base_matrix = Matrix::<Goldilocks>::new(base_values, dft_base_width);
         let tree = build_merkle_tree_goldilocks(base_matrix, full_base_width, effective_base_width);
         let root: [_; DIGEST_ELEMS] = tree.root();
         let root = unsafe { std::mem::transmute_copy::<_, [F; DIGEST_ELEMS]>(&root) };
         let tree = unsafe { std::mem::transmute::<_, RoundMerkleTree<F>>(tree) };
         (root, tree)
     } else if TypeId::of::<(F, EF)>() == TypeId::of::<(Goldilocks, Goldilocks)>() {
-        let matrix = unsafe { std::mem::transmute::<_, DenseMatrix<Goldilocks>>(matrix) };
+        let matrix = unsafe { std::mem::transmute::<_, Matrix<Goldilocks>>(matrix) };
         let tree = build_merkle_tree_goldilocks(matrix, full_n_cols, effective_n_cols);
         let root: [_; DIGEST_ELEMS] = tree.root();
         let root = unsafe { std::mem::transmute_copy::<_, [F; DIGEST_ELEMS]>(&root) };
@@ -57,7 +56,7 @@ pub(crate) fn merkle_commit<F: Field, EF: ExtensionField<F>>(
 
 #[instrument(name = "build merkle tree", skip_all)]
 fn build_merkle_tree_goldilocks(
-    leaf: DenseMatrix<Goldilocks>,
+    leaf: Matrix<Goldilocks>,
     full_base_width: usize,
     effective_base_width: usize,
 ) -> RoundMerkleTree<Goldilocks> {
@@ -73,7 +72,7 @@ fn build_merkle_tree_goldilocks(
     );
     let packed_state: [PFPacking<Goldilocks>; 8] =
         std::array::from_fn(|i| PFPacking::<Goldilocks>::from_fn(|_| scalar_state[i]));
-    let first_layer = first_digest_layer_with_initial_state::<PFPacking<Goldilocks>, _, _, DIGEST_ELEMS, 8, 4>(
+    let first_layer = first_digest_layer_with_initial_state::<PFPacking<Goldilocks>, _, DIGEST_ELEMS, 8, 4>(
         &perm,
         &leaf,
         &packed_state,
@@ -155,15 +154,13 @@ pub(crate) fn merkle_verify<F: Field, EF: ExtensionField<F>>(
 }
 
 #[derive(Debug, Clone)]
-pub struct WhirMerkleTree<F, M, const DIGEST_ELEMS: usize> {
-    pub(crate) leaf: M,
+pub struct WhirMerkleTree<F, const DIGEST_ELEMS: usize> {
+    pub(crate) leaf: Matrix<F>,
     pub(crate) tree: symetric::merkle::MerkleTree<F, DIGEST_ELEMS>,
     full_leaf_base_width: usize,
 }
 
-impl<F: field::PrimeCharacteristicRing + Send + Sync, M: Matrix<F>, const DIGEST_ELEMS: usize>
-    WhirMerkleTree<F, M, DIGEST_ELEMS>
-{
+impl<F: field::PrimeCharacteristicRing + Send + Sync, const DIGEST_ELEMS: usize> WhirMerkleTree<F, DIGEST_ELEMS> {
     #[must_use]
     pub fn root(&self) -> [F; DIGEST_ELEMS] {
         self.tree.root()
@@ -171,7 +168,7 @@ impl<F: field::PrimeCharacteristicRing + Send + Sync, M: Matrix<F>, const DIGEST
 
     pub fn open(&self, index: usize) -> (Vec<F>, Vec<[F; DIGEST_ELEMS]>) {
         let log_height = log2_ceil_usize(self.leaf.height());
-        let mut opening: Vec<F> = self.leaf.row(index).unwrap().into_iter().collect();
+        let mut opening: Vec<F> = self.leaf.row(index).unwrap().collect();
         opening.resize(self.full_leaf_base_width, F::default());
         let proof = self.tree.open_siblings(index, log_height);
         (opening, proof)
@@ -179,17 +176,16 @@ impl<F: field::PrimeCharacteristicRing + Send + Sync, M: Matrix<F>, const DIGEST
 }
 
 #[instrument(name = "first digest layer", level = "debug", skip_all)]
-fn first_digest_layer_with_initial_state<P, Perm, M, const DIGEST_ELEMS: usize, const WIDTH: usize, const RATE: usize>(
+fn first_digest_layer_with_initial_state<P, Perm, const DIGEST_ELEMS: usize, const WIDTH: usize, const RATE: usize>(
     perm: &Perm,
-    matrix: &M,
+    matrix: &Matrix<P::Value>,
     packed_initial_state: &[P; WIDTH],
     effective_base_width: usize,
 ) -> Vec<[P::Value; DIGEST_ELEMS]>
 where
     P: PackedValue + Default,
-    P::Value: Default + Copy,
+    P::Value: Default + Copy + Send + Sync,
     Perm: symetric::Permutation<[P::Value; WIDTH]> + symetric::Permutation<[P; WIDTH]>,
-    M: Matrix<P::Value>,
 {
     let width = P::WIDTH;
     let height = matrix.height();

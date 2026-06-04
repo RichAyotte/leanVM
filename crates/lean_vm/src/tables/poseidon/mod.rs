@@ -219,7 +219,7 @@ pub struct Poseidon8Precompile<const BUS: bool>;
 
 impl<const BUS: bool> TableT for Poseidon8Precompile<BUS> {
     fn name(&self) -> &'static str {
-        POSEIDON8_NAME
+        "poseidon8"
     }
 
     fn table(&self) -> Table {

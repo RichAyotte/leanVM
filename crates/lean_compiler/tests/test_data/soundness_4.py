@@ -12,14 +12,17 @@ def main():
     for i in unroll(0, 5):
         markers[i] = i
 
-    s: Mut = 0
+    sum_buf = Array(6)
+    sum_buf[0] = 0
     for i in range(0, 5):
         m = markers[i]
+        s: Mut = sum_buf[i]
         if m == 0:
             s = s + 10
         else:
             s = s + m
-    assert s == expected_sum
+        sum_buf[i + 1] = s
+    assert sum_buf[5] == expected_sum
 
     assert pipeline(x, x) == expected_pipeline
 

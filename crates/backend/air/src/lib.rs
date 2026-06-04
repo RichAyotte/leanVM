@@ -51,10 +51,12 @@ pub trait AirBuilder: Sized {
     fn assert_zero(&mut self, x: Self::IF);
     fn assert_zero_ef(&mut self, x: Self::EF);
 
+    #[inline(always)]
     fn assert_eq(&mut self, x: Self::IF, y: Self::IF) {
         self.assert_zero(x - y);
     }
 
+    #[inline(always)]
     fn assert_bool(&mut self, x: Self::IF) {
         self.assert_zero(x.bool_check());
     }
