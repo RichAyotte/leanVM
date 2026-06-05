@@ -6,7 +6,6 @@ use ::utils::log2_strict_usize;
 use fiat_shamir::{FSProver, MerklePath, ProofResult};
 use field::{ExtensionField, Field, PrimeCharacteristicRing, TwoAdicField};
 use poly::*;
-use rayon::prelude::*;
 use tracing::{info_span, instrument};
 
 use crate::{config::WhirConfig, *};
@@ -501,10 +500,8 @@ where
         let tail_len = tail_eval.len();
         for (v, &alpha_j) in smt.values.iter().zip(&alpha_powers) {
             let base = v.selector * tail_len;
-            out[base..base + tail_len]
-                .par_iter_mut()
-                .zip(tail_eval.par_iter())
-                .for_each(|(o, &t)| *o += alpha_j * t);
+            let dst = &mut out[base..base + tail_len];
+            parallel::par_for_each_mut(dst, |i, o| *o += alpha_j * tail_eval[i]);
         }
     }
 
@@ -562,11 +559,15 @@ where
     assert_eq!(evals.len(), weights.len());
     assert!(evals.len() >= 2 && evals.len().is_power_of_two());
     // EF on the left so `Mul<E> for EF` is used (Algebra<F> for the base case).
-    evals
-        .par_chunks_exact(2)
-        .zip(weights.par_chunks_exact(2))
-        .map(|(e, w)| (w[0] * e[0], (w[1] - w[0]) * (e[1] - e[0])))
-        .reduce(|| (EF::ZERO, EF::ZERO), |(a0, a2), (b0, b2)| (a0 + b0, a2 + b2))
+    parallel::map_reduce(
+        evals.len() / 2,
+        || (EF::ZERO, EF::ZERO),
+        |i| {
+            let (e, w) = (&evals[2 * i..2 * i + 2], &weights[2 * i..2 * i + 2]);
+            (w[0] * e[0], (w[1] - w[0]) * (e[1] - e[0]))
+        },
+        |(a0, a2), (b0, b2)| (a0 + b0, a2 + b2),
+    )
 }
 
 fn fold_by_tensor<EF, E>(evals: &[E], rhos: &[EF]) -> Vec<EF>
@@ -580,10 +581,10 @@ where
         return evals.iter().map(|&v| EF::from(v)).collect();
     }
     let tensor = eval_eq(&rhos.iter().rev().copied().collect::<Vec<_>>());
-    evals
-        .par_chunks_exact(width)
-        .map(|chunk| tensor.iter().zip(chunk).map(|(&t, &e)| t * e).sum())
-        .collect()
+    parallel::par_map_collect(evals.len() / width, |i| {
+        let chunk = &evals[i * width..i * width + width];
+        tensor.iter().zip(chunk).map(|(&t, &e)| t * e).sum::<EF>()
+    })
 }
 
 fn sumcheck_finish_round<EF: ExtensionField<PF<EF>>>(
@@ -616,7 +617,7 @@ fn lsb_sumcheck_round<EF: ExtensionField<PF<EF>>>(
 
 /// LSB-fold a slice of evaluations: `out[i] = m[2i] + r * (m[2i+1] - m[2i])`.
 fn lsb_fold<EF: ExtensionField<PF<EF>>>(m: &[EF], r: EF) -> Vec<EF> {
-    fold_multilinear_lsb(m, r, &|diff, alpha| alpha * diff)
+    fold_multilinear_at_bit(m, r, 0, &|diff, alpha| alpha * diff, false)
 }
 
 #[derive(Debug)]

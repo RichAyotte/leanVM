@@ -1,7 +1,6 @@
 #![allow(clippy::needless_range_loop)]
 use field::{BasedVectorSpace, ExtensionField, Field, PackedFieldExtension, PackedValue, PrimeCharacteristicRing};
 use poly::{EFPacking, PARALLEL_THRESHOLD, PF, PFPacking, compute_eval_eq, eval_eq, packing_log_width};
-use rayon::prelude::*;
 
 #[derive(Debug, Clone)]
 pub(crate) struct CompressedGroup<EF> {
@@ -56,10 +55,10 @@ pub(crate) fn grid_expand_into<EF: Field>(f: &[EF], l: usize, out: &mut Vec<EF>,
                 block_kernel(pair);
             }
         } else {
-            cur_slice
-                .par_chunks_exact(2 * s)
-                .zip(next_slice.par_chunks_exact_mut(3 * s))
-                .for_each(block_kernel);
+            parallel::par_chunks_mut(next_slice, 3 * s, |block_idx, out_block| {
+                let in_block = &cur_slice[block_idx * (2 * s)..block_idx * (2 * s) + 2 * s];
+                block_kernel((in_block, out_block));
+            });
         }
         std::mem::swap(&mut cur, &mut nxt);
     }
@@ -180,7 +179,13 @@ where
     if total_work < PARALLEL_THRESHOLD {
         (0..n_lo).fold(zero(), step)
     } else {
-        (0..n_lo).into_par_iter().fold(zero, step).reduce(zero, merge)
+        parallel::map_reduce_with_state(
+            n_lo,
+            || (),
+            zero,
+            |_, acc, idx| *acc = step(std::mem::take(acc), idx),
+            merge,
+        )
     }
 }
 
@@ -220,7 +225,13 @@ where
     if e_len * svo_len < PARALLEL_THRESHOLD {
         (0..e_len).fold(zero(), step)
     } else {
-        (0..e_len).into_par_iter().fold(zero, step).reduce(zero, merge)
+        parallel::map_reduce_with_state(
+            e_len,
+            || (),
+            zero,
+            |_, acc, idx| *acc = step(std::mem::take(acc), idx),
+            merge,
+        )
     }
 }
 
@@ -403,7 +414,7 @@ where
         if s < PARALLEL_THRESHOLD {
             a.iter_mut().zip(b.iter_mut()).enumerate().for_each(fill);
         } else {
-            a.par_iter_mut().zip(b.par_iter_mut()).enumerate().for_each(fill);
+            parallel::par_for_each_mut2(&mut a, &mut b, |j, a_j, b_j| fill((j, (a_j, b_j))));
         }
         acc_0[r] = a;
         acc_inf[r] = b;
@@ -426,7 +437,9 @@ pub(crate) fn build_accumulators<EF>(groups: &[CompressedGroup<EF>], l_0: usize)
 where
     EF: ExtensionField<PF<EF>>,
 {
-    groups.par_iter().map(|g| build_accumulators_single(g, l_0)).collect()
+    // Sequential across groups: each `build_accumulators_single` parallelizes internally
+    // (`compute_eval_eq`, `grid_expand_into`, ...), and the pool forbids nested dispatch.
+    groups.iter().map(|g| build_accumulators_single(g, l_0)).collect()
 }
 
 pub(crate) fn round_message_with_tensor<EF: Field>(r: usize, lagrange: &[EF], accs: &[AccGroup<EF>]) -> (EF, EF) {
@@ -444,6 +457,6 @@ pub(crate) fn round_message_with_tensor<EF: Field>(r: usize, lagrange: &[EF], ac
     if 2 * lagrange.len() * accs.len() < PARALLEL_THRESHOLD {
         accs.iter().map(group_reduce).fold((EF::ZERO, EF::ZERO), add2)
     } else {
-        accs.par_iter().map(group_reduce).reduce(|| (EF::ZERO, EF::ZERO), add2)
+        parallel::map_reduce(accs.len(), || (EF::ZERO, EF::ZERO), |i| group_reduce(&accs[i]), add2)
     }
 }
