@@ -10,9 +10,9 @@ use goldilocks::{Goldilocks, default_goldilocks_poseidon1_8};
 use std::any::TypeId;
 use std::collections::VecDeque;
 use std::iter::repeat_n;
-use symetric::{CAPACITY, Permutation};
 use symetric::RATE;
 use symetric::WIDTH;
+use symetric::{CAPACITY, Permutation};
 
 pub struct VerifierState<EF: ExtensionField<PF<EF>>, P> {
     challenger: Challenger<PF<EF>, P>,

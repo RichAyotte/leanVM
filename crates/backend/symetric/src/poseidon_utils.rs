@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 use field::PrimeCharacteristicRing;
 use goldilocks::{Goldilocks, Poseidon1Goldilocks8, default_goldilocks_poseidon1_8};
 
-use crate::{CAPACITY,  DIGEST_ELEMS, RATE, WIDTH};
+use crate::{CAPACITY, DIGEST_ELEMS, RATE, WIDTH};
 
 pub type Poseidon8 = Poseidon1Goldilocks8;
 

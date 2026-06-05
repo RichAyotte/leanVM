@@ -102,7 +102,7 @@ pub fn finger_print_packed<EF: ExtensionField<PF<EF>>>(
 mod tests {
     use field::PrimeCharacteristicRing;
     use goldilocks::{CubicExtensionFieldGL, Goldilocks};
-use rand::rngs::StdRng;
+    use rand::rngs::StdRng;
     use rand::{RngExt, SeedableRng};
 
     use super::*;
