@@ -2,7 +2,8 @@
 
 ## PCS
 
-Something inspired by [VEIL](https://eprint.iacr.org/2026/683.pdf) ?
+- Something inspired by [VEIL](https://eprint.iacr.org/2026/683.pdf) ?
+- reverse variable ordering in WHIR, and always add a portion of randomness at the end of the stacked polynomial -> Ok for first round, but how to handle the next ones?
 
 ## Logup / AIR sumcheck
 
