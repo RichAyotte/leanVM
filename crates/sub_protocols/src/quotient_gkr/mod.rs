@@ -201,7 +201,6 @@ mod tests {
 
     use super::*;
     use rand::{RngExt, SeedableRng, rngs::StdRng};
-    use utils::{get_poseidon8, init_tracing};
 
     type F = Goldilocks;
     type EF = CubicExtensionFieldGL;

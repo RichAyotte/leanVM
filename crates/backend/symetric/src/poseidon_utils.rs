@@ -1,10 +1,11 @@
-use backend::*;
 use std::sync::OnceLock;
 
-pub type Poseidon8 = Poseidon1Goldilocks8;
+use field::PrimeCharacteristicRing;
+use goldilocks::{Goldilocks, Poseidon1Goldilocks8, default_goldilocks_poseidon1_8};
 
-pub const HALF_FULL_ROUNDS_8: usize = POSEIDON1_HALF_FULL_ROUNDS;
-pub const PARTIAL_ROUNDS_8: usize = POSEIDON1_PARTIAL_ROUNDS;
+use crate::{CAPACITY,  DIGEST_ELEMS, RATE, WIDTH};
+
+pub type Poseidon8 = Poseidon1Goldilocks8;
 
 static POSEIDON_8_INSTANCE: OnceLock<Poseidon8> = OnceLock::new();
 static POSEIDON_8_OF_ZERO: OnceLock<[Goldilocks; 4]> = OnceLock::new();

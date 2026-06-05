@@ -1,9 +1,5 @@
 use field::PrimeField64;
-use symetric::Permutation;
-
-pub const RATE: usize = 4;
-pub const WIDTH: usize = RATE * 2;
-pub const CAPACITY: usize = WIDTH - RATE;
+use symetric::{CAPACITY, Permutation, RATE, WIDTH};
 
 #[derive(Clone, Debug)]
 pub struct Challenger<F, P> {

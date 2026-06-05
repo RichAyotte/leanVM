@@ -1,9 +1,11 @@
 use std::borrow::Borrow;
 
-use crate::from_end;
-
-use backend::*;
+use field::{ExtensionField, Field, dot_product};
+use rayon::prelude::*;
 use tracing::instrument;
+use utils::*;
+
+use crate::{EFPacking, EvaluationsList, MultilinearPoint, PF, PFPacking};
 
 #[instrument(skip_all)]
 pub fn multilinears_linear_combination<F: Field, EF: ExtensionField<F>, P: Borrow<[F]> + Send + Sync>(
@@ -98,7 +100,9 @@ pub fn finger_print_packed<EF: ExtensionField<PF<EF>>>(
 
 #[cfg(test)]
 mod tests {
-    use rand::rngs::StdRng;
+    use field::PrimeCharacteristicRing;
+    use goldilocks::{CubicExtensionFieldGL, Goldilocks};
+use rand::rngs::StdRng;
     use rand::{RngExt, SeedableRng};
 
     use super::*;

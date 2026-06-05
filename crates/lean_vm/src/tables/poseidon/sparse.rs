@@ -313,8 +313,7 @@ fn compute_partial_constants() -> PartialConstants {
 #[allow(clippy::needless_range_loop, clippy::assign_op_pattern)]
 mod tests {
     use super::*;
-    use backend::{POSEIDON1_HALF_FULL_ROUNDS, PrimeField64};
-    use utils::poseidon8_compress;
+    use backend::{POSEIDON1_HALF_FULL_ROUNDS, PrimeField64, poseidon8_compress};
 
     fn sbox7(x: F) -> F {
         let x2 = x * x;

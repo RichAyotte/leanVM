@@ -1,7 +1,7 @@
 use field::{BasedVectorSpace, ExtensionField, Field, PrimeCharacteristicRing, PrimeField64};
-use symetric::Permutation;
+use symetric::{Permutation, RATE, WIDTH};
 
-use crate::challenger::{Challenger, RATE, WIDTH};
+use crate::challenger::Challenger;
 
 pub(crate) type PF<F> = <F as PrimeCharacteristicRing>::PrimeSubfield;
 

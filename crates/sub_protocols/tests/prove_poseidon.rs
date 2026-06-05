@@ -11,16 +11,12 @@ use rand::{RngExt, SeedableRng, rngs::StdRng};
 use sub_protocols::{
     AirSumcheckSession, OuterSumcheckSession, natural_ordering_point_for_session, prove_batched_air_sumcheck,
 };
-use utils::{get_poseidon8, padd_with_zero_to_next_power_of_two};
-
-// Width of the Poseidon1 permutation under Goldilocks (compresses 8 → DIGEST=4).
-const WIDTH: usize = 8;
 
 #[test]
 fn test_prove_poseidon_8() {
     // LOG_N_ROWS=20 cargo test --release --package sub_protocols --test prove_poseidon_8 -- test_prove_poseidon_8 --exact --nocapture
     let log_n_rows: usize = std::env::var("LOG_N_ROWS").unwrap_or("11".to_string()).parse().unwrap();
-    utils::init_tracing();
+    init_tracing();
     prove_air_poseidon_8(log_n_rows);
 }
 

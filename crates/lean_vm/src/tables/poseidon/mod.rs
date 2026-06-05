@@ -1,7 +1,6 @@
 use crate::execution::memory::MemoryAccess;
 use crate::*;
 use backend::*;
-use utils::{ToUsize, poseidon8_compress};
 
 mod sparse;
 mod trace_gen;

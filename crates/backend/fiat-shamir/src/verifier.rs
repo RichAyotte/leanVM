@@ -1,17 +1,18 @@
-use std::any::TypeId;
-use std::collections::VecDeque;
-use std::iter::repeat_n;
-
+use crate::challenger::Challenger;
 use crate::{
     MerkleOpening, MerklePaths, PrunedMerklePaths, RawProof,
-    challenger::{CAPACITY, Challenger, RATE, WIDTH},
     transcript::{DIGEST_LEN_FE, Proof},
     *,
 };
 use field::PrimeCharacteristicRing;
 use field::{ExtensionField, PrimeField64};
 use goldilocks::{Goldilocks, default_goldilocks_poseidon1_8};
-use symetric::Permutation;
+use std::any::TypeId;
+use std::collections::VecDeque;
+use std::iter::repeat_n;
+use symetric::{CAPACITY, Permutation};
+use symetric::RATE;
+use symetric::WIDTH;
 
 pub struct VerifierState<EF: ExtensionField<PF<EF>>, P> {
     challenger: Challenger<PF<EF>, P>,

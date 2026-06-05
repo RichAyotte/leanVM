@@ -1,10 +1,9 @@
 use std::time::Instant;
 
-use backend::{BasedVectorSpace, PrimeCharacteristicRing};
+use backend::{BasedVectorSpace, PrimeCharacteristicRing, poseidon8_compress};
 use lean_compiler::*;
 use lean_vm::*;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
-use utils::poseidon8_compress;
 
 #[test]
 fn test_poseidon() {
