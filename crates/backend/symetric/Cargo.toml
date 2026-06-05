@@ -6,4 +6,4 @@ edition.workspace = true
 [dependencies]
 goldilocks = { path = "../goldilocks", package = "mt-goldilocks" }
 field = { path = "../field", package = "mt-field" }
-rayon.workspace = true
+parallel.workspace = true

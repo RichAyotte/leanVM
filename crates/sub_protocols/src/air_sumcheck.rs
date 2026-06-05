@@ -89,22 +89,20 @@ where
                 let _span = info_span!("chunk-bit-reversing columns").entered();
                 let chunk_size = 1usize << pivot;
                 let shift = usize::BITS as usize - pivot;
-                let bit_reversed = cols
-                    .par_iter()
-                    .map(|&src| {
-                        let mut dst: Vec<PFPacking<EF>> = unsafe { uninitialized_vec(src.len()) };
-                        let src_u = PFPacking::<EF>::unpack_slice(src);
-                        let dst_u = PFPacking::<EF>::unpack_slice_mut(&mut dst);
-                        for (src_chunk, dst_chunk) in
-                            src_u.chunks_exact(chunk_size).zip(dst_u.chunks_exact_mut(chunk_size))
-                        {
-                            for (p, slot) in dst_chunk.iter_mut().enumerate() {
-                                *slot = src_chunk[p.reverse_bits() >> shift];
-                            }
+                let mut bit_reversed: Vec<Vec<PFPacking<EF>>> = (0..cols.len()).map(|_| Vec::new()).collect();
+                parallel::par_chunks_mut(&mut bit_reversed, 1, |i, out_slot| {
+                    let src = cols[i];
+                    let mut dst: Vec<PFPacking<EF>> = unsafe { uninitialized_vec(src.len()) };
+                    let src_u = PFPacking::<EF>::unpack_slice(src);
+                    let dst_u = PFPacking::<EF>::unpack_slice_mut(&mut dst);
+                    for (src_chunk, dst_chunk) in src_u.chunks_exact(chunk_size).zip(dst_u.chunks_exact_mut(chunk_size))
+                    {
+                        for (p, slot) in dst_chunk.iter_mut().enumerate() {
+                            *slot = src_chunk[p.reverse_bits() >> shift];
                         }
-                        dst
-                    })
-                    .collect();
+                    }
+                    out_slot[0] = dst;
+                });
                 MleGroup::Owned(MleGroupOwned::BasePacked(bit_reversed))
             }
             _ => unreachable!(),
@@ -392,54 +390,43 @@ where
     let stride = 1usize << fold_bit;
     let lo_mask = stride - 1;
 
-    let acc = (0..active_count_pairs)
-        .into_par_iter()
-        .fold(
-            || {
-                (
-                    vec![EFT::ZERO; degree],
-                    Vec::<IF>::with_capacity(n_cols),
-                    Vec::<IF>::with_capacity(n_cols),
-                )
-            },
-            |(mut acc, mut point, mut diff), new_j| {
-                let i_hi = new_j >> fold_bit;
-                let i_lo = new_j & lo_mask;
-                let i0 = (i_hi << (fold_bit + 1)) | i_lo;
-                let i1 = i0 | stride;
-                let partial_eq = get_split_eq(new_j);
-                point.clear();
-                diff.clear();
-                for c in cols {
-                    let lo = c[i0];
-                    let hi = c[i1];
-                    point.push(lo);
-                    diff.push(hi - lo);
-                }
-                // z = 0 then (skip z = 1) z = 2, 3, …, degree.
-                acc[0] += eval_fn(computation, &point, extra_data) * partial_eq;
+    let acc = parallel::map_reduce_with_state(
+        active_count_pairs,
+        || (Vec::<IF>::with_capacity(n_cols), Vec::<IF>::with_capacity(n_cols)),
+        || vec![EFT::ZERO; degree],
+        |(point, diff), acc, new_j| {
+            let i_hi = new_j >> fold_bit;
+            let i_lo = new_j & lo_mask;
+            let i0 = (i_hi << (fold_bit + 1)) | i_lo;
+            let i1 = i0 | stride;
+            let partial_eq = get_split_eq(new_j);
+            point.clear();
+            diff.clear();
+            for c in cols {
+                let lo = c[i0];
+                let hi = c[i1];
+                point.push(lo);
+                diff.push(hi - lo);
+            }
+            // z = 0 then (skip z = 1) z = 2, 3, …, degree.
+            acc[0] += eval_fn(computation, point, extra_data) * partial_eq;
+            for k in 0..n_cols {
+                point[k] += diff[k];
+            }
+            for acc_z in &mut acc[1..] {
                 for k in 0..n_cols {
                     point[k] += diff[k];
                 }
-                for acc_z in &mut acc[1..] {
-                    for k in 0..n_cols {
-                        point[k] += diff[k];
-                    }
-                    *acc_z += eval_fn(computation, &point, extra_data) * partial_eq;
-                }
-                (acc, point, diff)
-            },
-        )
-        .map(|(acc, _, _)| acc)
-        .reduce(
-            || vec![EFT::ZERO; degree],
-            |mut a, b| {
-                for i in 0..degree {
-                    a[i] += b[i];
-                }
-                a
-            },
-        );
+                *acc_z += eval_fn(computation, point, extra_data) * partial_eq;
+            }
+        },
+        |mut a, b| {
+            for i in 0..degree {
+                a[i] += b[i];
+            }
+            a
+        },
+    );
 
     acc.into_iter().map(unpack_sum).collect()
 }
@@ -492,15 +479,15 @@ pub fn prove_batched_air_sumcheck<'a, EF: ExtensionField<PF<EF>>>(
 
 pub fn compute_shifted_columns<F: Field>(n_shift_columns: usize, columns: &[&[F]]) -> Vec<Vec<F>> {
     // Convention: the first `n_shift_columns` columns are the ones that get shifted.
-    columns[..n_shift_columns]
-        .par_iter()
-        .map(|column| {
-            let mut shifted = unsafe { uninitialized_vec(column.len()) };
-            shifted[..column.len() - 1].copy_from_slice(&column[1..]);
-            shifted[column.len() - 1] = column[column.len() - 1];
-            shifted
-        })
-        .collect()
+    let mut out: Vec<Vec<F>> = (0..n_shift_columns).map(|_| Vec::new()).collect();
+    parallel::par_chunks_mut(&mut out, 1, |i, slot| {
+        let column = columns[i];
+        let mut shifted = unsafe { uninitialized_vec(column.len()) };
+        shifted[..column.len() - 1].copy_from_slice(&column[1..]);
+        shifted[column.len() - 1] = column[column.len() - 1];
+        slot[0] = shifted;
+    });
+    out
 }
 
 pub fn natural_ordering_point_for_session<EF: Copy>(sumcheck_air_point: &[EF], log_n_rows: usize) -> Vec<EF> {
