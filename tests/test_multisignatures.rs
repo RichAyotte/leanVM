@@ -1,14 +1,15 @@
 use std::time::Instant;
 
 use lean_multisig::{
-    TypeOneMultiSignature, TypeTwoMultiSignature, aggregate_type_1, merge_many_type_1, setup_prover, split_type_2,
-    verify_type_1, verify_type_2,
+    MultiMessageAggregateSignature, SingleMessageAggregateSignature, aggregate_single_message_signatures,
+    merge_single_message_aggregates, setup_prover, split_multi_message_aggregate, verify_multi_message_aggregate,
+    verify_single_message_aggregate,
 };
 use leansig_wrapper::{xmss_keygen_fast, xmss_sign_fast, xmss_verify};
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 use rec_aggregation::benchmark::{AggregationTopology, run_aggregation_benchmark};
 use rec_aggregation::signatures_cache::{BENCHMARK_SLOT, get_benchmark_signatures, message_for_benchmark};
-use rec_aggregation::split_type_2_by_msg;
+use rec_aggregation::split_multi_message_aggregate_by_message;
 
 #[test]
 fn test_xmss_signature() {
@@ -16,11 +17,11 @@ fn test_xmss_signature() {
     let num_active_epochs = 39;
     let slot: u32 = 124;
     let mut rng: StdRng = StdRng::seed_from_u64(0);
-    let msg = [42u8; leansig_wrapper::MESSAGE_LENGTH];
+    let message = [42u8; leansig_wrapper::MESSAGE_LENGTH];
 
     let (secret_key, pub_key) = xmss_keygen_fast(&mut rng, activation_epoch, num_active_epochs);
-    let signature = xmss_sign_fast(&secret_key, &msg, slot).unwrap();
-    xmss_verify(&pub_key, slot, &msg, &signature).unwrap();
+    let signature = xmss_sign_fast(&secret_key, &message, slot).unwrap();
+    xmss_verify(&pub_key, slot, &message, &signature).unwrap();
 }
 
 #[test]
@@ -37,7 +38,7 @@ fn test_aggregation() {
 }
 
 #[test]
-fn test_type_1_aggregation() {
+fn test_single_message_aggregation() {
     setup_prover();
 
     let log_inv_rate = 2; // [1, 2, 3 or 4] (lower = faster but bigger proofs)
@@ -46,23 +47,30 @@ fn test_type_1_aggregation() {
     let signatures = get_benchmark_signatures();
 
     let raws_a = signatures[0..3].to_vec();
-    let type1_a = aggregate_type_1(&[], raws_a, message, slot, log_inv_rate).unwrap();
+    let single_message_a = aggregate_single_message_signatures(&[], raws_a, message, slot, log_inv_rate).unwrap();
 
     let raws_b = signatures[3..5].to_vec();
-    let type1_b = aggregate_type_1(&[], raws_b, message, slot, log_inv_rate).unwrap();
+    let single_message_b = aggregate_single_message_signatures(&[], raws_b, message, slot, log_inv_rate).unwrap();
 
     let raws_c = signatures[5..6].to_vec();
-    let final_sig = aggregate_type_1(&[type1_a, type1_b], raws_c, message, slot, log_inv_rate).unwrap();
+    let final_sig = aggregate_single_message_signatures(
+        &[single_message_a, single_message_b],
+        raws_c,
+        message,
+        slot,
+        log_inv_rate,
+    )
+    .unwrap();
 
     let serialized_proof = final_sig.compress();
     println!("Serialized aggregated final: {} KiB", serialized_proof.len() / 1024);
-    let recovered = TypeOneMultiSignature::decompress(&serialized_proof).unwrap();
+    let recovered = SingleMessageAggregateSignature::decompress(&serialized_proof).unwrap();
 
-    verify_type_1(&recovered).unwrap();
+    verify_single_message_aggregate(&recovered).unwrap();
 }
 
 #[test]
-fn test_type_2_aggregation() {
+fn test_multi_message_aggregation() {
     setup_prover();
 
     let log_inv_rate = 2; // [1, 2, 3 or 4] (lower = faster but bigger proofs)
@@ -85,29 +93,30 @@ fn test_type_2_aggregation() {
         })
         .collect();
 
-    let type1_a = aggregate_type_1(&[], raws_a, message_a, slot_a, log_inv_rate).unwrap();
-    let type1_b = aggregate_type_1(&[], raws_b, message_b, slot_b, log_inv_rate).unwrap();
+    let single_message_a = aggregate_single_message_signatures(&[], raws_a, message_a, slot_a, log_inv_rate).unwrap();
+    let single_message_b = aggregate_single_message_signatures(&[], raws_b, message_b, slot_b, log_inv_rate).unwrap();
 
-    verify_type_1(&type1_a).unwrap();
-    verify_type_1(&type1_b).unwrap();
+    verify_single_message_aggregate(&single_message_a).unwrap();
+    verify_single_message_aggregate(&single_message_b).unwrap();
 
-    let info_a = type1_a.info.clone();
-    let info_b = type1_b.info.clone();
-
-    let time = Instant::now();
-    let type2 = merge_many_type_1(vec![type1_a, type1_b], log_inv_rate).unwrap();
-    println!("merge_many_type_1: {:.2}s", time.elapsed().as_secs_f64());
-    assert_eq!(type2.info.len(), 2);
-    assert_eq!(type2.info[0], info_a);
-    assert_eq!(type2.info[1], info_b);
-
-    verify_type_2(&type2).unwrap();
+    let info_a = single_message_a.info.clone();
+    let info_b = single_message_b.info.clone();
 
     let time = Instant::now();
-    let split_a = split_type_2(type2.clone(), 0, log_inv_rate).unwrap();
+    let multi_message =
+        merge_single_message_aggregates(vec![single_message_a, single_message_b], log_inv_rate).unwrap();
+    println!("merge_single_message_aggregates: {:.2}s", time.elapsed().as_secs_f64());
+    assert_eq!(multi_message.info.len(), 2);
+    assert_eq!(multi_message.info[0], info_a);
+    assert_eq!(multi_message.info[1], info_b);
+
+    verify_multi_message_aggregate(&multi_message).unwrap();
+
+    let time = Instant::now();
+    let split_a = split_multi_message_aggregate(multi_message.clone(), 0, log_inv_rate).unwrap();
     println!("split index 0: {:.2}s", time.elapsed().as_secs_f64());
     let time = Instant::now();
-    let split_b = split_type_2_by_msg(type2, message_b, log_inv_rate).unwrap();
+    let split_b = split_multi_message_aggregate_by_message(multi_message, message_b, log_inv_rate).unwrap();
     println!("split index 1: {:.2}s", time.elapsed().as_secs_f64());
     assert_eq!(
         (
@@ -133,12 +142,12 @@ fn test_type_2_aggregation() {
             &info_b.pubkeys,
         )
     );
-    verify_type_1(&split_a).expect("split index 0 failed verify_type_1");
-    verify_type_1(&split_b).expect("split index 1 failed verify_type_1");
+    verify_single_message_aggregate(&split_a).expect("split index 0 failed verify_single_message_aggregate");
+    verify_single_message_aggregate(&split_b).expect("split index 1 failed verify_single_message_aggregate");
 }
 
 #[test]
-fn test_type1_type2_compression() {
+fn test_single_multi_message_compression() {
     setup_prover();
 
     let log_inv_rate = 2;
@@ -149,22 +158,31 @@ fn test_type1_type2_compression() {
     // The pubkey set is shared between prover and verifier.
     let raws_a = signatures[..3].to_vec();
     let shared_pubkeys_a = raws_a.iter().map(|(pk, _)| pk.clone()).collect::<Vec<_>>();
-    let type1_a = aggregate_type_1(&[], raws_a, message, slot, log_inv_rate).unwrap();
+    let single_message_a = aggregate_single_message_signatures(&[], raws_a, message, slot, log_inv_rate).unwrap();
 
-    let type1_a_compressed_compact = type1_a.compress_without_pubkeys();
-    let type1_a_compact_recovered =
-        TypeOneMultiSignature::decompress_without_pubkeys(&type1_a_compressed_compact, shared_pubkeys_a)
-            .expect("type-1 round-trip");
-    verify_type_1(&type1_a_compact_recovered).expect("recovered type-1 must verify");
-    assert_eq!(type1_a_compact_recovered.info.pubkeys, type1_a.info.pubkeys);
+    let single_message_a_compressed_compact = single_message_a.compress_without_pubkeys();
+    let single_message_a_compact_recovered = SingleMessageAggregateSignature::decompress_without_pubkeys(
+        &single_message_a_compressed_compact,
+        shared_pubkeys_a,
+    )
+    .expect("single-message round-trip");
+    verify_single_message_aggregate(&single_message_a_compact_recovered).expect("recovered single-message must verify");
+    assert_eq!(
+        single_message_a_compact_recovered.info.pubkeys,
+        single_message_a.info.pubkeys
+    );
 
-    let type1_a_compressed_full = type1_a.compress();
-    let type1_a_full_recovered =
-        TypeOneMultiSignature::decompress(&type1_a_compressed_full).expect("type-1 round-trip");
-    verify_type_1(&type1_a_full_recovered).expect("recovered type-1 must verify");
-    assert_eq!(type1_a_full_recovered.info.pubkeys, type1_a.info.pubkeys);
+    let single_message_a_compressed_full = single_message_a.compress();
+    let single_message_a_full_recovered =
+        SingleMessageAggregateSignature::decompress(&single_message_a_compressed_full)
+            .expect("single-message round-trip");
+    verify_single_message_aggregate(&single_message_a_full_recovered).expect("recovered single-message must verify");
+    assert_eq!(
+        single_message_a_full_recovered.info.pubkeys,
+        single_message_a.info.pubkeys
+    );
 
-    assert!(type1_a_compressed_compact.len() < type1_a_compressed_full.len());
+    assert!(single_message_a_compressed_compact.len() < single_message_a_compressed_full.len());
 
     let slot_b = BENCHMARK_SLOT + 1;
     let mut rng_b: StdRng = StdRng::seed_from_u64(17);
@@ -176,22 +194,26 @@ fn test_type1_type2_compression() {
             (pk, xs)
         })
         .collect();
-    let type1_b = aggregate_type_1(&[], raws_b, message_b, slot_b, log_inv_rate).unwrap();
+    let single_message_b = aggregate_single_message_signatures(&[], raws_b, message_b, slot_b, log_inv_rate).unwrap();
 
-    let type2 = merge_many_type_1(vec![type1_a, type1_b], log_inv_rate).unwrap();
-    let shared_pubkeys_type2: Vec<_> = type2.info.iter().map(|i| i.pubkeys.clone()).collect();
+    let multi_message =
+        merge_single_message_aggregates(vec![single_message_a, single_message_b], log_inv_rate).unwrap();
+    let shared_pubkeys_multi_message: Vec<_> = multi_message.info.iter().map(|i| i.pubkeys.clone()).collect();
 
-    let type2_compressed_compact = type2.compress_without_pubkeys();
-    let type2_compact_recovered =
-        TypeTwoMultiSignature::decompress_without_pubkeys(&type2_compressed_compact, shared_pubkeys_type2)
-            .expect("type-2 round-trip");
-    verify_type_2(&type2_compact_recovered).expect("recovered type-2 must verify");
-    assert_eq!(type2_compact_recovered.info, type2.info);
+    let multi_message_compressed_compact = multi_message.compress_without_pubkeys();
+    let multi_message_compact_recovered = MultiMessageAggregateSignature::decompress_without_pubkeys(
+        &multi_message_compressed_compact,
+        shared_pubkeys_multi_message,
+    )
+    .expect("multi-message round-trip");
+    verify_multi_message_aggregate(&multi_message_compact_recovered).expect("recovered multi-message must verify");
+    assert_eq!(multi_message_compact_recovered.info, multi_message.info);
 
-    let type2_compressed_full = type2.compress();
-    let type2_full_recovered = TypeTwoMultiSignature::decompress(&type2_compressed_full).expect("type-2 round-trip");
-    verify_type_2(&type2_full_recovered).expect("recovered type-2 must verify");
-    assert_eq!(type2_full_recovered.info, type2.info);
+    let multi_message_compressed_full = multi_message.compress();
+    let multi_message_full_recovered =
+        MultiMessageAggregateSignature::decompress(&multi_message_compressed_full).expect("multi-message round-trip");
+    verify_multi_message_aggregate(&multi_message_full_recovered).expect("recovered multi-message must verify");
+    assert_eq!(multi_message_full_recovered.info, multi_message.info);
 
-    assert!(type2_compressed_compact.len() < type2_compressed_full.len());
+    assert!(multi_message_compressed_compact.len() < multi_message_compressed_full.len());
 }

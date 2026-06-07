@@ -15,7 +15,7 @@ use tracing::instrument;
 use utils::Counter;
 
 use crate::bytecode_claims::bytecode_reduction_sumcheck_proof_size;
-use crate::type_1_aggregation::TWEAK_TABLE_SIZE_FE_PADDED;
+use crate::single_message_aggregation::TWEAK_TABLE_SIZE_FE_PADDED;
 
 // preamble memory layout: see `build_preamble_memory` in utils.py:
 // [000.. (ZERO_VEC_LEN)][10000000 (fiat-shamir domain sep)][10000 (one in extension field)][111... (NUM_REPEATED_ONES)][tweak table]
@@ -39,11 +39,11 @@ pub const MAX_RECURSIONS: usize = 16;
 pub const MAX_XMSS_AGGREGATED: usize = 1 << 15; // TODO increase (we would need a bigger minimal memory size, totally doable)
 pub const MAX_XMSS_DUPLICATES: usize = 1 << 15; // ...same
 
-pub(crate) const TYPE1_FLAG: usize = 1;
-pub(crate) const TYPE2_FLAG: usize = 0;
+pub(crate) const SINGLE_MESSAGE_FLAG: usize = 1;
+pub(crate) const MULTI_MESSAGE_FLAG: usize = 0;
 
 pub(crate) const BYTECODE_CLAIM_OFFSET: usize = DIGEST_LEN;
-/// Type-1's component data: pubkeys_hash | message | merkle_chunks | tweaks_hash, padded to DIGEST_LEN.
+/// Single-message component data: pubkeys_hash | message | merkle_chunks | tweaks_hash, padded to DIGEST_LEN.
 pub(crate) const COMPONENT_DATA_SIZE: usize =
     (DIGEST_LEN + MSG_LEN_FE + N_MERKLE_CHUNKS_FOR_SLOT + DIGEST_LEN).next_multiple_of(DIGEST_LEN);
 
@@ -60,7 +60,7 @@ pub(crate) fn component_data_offset(program_log_size: usize) -> usize {
     initial_fiat_shamir_cap_offset(program_log_size) + DIGEST_LEN
 }
 
-pub(crate) fn type1_input_data_size_padded(program_log_size: usize) -> usize {
+pub(crate) fn single_message_input_data_size_padded(program_log_size: usize) -> usize {
     component_data_offset(program_log_size) + COMPONENT_DATA_SIZE
 }
 
@@ -451,8 +451,8 @@ fn build_replacements(log_inner_bytecode: usize, bytecode_zero_eval: F) -> BTree
         ),
     );
 
-    replacements.insert("TYPE_1_FLAG_PLACEHOLDER".to_string(), TYPE1_FLAG.to_string());
-    replacements.insert("TYPE_2_FLAG_PLACEHOLDER".to_string(), TYPE2_FLAG.to_string());
+    replacements.insert("TYPE_1_FLAG_PLACEHOLDER".to_string(), SINGLE_MESSAGE_FLAG.to_string());
+    replacements.insert("TYPE_2_FLAG_PLACEHOLDER".to_string(), MULTI_MESSAGE_FLAG.to_string());
     replacements.insert(
         "MAX_XMSS_AGGREGATED_PLACEHOLDER".to_string(),
         MAX_XMSS_AGGREGATED.to_string(),

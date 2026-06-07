@@ -31,7 +31,7 @@ CHAIN_TWEAKS_OFFSET = TWEAK_LEN
 LEAF_TWEAK_OFFSET = TWEAK_LEN + V * CHAIN_LENGTH * TWEAK_LEN
 MERKLE_TWEAKS_OFFSET = TWEAK_LEN + V * CHAIN_LENGTH * TWEAK_LEN + TWEAK_LEN
 
-# Padded tweak table layout: slot stride 4 (TWEAK_LEN_FE + 2 zeros), see compute_tweak_table in type_1_aggregation.rs.
+# Padded tweak table layout: slot stride 4 (TWEAK_LEN_FE + 2 zeros), see compute_tweak_table in single_message_aggregation.rs.
 TWEAK_SLOT_SIZE = 4
 N_TWEAKS = 1 + V * CHAIN_LENGTH + 1 + LOG_LIFETIME
 TWEAK_TABLE_SIZE_FE_PADDED = next_multiple_of(N_TWEAKS * TWEAK_SLOT_SIZE, DIGEST_LEN)

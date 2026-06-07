@@ -5,9 +5,10 @@ pub use leansig_wrapper::{
     MESSAGE_LENGTH, XmssPublicKey, XmssSignature, xmss_keygen_fast, xmss_sign_fast, xmss_verify,
 };
 pub use rec_aggregation::{
-    AggregationError, MAX_RECURSIONS, MAX_XMSS_AGGREGATED, MAX_XMSS_DUPLICATES, ProverError, TypeOneInfo,
-    TypeOneMultiSignature, TypeTwoMultiSignature, aggregate_type_1, merge_many_type_1, split_type_2, verify_type_1,
-    verify_type_2,
+    AggregationError, MAX_RECURSIONS, MAX_XMSS_AGGREGATED, MAX_XMSS_DUPLICATES, MultiMessageAggregateSignature,
+    ProverError, SingleMessageAggregateSignature, SingleMessageInfo, aggregate_single_message_signatures,
+    merge_single_message_aggregates, split_multi_message_aggregate, verify_multi_message_aggregate,
+    verify_single_message_aggregate,
 };
 
 pub type F = KoalaBear;

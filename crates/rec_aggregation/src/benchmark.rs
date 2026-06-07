@@ -7,9 +7,14 @@ use std::time::Instant;
 use utils::ansi as s;
 
 use crate::compilation::{get_aggregation_bytecode, init_aggregation_bytecode};
+use crate::multi_message_aggregation::{
+    MultiMessageAggregateSignature, merge_single_message_aggregates, split_multi_message_aggregate,
+    verify_multi_message_aggregate,
+};
 use crate::signatures_cache::{BENCHMARK_SLOT, get_benchmark_signatures, message_for_benchmark};
-use crate::type_1_aggregation::{TypeOneMultiSignature, aggregate_type_1, verify_type_1};
-use crate::type_2_aggregation::{TypeTwoMultiSignature, merge_many_type_1, split_type_2, verify_type_2};
+use crate::single_message_aggregation::{
+    SingleMessageAggregateSignature, aggregate_single_message_signatures, verify_single_message_aggregate,
+};
 
 #[derive(Debug, Clone)]
 pub struct AggregationTopology {
@@ -52,9 +57,9 @@ fn count_nodes(topology: &AggregationTopology) -> usize {
 #[serde(rename_all = "snake_case")]
 pub enum NodeKind {
     #[default]
-    AggregateType1,
-    MergeManyType1,
-    SplitType2,
+    AggregateSingleMessage,
+    MergeSingleMessages,
+    SplitMultiMessage,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -378,13 +383,13 @@ fn build_aggregation(
     tracing: bool,
     is_root: bool,
     repeat: usize,
-) -> TypeOneMultiSignature {
+) -> SingleMessageAggregateSignature {
     let raw_count = topology.raw_xmss;
     let raw_xmss: Vec<(XmssPublicKey, XmssSignature)> = (0..raw_count)
         .map(|i| (pub_keys[i].clone(), signatures[i].clone()))
         .collect();
 
-    let mut children: Vec<TypeOneMultiSignature> = vec![];
+    let mut children: Vec<SingleMessageAggregateSignature> = vec![];
     let mut child_start = raw_count;
     let mut child_display_index = display_index;
     for (child_idx, child) in topology.children.iter().enumerate() {
@@ -418,14 +423,14 @@ fn build_aggregation(
     assert!(repeat > 0);
     let is_leaf = topology.children.is_empty();
     let mut times = Vec::with_capacity(repeat);
-    let mut last_result: Option<TypeOneMultiSignature> = None;
+    let mut last_result: Option<SingleMessageAggregateSignature> = None;
     let own_display_index = display_index + count_nodes(topology) - 1;
     for _ in 0..repeat {
         #[cfg(not(feature = "standard-alloc"))]
         zk_alloc::begin_phase();
 
         let time = Instant::now();
-        let result = aggregate_type_1(
+        let result = aggregate_single_message_signatures(
             &children,
             raw_xmss.clone(),
             message_for_benchmark(),
@@ -462,7 +467,7 @@ fn build_aggregation(
                     poseidons: meta.n_poseidons,
                     dots: meta.n_extension_ops,
                     n_xmss: if is_leaf { Some(topology.raw_xmss) } else { None },
-                    kind: NodeKind::AggregateType1,
+                    kind: NodeKind::AggregateSingleMessage,
                 },
             );
         }
@@ -503,7 +508,7 @@ fn build_aggregation(
         poseidons: meta.n_poseidons,
         dots: meta.n_extension_ops,
         n_xmss: if is_leaf { Some(topology.raw_xmss) } else { None },
-        kind: NodeKind::AggregateType1,
+        kind: NodeKind::AggregateSingleMessage,
     };
     if !tracing {
         live_tree.update_node(own_display_index, &stats);
@@ -569,14 +574,14 @@ pub fn run_aggregation_benchmark(
         repeat,
     );
 
-    verify_type_1(&aggregated).expect("root type-1 proof failed to verify");
+    verify_single_message_aggregate(&aggregated).expect("root single-message proof failed to verify");
 
     BenchmarkReport { nodes }
 }
 
 #[allow(clippy::too_many_arguments)]
-fn run_aggregate_type_1(
-    children: &[TypeOneMultiSignature],
+fn run_aggregate_single_message(
+    children: &[SingleMessageAggregateSignature],
     raw_xmss: Vec<(XmssPublicKey, XmssSignature)>,
     log_inv_rate: usize,
     n_xmss: usize,
@@ -584,13 +589,13 @@ fn run_aggregate_type_1(
     label: &str,
     silent: bool,
     nodes: &mut Vec<NodeReport>,
-) -> TypeOneMultiSignature {
+) -> SingleMessageAggregateSignature {
     let time = Instant::now();
 
     #[cfg(not(feature = "standard-alloc"))]
     zk_alloc::begin_phase();
 
-    let result = aggregate_type_1(
+    let result = aggregate_single_message_signatures(
         children,
         raw_xmss,
         message_for_benchmark(),
@@ -618,7 +623,7 @@ fn run_aggregate_type_1(
         poseidons: meta.n_poseidons,
         dots: meta.n_extension_ops,
         n_xmss: Some(n_xmss),
-        kind: NodeKind::AggregateType1,
+        kind: NodeKind::AggregateSingleMessage,
     };
 
     print_stage(silent, label, &stats);
@@ -631,19 +636,19 @@ fn run_aggregate_type_1(
 }
 
 fn run_merge_many(
-    types_1: Vec<TypeOneMultiSignature>,
+    types_1: Vec<SingleMessageAggregateSignature>,
     log_inv_rate: usize,
     path: Vec<usize>,
     label: &str,
     silent: bool,
     nodes: &mut Vec<NodeReport>,
-) -> TypeTwoMultiSignature {
+) -> MultiMessageAggregateSignature {
     let time = Instant::now();
 
     #[cfg(not(feature = "standard-alloc"))]
     zk_alloc::begin_phase();
 
-    let result = merge_many_type_1(types_1, log_inv_rate).unwrap();
+    let result = merge_single_message_aggregates(types_1, log_inv_rate).unwrap();
 
     #[cfg(not(feature = "standard-alloc"))]
     let result = {
@@ -664,7 +669,7 @@ fn run_merge_many(
         poseidons: meta.n_poseidons,
         dots: meta.n_extension_ops,
         n_xmss: None,
-        kind: NodeKind::MergeManyType1,
+        kind: NodeKind::MergeSingleMessages,
     };
 
     print_stage(silent, label, &stats);
@@ -678,7 +683,7 @@ fn run_merge_many(
 
 #[allow(clippy::too_many_arguments)]
 fn run_split(
-    type_2: TypeTwoMultiSignature,
+    multi_message: MultiMessageAggregateSignature,
     index: usize,
     log_inv_rate: usize,
     n_xmss: usize,
@@ -686,13 +691,13 @@ fn run_split(
     label: &str,
     silent: bool,
     nodes: &mut Vec<NodeReport>,
-) -> TypeOneMultiSignature {
+) -> SingleMessageAggregateSignature {
     let time = Instant::now();
 
     #[cfg(not(feature = "standard-alloc"))]
     zk_alloc::begin_phase();
 
-    let result = split_type_2(type_2, index, log_inv_rate).unwrap();
+    let result = split_multi_message_aggregate(multi_message, index, log_inv_rate).unwrap();
 
     #[cfg(not(feature = "standard-alloc"))]
     let result = {
@@ -713,7 +718,7 @@ fn run_split(
         poseidons: meta.n_poseidons,
         dots: meta.n_extension_ops,
         n_xmss: Some(n_xmss),
-        kind: NodeKind::SplitType2,
+        kind: NodeKind::SplitMultiMessage,
     };
 
     print_stage(silent, label, &stats);
@@ -725,13 +730,13 @@ fn run_split(
     result
 }
 
-fn build_parent_type_2(
+fn build_parent_multi_message(
     per_component: usize,
     n_components: usize,
     log_inv_rate: usize,
     nodes: &mut Vec<NodeReport>,
     silent: bool,
-) -> TypeTwoMultiSignature {
+) -> MultiMessageAggregateSignature {
     let cache = get_benchmark_signatures();
     assert!(n_components >= 1, "n_components must be >= 1");
     assert!(
@@ -741,10 +746,10 @@ fn build_parent_type_2(
         cache.len(),
     );
 
-    let mut components: Vec<TypeOneMultiSignature> = Vec::with_capacity(n_components);
+    let mut components: Vec<SingleMessageAggregateSignature> = Vec::with_capacity(n_components);
     for i in 0..n_components {
         let raw_xmss = cache[i * per_component..(i + 1) * per_component].to_vec();
-        let result = run_aggregate_type_1(
+        let result = run_aggregate_single_message(
             &[],
             raw_xmss,
             log_inv_rate,
@@ -761,14 +766,14 @@ fn build_parent_type_2(
         components,
         log_inv_rate,
         vec![0],
-        "  setup merge parent type-2",
+        "  setup merge parent multi-message",
         silent,
         nodes,
     )
 }
 
-/// Benchmark `split_type_2` at index 0 of a parent type-2 built from
-/// `n_components` type-1's, each aggregated from `per_component` raw XMSS sigs.
+/// Benchmark `split_multi_message_aggregate` at index 0 of a parent multi-message built from
+/// `n_components` single-message's, each aggregated from `per_component` raw XMSS sigs.
 pub fn run_split_benchmark(
     per_component: usize,
     n_components: usize,
@@ -790,9 +795,9 @@ pub fn run_split_benchmark(
     }
 
     let mut nodes: Vec<NodeReport> = Vec::new();
-    let type2 = build_parent_type_2(per_component, n_components, log_inv_rate, &mut nodes, silent);
+    let multi_message = build_parent_multi_message(per_component, n_components, log_inv_rate, &mut nodes, silent);
     let split = run_split(
-        type2,
+        multi_message,
         0,
         log_inv_rate,
         per_component,
@@ -802,13 +807,13 @@ pub fn run_split_benchmark(
         &mut nodes,
     );
 
-    verify_type_1(&split).expect("split-derived type-1 failed to verify");
+    verify_single_message_aggregate(&split).expect("split-derived single-message failed to verify");
 
     BenchmarkReport { nodes }
 }
 
-/// Benchmark `merge_many_type_1` over one split-derived type-1 and one
-/// freshly-aggregated original type-1, both claiming `per_component` signers.
+/// Benchmark `merge_single_message_aggregates` over one split-derived single-message and one
+/// freshly-aggregated original single-message, both claiming `per_component` signers.
 pub fn run_merge_split_and_original_benchmark(
     per_component: usize,
     n_components: usize,
@@ -830,9 +835,9 @@ pub fn run_merge_split_and_original_benchmark(
     }
 
     let mut nodes: Vec<NodeReport> = Vec::new();
-    let type2 = build_parent_type_2(per_component, n_components, log_inv_rate, &mut nodes, silent);
+    let multi_message = build_parent_multi_message(per_component, n_components, log_inv_rate, &mut nodes, silent);
     let split = run_split(
-        type2,
+        multi_message,
         0,
         log_inv_rate,
         per_component,
@@ -849,7 +854,7 @@ pub fn run_merge_split_and_original_benchmark(
         "benchmark cache too small for original component"
     );
     let raw_xmss = cache[parent_end..parent_end + per_component].to_vec();
-    let original = run_aggregate_type_1(
+    let original = run_aggregate_single_message(
         &[],
         raw_xmss,
         log_inv_rate,
@@ -869,14 +874,14 @@ pub fn run_merge_split_and_original_benchmark(
         &mut nodes,
     );
 
-    verify_type_2(&merged).expect("merged type-2 failed to verify");
+    verify_multi_message_aggregate(&merged).expect("merged multi-message failed to verify");
 
     BenchmarkReport { nodes }
 }
 
-/// Benchmark `aggregate_type_1` over one split-derived type-1 (index 0 of a
-/// K-component parent type-2) plus `n_new_leaves` fresh raw XMSS signatures
-/// signing the same (message, slot). Output is a single type-1 claiming
+/// Benchmark `aggregate_single_message_signatures` over one split-derived single-message (index 0 of a
+/// K-component parent multi-message) plus `n_new_leaves` fresh raw XMSS signatures
+/// signing the same (message, slot). Output is a single single-message claiming
 /// `per_component + n_new_leaves` signers.
 pub fn run_merge_split_and_leaves_benchmark(
     per_component: usize,
@@ -900,9 +905,9 @@ pub fn run_merge_split_and_leaves_benchmark(
     }
 
     let mut nodes: Vec<NodeReport> = Vec::new();
-    let type2 = build_parent_type_2(per_component, n_components, log_inv_rate, &mut nodes, silent);
+    let multi_message = build_parent_multi_message(per_component, n_components, log_inv_rate, &mut nodes, silent);
     let split = run_split(
-        type2,
+        multi_message,
         0,
         log_inv_rate,
         per_component,
@@ -922,7 +927,7 @@ pub fn run_merge_split_and_leaves_benchmark(
     let new_raw_xmss = cache[parent_end..parent_end + n_new_leaves].to_vec();
     let n_total = per_component + n_new_leaves;
 
-    let combined = run_aggregate_type_1(
+    let combined = run_aggregate_single_message(
         std::slice::from_ref(&split),
         new_raw_xmss,
         log_inv_rate,
@@ -933,7 +938,7 @@ pub fn run_merge_split_and_leaves_benchmark(
         &mut nodes,
     );
 
-    verify_type_1(&combined).expect("combined type-1 failed to verify");
+    verify_single_message_aggregate(&combined).expect("combined single-message failed to verify");
 
     BenchmarkReport { nodes }
 }
