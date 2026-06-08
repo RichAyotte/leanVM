@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use backend::*;
 use tracing::instrument;
 
@@ -41,8 +39,8 @@ pub fn prove_gkr_quotient<'a, EF: ExtensionField<PF<EF>>>(
     assert_eq!(nums_br.len(), dens_br.len());
 
     let initial = LayerStorage::Initial {
-        nums: Cow::Borrowed(nums_br),
-        dens: Cow::Borrowed(dens_br),
+        nums: ArenaCow::Borrowed(nums_br),
+        dens: ArenaCow::Borrowed(dens_br),
         chunk_log: pivot,
     };
 
@@ -207,7 +205,7 @@ mod tests {
     type EF = QuinticExtensionFieldKB;
 
     fn sum_all_quotients(nums: &[F], den: &[EF]) -> EF {
-        nums.par_iter().zip(den).map(|(&n, &d)| EF::from(n) / d).sum()
+        nums.iter().zip(den).map(|(&n, &d)| EF::from(n) / d).sum()
     }
 
     fn bit_reverse_chunks_and_pack_ext<EF: ExtensionField<PF<EF>>>(v: &[EF], chunk_log: usize) -> Vec<EFPacking<EF>> {

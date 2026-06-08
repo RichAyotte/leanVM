@@ -1,3 +1,4 @@
+use std::sync::{Mutex, MutexGuard};
 use std::time::Instant;
 
 use lean_multisig::{
@@ -10,6 +11,12 @@ use rand::{RngExt, SeedableRng, rngs::StdRng};
 use rec_aggregation::benchmark::{AggregationTopology, run_aggregation_benchmark};
 use rec_aggregation::signatures_cache::{BENCHMARK_SLOT, get_benchmark_signatures, message_for_benchmark};
 use rec_aggregation::split_multi_message_aggregate_by_message;
+
+static ARENA_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+fn serialize_arena_tests() -> MutexGuard<'static, ()> {
+    ARENA_TEST_LOCK.lock().unwrap()
+}
 
 #[test]
 fn test_xmss_signature() {
@@ -26,6 +33,7 @@ fn test_xmss_signature() {
 
 #[test]
 fn test_aggregation() {
+    let _arena_guard = serialize_arena_tests();
     for n_signatures in [1, 2, 4, 8, 16, 32, 64, 128] {
         let topology = AggregationTopology {
             raw_xmss: n_signatures,
@@ -39,6 +47,7 @@ fn test_aggregation() {
 
 #[test]
 fn test_single_message_aggregation() {
+    let _arena_guard = serialize_arena_tests();
     setup_prover();
 
     let log_inv_rate = 2; // [1, 2, 3 or 4] (lower = faster but bigger proofs)
@@ -71,6 +80,7 @@ fn test_single_message_aggregation() {
 
 #[test]
 fn test_multi_message_aggregation() {
+    let _arena_guard = serialize_arena_tests();
     setup_prover();
 
     let log_inv_rate = 2; // [1, 2, 3 or 4] (lower = faster but bigger proofs)

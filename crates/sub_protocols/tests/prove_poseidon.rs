@@ -60,7 +60,7 @@ fn prove_air_poseidon_16(log_n_rows: usize) {
     for (i, col) in trace.iter().enumerate() {
         commitmed_pol[i << log_n_rows..(i + 1) << log_n_rows].copy_from_slice(col);
     }
-    let committed_pol = MleOwned::Base(commitmed_pol);
+    let committed_pol = MleOwned::Base(ArenaVec::from_slice(&commitmed_pol));
     let witness = whir_config.commit(&mut prover_state, &committed_pol, n_cols << log_n_rows);
 
     let alpha = prover_state.sample();

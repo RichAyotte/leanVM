@@ -7,9 +7,9 @@ edition.workspace = true
 field = { path = "../field", package = "mt-field" }
 utils = { path = "../utils", package = "mt-utils" }
 system-info.workspace = true
-
+parallel.workspace = true
+zk-alloc.workspace = true
 itertools.workspace = true
-rayon.workspace = true
 rand.workspace = true
 serde.workspace = true
 

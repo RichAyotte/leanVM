@@ -347,8 +347,9 @@ dependencies = [
  "mt-symetric",
  "mt-utils",
  "mt-whir",
- "rayon",
+ "parallel",
  "tracing",
+ "zk-alloc",
 ]
 
 [[package]]
@@ -1259,6 +1260,7 @@ dependencies = [
  "clap",
  "lean_vm",
  "leansig_wrapper",
+ "libc",
  "rand 0.10.0",
  "rec_aggregation",
  "serde",
@@ -1449,7 +1451,7 @@ dependencies = [
  "mt-koala-bear",
  "mt-symetric",
  "mt-utils",
- "rayon",
+ "parallel",
  "serde",
  "tracing",
 ]
@@ -1461,9 +1463,9 @@ dependencies = [
  "itertools 0.14.0",
  "mt-utils",
  "num-bigint",
+ "parallel",
  "paste",
  "rand 0.10.0",
- "rayon",
  "serde",
  "tracing",
 ]
@@ -1478,7 +1480,6 @@ dependencies = [
  "num-bigint",
  "paste",
  "rand 0.10.0",
- "rayon",
  "serde",
  "tracing",
 ]
@@ -1491,10 +1492,11 @@ dependencies = [
  "mt-field",
  "mt-koala-bear",
  "mt-utils",
+ "parallel",
  "rand 0.10.0",
- "rayon",
  "serde",
  "system-info",
+ "zk-alloc",
 ]
 
 [[package]]
@@ -1506,8 +1508,9 @@ dependencies = [
  "mt-field",
  "mt-koala-bear",
  "mt-poly",
- "rayon",
+ "parallel",
  "tracing",
+ "zk-alloc",
 ]
 
 [[package]]
@@ -1516,7 +1519,8 @@ version = "0.1.0"
 dependencies = [
  "mt-field",
  "mt-koala-bear",
- "rayon",
+ "parallel",
+ "zk-alloc",
 ]
 
 [[package]]
@@ -1538,12 +1542,13 @@ dependencies = [
  "mt-sumcheck",
  "mt-symetric",
  "mt-utils",
+ "parallel",
  "rand 0.10.0",
- "rayon",
  "system-info",
  "tracing",
  "tracing-forest",
  "tracing-subscriber",
+ "zk-alloc",
 ]
 
 [[package]]
@@ -1787,6 +1792,13 @@ source = "git+https://github.com/Plonky3/Plonky3.git#3f67d136c71bec40f180c85d0bb
 dependencies = [
  "serde",
  "transpose",
+]
+
+[[package]]
+name = "parallel"
+version = "0.1.0"
+dependencies = [
+ "system-info",
 ]
 
 [[package]]
@@ -2544,7 +2556,6 @@ name = "system-info"
 version = "0.1.0"
 dependencies = [
  "libc",
- "rayon",
 ]
 
 [[package]]
@@ -3047,7 +3058,7 @@ name = "zk-alloc"
 version = "0.1.0"
 dependencies = [
  "libc",
- "rayon",
+ "parallel",
  "system-info",
 ]
 

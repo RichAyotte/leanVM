@@ -4,7 +4,7 @@
 use std::array;
 
 use field::PackedValue;
-use rayon::prelude::*;
+use zk_alloc::ArenaVec;
 
 use crate::Compression;
 
@@ -13,12 +13,12 @@ pub const DIGEST_ELEMS: usize = 8;
 /// A Merkle tree storing only the digest layers (no leaf data).
 #[derive(Debug, Clone)]
 pub struct MerkleTree<F, const DIGEST_ELEMS: usize> {
-    pub digest_layers: Vec<Vec<[F; DIGEST_ELEMS]>>,
+    pub digest_layers: Vec<ArenaVec<[F; DIGEST_ELEMS]>>,
 }
 
 impl<F: Clone + Copy + Default + Send + Sync, const DIGEST_ELEMS: usize> MerkleTree<F, DIGEST_ELEMS> {
     /// Build a Merkle tree from a pre-computed first digest layer.
-    pub fn from_first_layer<P, Comp, const WIDTH: usize>(comp: &Comp, first_layer: Vec<[F; DIGEST_ELEMS]>) -> Self
+    pub fn from_first_layer<P, Comp, const WIDTH: usize>(comp: &Comp, first_layer: ArenaVec<[F; DIGEST_ELEMS]>) -> Self
     where
         P: PackedValue<Value = F> + Default,
         Comp: Compression<[F; WIDTH]> + Compression<[P; WIDTH]>,
@@ -50,7 +50,7 @@ impl<F: Clone + Copy + Default + Send + Sync, const DIGEST_ELEMS: usize> MerkleT
 pub fn compress_layer<P, Comp, const DIGEST_ELEMS: usize, const WIDTH: usize>(
     prev_layer: &[[P::Value; DIGEST_ELEMS]],
     comp: &Comp,
-) -> Vec<[P::Value; DIGEST_ELEMS]>
+) -> ArenaVec<[P::Value; DIGEST_ELEMS]>
 where
     P: PackedValue + Default,
     P::Value: Default + Copy,
@@ -65,20 +65,20 @@ where
     let next_len = prev_layer.len() / 2;
 
     let default_digest = [P::Value::default(); DIGEST_ELEMS];
-    let mut next_digests = vec![default_digest; next_len_padded];
+    let mut next_digests = ArenaVec::filled(default_digest, next_len_padded);
 
-    next_digests[0..next_len]
-        .par_chunks_exact_mut(width)
-        .enumerate()
-        .for_each(|(i, digests_chunk)| {
-            let first_row = i * width;
-            let left = array::from_fn(|j| P::from_fn(|k| prev_layer[2 * (first_row + k)][j]));
-            let right = array::from_fn(|j| P::from_fn(|k| prev_layer[2 * (first_row + k) + 1][j]));
-            let packed_digest = crate::compress(comp, [left, right]);
-            for (dst, src) in digests_chunk.iter_mut().zip(unpack_array(packed_digest)) {
-                *dst = src;
-            }
-        });
+    // Process only the full packed chunks in parallel (matches `par_chunks_exact_mut`);
+    // the `< width` remainder is handled by the sequential tail loop below.
+    let n_full = next_len / width * width;
+    parallel::par_chunks_mut(&mut next_digests[0..n_full], width, |i, digests_chunk| {
+        let first_row = i * width;
+        let left = array::from_fn(|j| P::from_fn(|k| prev_layer[2 * (first_row + k)][j]));
+        let right = array::from_fn(|j| P::from_fn(|k| prev_layer[2 * (first_row + k) + 1][j]));
+        let packed_digest = crate::compress(comp, [left, right]);
+        for (dst, src) in digests_chunk.iter_mut().zip(unpack_array(packed_digest)) {
+            *dst = src;
+        }
+    });
 
     for i in (next_len / width * width)..next_len {
         let left = prev_layer[2 * i];

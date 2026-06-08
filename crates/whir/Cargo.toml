@@ -8,13 +8,14 @@ field = { path = "../backend/field", package = "mt-field" }
 koala-bear = { path = "../backend/koala-bear", package = "mt-koala-bear" }
 poly = { path = "../backend/poly", package = "mt-poly" }
 sumcheck = { path = "../backend/sumcheck", package = "mt-sumcheck" }
+zk-alloc.workspace = true
 fiat-shamir = { path = "../backend/fiat-shamir", package = "mt-fiat-shamir" }
 utils = { path = "../backend/utils", package = "mt-utils" }
 symetric = { path = "../backend/symetric", package = "mt-symetric" }
 system-info.workspace = true
 
 itertools.workspace = true
-rayon.workspace = true
+parallel.workspace = true
 rand.workspace = true
 tracing.workspace = true
 

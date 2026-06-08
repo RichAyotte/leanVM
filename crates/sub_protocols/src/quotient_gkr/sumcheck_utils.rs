@@ -1,13 +1,10 @@
-use std::{
-    borrow::Cow,
-    ops::{Add, AddAssign, Mul},
-};
+use std::ops::{Add, AddAssign, Mul};
 
 use backend::*;
 
 use crate::quotient_gkr::layers::unpack_and_unreverse_active;
 
-pub(super) fn even_odd_split<T: Copy>(v: &[T]) -> (Vec<T>, Vec<T>) {
+pub(super) fn even_odd_split<T: Copy>(v: &[T]) -> (ArenaVec<T>, ArenaVec<T>) {
     (
         v.iter().step_by(2).copied().collect(),
         v.iter().skip(1).step_by(2).copied().collect(),
@@ -131,12 +128,12 @@ pub(super) fn quotient_sumcheck_prove_packed_br_base<EF: ExtensionField<PF<EF>>>
     let mut sum = expected_sum;
 
     let outer_point = remaining_eq[..head_len].to_vec();
-    let eq_outer = eval_eq(&outer_point);
+    let eq_outer: ArenaVec<EF> = eval_eq(&outer_point);
 
     let padding_sum = alpha * mle_of_zeros_then_ones(active_chunks, &outer_point);
 
     let eq_alpha_0 = *remaining_eq.last().unwrap();
-    let eq_within_0 = eval_eq_packed(&within_pt(&remaining_eq, head_len));
+    let eq_within_0: ArenaVec<_> = eval_eq_packed(&within_pt(&remaining_eq, head_len));
     let coeffs_0 = compute_round_packed::<EF, _>(packed_nums, packed_dens, parent_chunk_log, &eq_outer, &eq_within_0);
     let r0 = finalize_round(
         prover_state,
@@ -151,7 +148,7 @@ pub(super) fn quotient_sumcheck_prove_packed_br_base<EF: ExtensionField<PF<EF>>>
     remaining_eq.pop();
 
     let eq_alpha_1 = *remaining_eq.last().unwrap();
-    let eq_within_1 = eval_eq_packed(&within_pt(&remaining_eq, head_len));
+    let eq_within_1: ArenaVec<_> = eval_eq_packed(&within_pt(&remaining_eq, head_len));
     let (nums_ext, dens_ext, coeffs_1) =
         fold_and_compute_round_packed::<EF, _>(packed_nums, packed_dens, parent_chunk_log, r0, &eq_outer, &eq_within_1);
     let r1 = finalize_round(
@@ -168,8 +165,8 @@ pub(super) fn quotient_sumcheck_prove_packed_br_base<EF: ExtensionField<PF<EF>>>
 
     run_phase1_sumcheck(
         prover_state,
-        Cow::Owned(nums_ext),
-        Cow::Owned(dens_ext),
+        ArenaCow::Owned(nums_ext),
+        ArenaCow::Owned(dens_ext),
         parent_chunk_log - 2,
         remaining_eq,
         q_natural,
@@ -185,15 +182,15 @@ pub(super) fn quotient_sumcheck_prove_packed_br_base<EF: ExtensionField<PF<EF>>>
 #[allow(clippy::too_many_arguments)]
 pub(super) fn run_phase1_sumcheck<'a, EF: ExtensionField<PF<EF>>>(
     prover_state: &mut impl FSProver<EF>,
-    mut nums: Cow<'a, [EFPacking<EF>]>,
-    mut dens: Cow<'a, [EFPacking<EF>]>,
+    mut nums: ArenaCow<'a, EFPacking<EF>>,
+    mut dens: ArenaCow<'a, EFPacking<EF>>,
     mut layer_chunk_log: usize,
     mut remaining_eq: Vec<EF>,
     mut q_natural: Vec<EF>,
     alpha: EF,
     mut sum: EF,
     mut mmf: EF,
-    precomputed_eq_outer: Option<Vec<EF>>,
+    precomputed_eq_outer: Option<ArenaVec<EF>>,
     initial_pending_r: Option<EF>,
 ) -> (Vec<EF>, [EF; 4]) {
     let w = packing_log_width::<EF>();
@@ -218,7 +215,7 @@ pub(super) fn run_phase1_sumcheck<'a, EF: ExtensionField<PF<EF>>>(
 
     let head_len = (remaining_eq.len() + 1).saturating_sub(layer_chunk_log);
     let outer_point: Vec<EF> = remaining_eq[..head_len].to_vec();
-    let eq_outer: Vec<EF> = precomputed_eq_outer.unwrap_or_else(|| eval_eq(&outer_point));
+    let eq_outer: ArenaVec<EF> = precomputed_eq_outer.unwrap_or_else(|| eval_eq(&outer_point));
 
     let active_chunks = (nums.len() << w) >> (layer_chunk_log + usize::from(initial_pending_r.is_some()));
 
@@ -227,7 +224,7 @@ pub(super) fn run_phase1_sumcheck<'a, EF: ExtensionField<PF<EF>>>(
     let mut pending_r: Option<EF> = initial_pending_r;
     while layer_chunk_log > w + 1 && remaining_eq.len() > w + 1 {
         let eq_alpha = *remaining_eq.last().unwrap();
-        let eq_within = eval_eq_packed(&within_pt(&remaining_eq, head_len));
+        let eq_within: ArenaVec<_> = eval_eq_packed(&within_pt(&remaining_eq, head_len));
 
         let coeffs = if let Some(prev_r) = pending_r.take() {
             let (new_nums, new_dens, c) = fold_and_compute_round_packed::<EF, _>(
@@ -238,8 +235,8 @@ pub(super) fn run_phase1_sumcheck<'a, EF: ExtensionField<PF<EF>>>(
                 &eq_outer,
                 &eq_within,
             );
-            nums = Cow::Owned(new_nums);
-            dens = Cow::Owned(new_dens);
+            nums = ArenaCow::Owned(new_nums);
+            dens = ArenaCow::Owned(new_dens);
             c
         } else {
             compute_round_packed::<EF, _>(nums.as_ref(), dens.as_ref(), layer_chunk_log, &eq_outer, &eq_within)
@@ -255,8 +252,8 @@ pub(super) fn run_phase1_sumcheck<'a, EF: ExtensionField<PF<EF>>>(
     if let Some(prev_r) = pending_r {
         let prev_bit = layer_chunk_log - 1 - w;
         let mul = |x: EFPacking<EF>, a: EF| x * a;
-        nums = Cow::Owned(fold_multilinear_at_bit(nums.as_ref(), prev_r, prev_bit, &mul));
-        dens = Cow::Owned(fold_multilinear_at_bit(dens.as_ref(), prev_r, prev_bit, &mul));
+        nums = ArenaCow::Owned(fold_multilinear_at_bit(nums.as_ref(), prev_r, prev_bit, &mul, false));
+        dens = ArenaCow::Owned(fold_multilinear_at_bit(dens.as_ref(), prev_r, prev_bit, &mul, false));
     }
 
     let nums_nat = unpack_and_unreverse_active::<EF>(nums.as_ref(), layer_chunk_log);
@@ -281,10 +278,10 @@ pub(super) fn run_phase1_sumcheck<'a, EF: ExtensionField<PF<EF>>>(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn run_phase2_sumcheck<EF: ExtensionField<PF<EF>>>(
     prover_state: &mut impl FSProver<EF>,
-    mut num_l: Vec<EF>,
-    mut num_r: Vec<EF>,
-    mut den_l: Vec<EF>,
-    mut den_r: Vec<EF>,
+    mut num_l: ArenaVec<EF>,
+    mut num_r: ArenaVec<EF>,
+    mut den_l: ArenaVec<EF>,
+    mut den_r: ArenaVec<EF>,
     mut remaining_eq: Vec<EF>,
     mut q_natural: Vec<EF>,
     alpha: EF,
@@ -292,7 +289,7 @@ pub(super) fn run_phase2_sumcheck<EF: ExtensionField<PF<EF>>>(
     mut mmf: EF,
 ) -> (Vec<EF>, [EF; 4]) {
     let eq_prefix_init = &remaining_eq[..remaining_eq.len().saturating_sub(1)];
-    let mut eq_table = eval_eq(eq_prefix_init);
+    let mut eq_table: ArenaVec<EF> = eval_eq(eq_prefix_init);
 
     for _round in 0..remaining_eq.len() {
         let eq_alpha = *remaining_eq.last().unwrap();
@@ -328,10 +325,7 @@ pub(super) fn run_phase2_sumcheck<EF: ExtensionField<PF<EF>>>(
         };
 
         let acc: RoundCoeffs<EF> = if active_pairs > PARALLEL_THRESHOLD {
-            (0..active_pairs)
-                .into_par_iter()
-                .map(term)
-                .reduce(RoundCoeffs::zero, Add::add)
+            parallel::map_reduce(active_pairs, RoundCoeffs::zero, term, Add::add)
         } else {
             (0..active_pairs).map(term).fold(RoundCoeffs::<EF>::zero(), Add::add)
         };
@@ -362,7 +356,7 @@ pub(super) fn run_phase2_sumcheck<EF: ExtensionField<PF<EF>>>(
         if new_eq_len > 0 {
             let fold_eq = |i: usize| eq_table[2 * i] + eq_table[2 * i + 1];
             eq_table = if new_eq_len >= PARALLEL_THRESHOLD {
-                (0..new_eq_len).into_par_iter().map(fold_eq).collect()
+                ArenaVec::par_collect(new_eq_len, fold_eq)
             } else {
                 (0..new_eq_len).map(fold_eq).collect()
             };
@@ -377,25 +371,22 @@ pub(super) fn run_phase2_sumcheck<EF: ExtensionField<PF<EF>>>(
     (q_natural, evals)
 }
 
-fn fold_normal_with_padding<EF: ExtensionField<PF<EF>>>(m: &[EF], r: EF, pad_value: EF) -> Vec<EF> {
+fn fold_normal_with_padding<EF: ExtensionField<PF<EF>>>(m: &[EF], r: EF, pad_value: EF) -> ArenaVec<EF> {
     let active = m.len();
     let new_active = active.div_ceil(2);
     assert!(new_active != 0);
-    let mut out = unsafe { uninitialized_vec(new_active) };
+    let mut out: ArenaVec<EF> = unsafe { ArenaVec::uninitialized(new_active) };
 
-    let compute = |(i, slot): (usize, &mut EF)| {
+    let compute = |i: usize, slot: &mut EF| {
         let a = m[2 * i];
         let b = if 2 * i + 1 < active { m[2 * i + 1] } else { pad_value };
         *slot = a + (b - a) * r;
     };
 
     if new_active < PARALLEL_THRESHOLD {
-        out.iter_mut().enumerate().for_each(compute);
+        out.iter_mut().enumerate().for_each(|(i, slot)| compute(i, slot));
     } else {
-        out.par_iter_mut()
-            .with_min_len(PARALLEL_THRESHOLD)
-            .enumerate()
-            .for_each(compute);
+        parallel::par_for_each_mut(&mut out, compute);
     }
     out
 }
@@ -420,10 +411,13 @@ where
     debug_assert_eq!(dens.len(), nums.len());
     debug_assert_eq!(eq_within.len(), quarter);
 
-    nums.par_chunks_exact(layer_packed)
-        .zip(dens.par_chunks_exact(layer_packed))
-        .enumerate()
-        .fold(RoundCoeffs::zero, |mut acc, (c, (n_c, d_c))| {
+    let n_chunks = nums.len() / layer_packed;
+    parallel::map_reduce(
+        n_chunks,
+        RoundCoeffs::zero,
+        |c| {
+            let n_c = &nums[c * layer_packed..][..layer_packed];
+            let d_c = &dens[c * layer_packed..][..layer_packed];
             let eq_o: EF = eq_outer.get(c).copied().unwrap_or(EF::ONE);
             let mut local = RoundCoeffs::<EFPacking<EF>>::zero();
             for inner in 0..quarter {
@@ -435,10 +429,10 @@ where
                 );
                 local += coeffs * eq_within[inner];
             }
-            acc += local * eq_o;
-            acc
-        })
-        .reduce(RoundCoeffs::zero, Add::add)
+            local * eq_o
+        },
+        Add::add,
+    )
 }
 
 #[allow(clippy::type_complexity)]
@@ -449,7 +443,11 @@ fn fold_and_compute_round_packed<EF: ExtensionField<PF<EF>>, N>(
     prev_r: EF,
     eq_outer: &[EF],
     eq_within: &[EFPacking<EF>],
-) -> (Vec<EFPacking<EF>>, Vec<EFPacking<EF>>, RoundCoeffs<EFPacking<EF>>)
+) -> (
+    ArenaVec<EFPacking<EF>>,
+    ArenaVec<EFPacking<EF>>,
+    RoundCoeffs<EFPacking<EF>>,
+)
 where
     N: PrimeCharacteristicRing + Copy + Send + Sync,
     EFPacking<EF>: Algebra<N>,
@@ -468,17 +466,21 @@ where
     debug_assert_eq!(eq_within.len(), in_eighth);
 
     let active_out_packed = nums.len() / 2;
-    let mut new_nums: Vec<EFPacking<EF>> = unsafe { uninitialized_vec(active_out_packed) };
-    let mut new_dens: Vec<EFPacking<EF>> = unsafe { uninitialized_vec(active_out_packed) };
+    let mut new_nums: ArenaVec<EFPacking<EF>> = unsafe { ArenaVec::uninitialized(active_out_packed) };
+    let mut new_dens: ArenaVec<EFPacking<EF>> = unsafe { ArenaVec::uninitialized(active_out_packed) };
     let prev_r_packed: EFPacking<EF> = <EFPacking<EF> as From<EF>>::from(prev_r);
 
-    let coeffs = nums
-        .par_chunks_exact(in_packed)
-        .zip(dens.par_chunks_exact(in_packed))
-        .zip(new_nums.par_chunks_exact_mut(out_packed))
-        .zip(new_dens.par_chunks_exact_mut(out_packed))
-        .enumerate()
-        .fold(RoundCoeffs::zero, |mut acc, (c, (((n_c, d_c), nn_c), nd_c))| {
+    let n_chunks = nums.len() / in_packed;
+    let nn = parallel::SendPtr(new_nums.as_mut_ptr());
+    let nd = parallel::SendPtr(new_dens.as_mut_ptr());
+    let coeffs = parallel::map_reduce(
+        n_chunks,
+        RoundCoeffs::zero,
+        |c| {
+            let n_c = &nums[c * in_packed..][..in_packed];
+            let d_c = &dens[c * in_packed..][..in_packed];
+            let nn_c = unsafe { nn.slice(c * out_packed, out_packed) };
+            let nd_c = unsafe { nd.slice(c * out_packed, out_packed) };
             let eq_o: EF = eq_outer.get(c).copied().unwrap_or(EF::ONE);
             let mut local = RoundCoeffs::<EFPacking<EF>>::zero();
             for i in 0..in_eighth {
@@ -499,10 +501,10 @@ where
                 );
                 local += round * eq_within[i];
             }
-            acc += local * eq_o;
-            acc
-        })
-        .reduce(RoundCoeffs::zero, Add::add);
+            local * eq_o
+        },
+        Add::add,
+    );
 
     (new_nums, new_dens, coeffs)
 }

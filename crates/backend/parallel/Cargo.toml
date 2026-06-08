@@ -1,13 +1,11 @@
 [package]
-name = "zk-alloc"
+name = "parallel"
 version.workspace = true
 edition.workspace = true
-description = "Bump+reset arena allocator for ZK proving workloads"
+description = "Minimal fixed-size thread pool for static data-parallel kernels"
 
 [dependencies]
 system-info.workspace = true
-parallel.workspace = true
-libc = "0.2"
 
 [lints]
 workspace = true
