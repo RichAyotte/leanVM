@@ -9,7 +9,6 @@ workspace = true
 [features]
 prox-gaps-conjecture = ["lean_prover/prox-gaps-conjecture"]
 test-config = ["leansig_wrapper/test-config"]
-standard-alloc = []
 
 [dependencies]
 utils.workspace = true

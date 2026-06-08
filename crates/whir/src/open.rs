@@ -5,9 +5,9 @@ use fiat_shamir::{FSProver, MerklePath, ProofResult};
 use field::PrimeCharacteristicRing;
 use field::{ExtensionField, Field, TwoAdicField};
 use poly::*;
-use rayon::prelude::*;
 use sumcheck::{ProductComputation, run_product_sumcheck, sumcheck_prove_many_rounds};
 use tracing::{info_span, instrument};
+use zk_alloc::ArenaVec;
 
 use crate::{config::WhirConfig, *};
 
@@ -188,7 +188,7 @@ where
         // Convert evaluations to coefficient form and send to the verifier.
         let mut coeffs = match &round_state.sumcheck_prover.evals {
             MleOwned::Extension(evals) => evals.clone(),
-            MleOwned::ExtensionPacked(evals) => unpack_extension::<EF>(evals),
+            MleOwned::ExtensionPacked(evals) => unpack_extension::<EF, ArenaVec<EF>>(evals),
             _ => unreachable!(),
         };
         evals_to_coeffs(&mut coeffs);
@@ -212,14 +212,14 @@ where
             match answer {
                 MleOwned::Base(leaf) => {
                     base_paths.push(MerklePath {
-                        leaf_data: leaf,
+                        leaf_data: leaf.to_vec(),
                         sibling_hashes,
                         leaf_index: challenge,
                     });
                 }
                 MleOwned::Extension(leaf) => {
                     ext_paths.push(MerklePath {
-                        leaf_data: leaf,
+                        leaf_data: leaf.to_vec(),
                         sibling_hashes,
                         leaf_index: challenge,
                     });
@@ -292,14 +292,14 @@ fn open_merkle_tree_at_challenges<EF: ExtensionField<PF<EF>>>(
         match &answer {
             MleOwned::Base(leaf) => {
                 base_paths.push(MerklePath {
-                    leaf_data: leaf.clone(),
+                    leaf_data: leaf.to_vec(),
                     sibling_hashes,
                     leaf_index: challenge,
                 });
             }
             MleOwned::Extension(leaf) => {
                 ext_paths.push(MerklePath {
-                    leaf_data: leaf.clone(),
+                    leaf_data: leaf.to_vec(),
                     sibling_hashes,
                     leaf_index: challenge,
                 });
@@ -422,7 +422,7 @@ where
         let (weights, sum) = combine_statement::<EF>(statement, combination_randomness);
 
         let mut evals = evals.pack();
-        let mut weights = Mle::Owned(MleOwned::ExtensionPacked(weights));
+        let mut weights = Mle::Owned(MleOwned::ExtensionPacked(ArenaVec::from_slice(&weights)));
         let (challengess, new_sum, new_evals, new_weights) = run_product_sumcheck(
             &evals.by_ref(),
             &weights.by_ref(),
@@ -594,17 +594,12 @@ where
             for (e, &scalar) in smt.values.iter().zip(&next_gamma_powers) {
                 combined_sum += e.value * scalar;
             }
-            chunks_mut
-                .into_par_iter()
-                .zip(&indexed_smt_values)
-                .for_each(|(out_buff, &(origin_index, _))| {
-                    out_buff[..1 << shift]
-                        .par_iter_mut()
-                        .zip(&inner_poly)
-                        .for_each(|(out_elem, &poly_elem)| {
-                            *out_elem += poly_elem * next_gamma_powers[origin_index];
-                        });
-                });
+            parallel::par_for_each_mut(&mut chunks_mut, |i, out_buff| {
+                let (origin_index, _) = indexed_smt_values[i];
+                for (out_elem, &poly_elem) in out_buff[..1 << shift].iter_mut().zip(&inner_poly[..]) {
+                    *out_elem += poly_elem * next_gamma_powers[origin_index];
+                }
+            });
             gamma_pow = *next_gamma_powers.last().unwrap() * gamma;
         }
     }

@@ -9,7 +9,8 @@ air = { path = "../air", package = "mt-air" }
 poly = { path = "../poly", package = "mt-poly" }
 fiat-shamir = { path = "../fiat-shamir", package = "mt-fiat-shamir" }
 tracing.workspace = true
-rayon.workspace = true
+parallel.workspace = true
+zk-alloc.workspace = true
 
 [dev-dependencies]
 koala-bear = { path = "../koala-bear", package = "mt-koala-bear" }

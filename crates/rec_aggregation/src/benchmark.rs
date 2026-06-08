@@ -420,9 +420,6 @@ fn build_aggregation(
     let mut last_result: Option<AggregatedXMSS> = None;
     let own_display_index = display_index + count_nodes(topology) - 1;
     for _ in 0..repeat {
-        #[cfg(not(feature = "standard-alloc"))]
-        zk_alloc::begin_phase();
-
         let time = Instant::now();
         let result = aggregate(
             &children,
@@ -433,13 +430,6 @@ fn build_aggregation(
         )
         .unwrap();
         let elapsed = time.elapsed();
-
-        // Clone the outputs out of the arena before the next phase resets its slabs.
-        #[cfg(not(feature = "standard-alloc"))]
-        let result = {
-            zk_alloc::end_phase();
-            result.clone()
-        };
 
         times.push(elapsed.as_secs_f64());
         last_result = Some(result);
@@ -586,7 +576,6 @@ fn run_xmss_aggregate(
 ) -> AggregatedXMSS {
     let time = Instant::now();
 
-    #[cfg(not(feature = "standard-alloc"))]
     zk_alloc::begin_phase();
 
     let result = aggregate(
@@ -598,7 +587,6 @@ fn run_xmss_aggregate(
     )
     .unwrap();
 
-    #[cfg(not(feature = "standard-alloc"))]
     let result = {
         zk_alloc::end_phase();
         result.clone()

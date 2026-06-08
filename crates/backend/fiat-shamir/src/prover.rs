@@ -9,8 +9,7 @@ use field::PrimeCharacteristicRing;
 use field::integers::QuotientMap;
 use field::{ExtensionField, PrimeField64};
 use koala_bear::symmetric::Permutation;
-use rayon::prelude::*;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 use std::{fmt::Debug, sync::Mutex, time::Instant};
 
@@ -132,9 +131,16 @@ where
         let witness_found = Mutex::<Option<PF<EF>>>::new(None);
         // each batch tests lanes witnesses simultaneously
         let num_batches = PF::<EF>::ORDER_U64.div_ceil(lanes as u64);
-        (0..num_batches)
-            .into_par_iter()
-            .find_any(|&batch| {
+        // Work-stealing parallel search: each worker pulls batches from a shared counter and
+        // stops once any worker has found a witness (`found`).
+        let next_batch = AtomicU64::new(0);
+        let found = AtomicBool::new(false);
+        parallel::for_each_index(parallel::num_threads(), |_| {
+            while !found.load(Ordering::Relaxed) {
+                let batch = next_batch.fetch_add(1, Ordering::Relaxed);
+                if batch >= num_batches {
+                    break;
+                }
                 let base = batch * lanes as u64;
 
                 let packed_witnesses = Packed::<EF>::from_fn(|lane| {
@@ -159,14 +165,14 @@ where
                     let rand_usize = sample.as_canonical_u64() as usize;
                     if (rand_usize & ((1 << bits) - 1)) == 0 {
                         *witness_found.lock().unwrap() = Some(*witness);
-                        return true;
+                        found.store(true, Ordering::Relaxed);
+                        break;
                     }
                 }
-                false
-            })
-            .expect("failed to find witness");
+            }
+        });
 
-        let witness = witness_found.lock().unwrap().unwrap();
+        let witness = witness_found.lock().unwrap().expect("failed to find witness");
 
         self.challenger.observe_many(&[witness]);
         assert!(self.challenger.state[CAPACITY].as_canonical_u64() & ((1 << bits) - 1) == 0);

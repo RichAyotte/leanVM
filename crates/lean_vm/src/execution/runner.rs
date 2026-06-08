@@ -96,7 +96,7 @@ impl Trace {
         for (table, other_t) in other.tables {
             let mine = self.tables.get_mut(&table).unwrap();
             for (col, new_data) in mine.columns.iter_mut().zip(other_t.columns) {
-                col.extend(new_data);
+                col.extend_from_slice(&new_data);
             }
         }
     }
@@ -333,7 +333,12 @@ fn execute_bytecode_helper(
         None
     };
     let runtime_memory_size = memory.0.len() - PUBLIC_INPUT_LEN - witness.preamble_memory_len;
-    let used_memory_cells = memory.0.par_iter().filter(|&&x| x.is_some()).count();
+    let used_memory_cells = parallel::map_reduce(
+        memory.0.len(),
+        || 0usize,
+        |i| usize::from(memory.0[i].is_some()),
+        |a, b| a + b,
+    );
     let metadata = ExecutionMetadata {
         cycles: trace.pcs.len(),
         memory: memory.0.len(),
@@ -349,8 +354,8 @@ fn execute_bytecode_helper(
     Ok(ExecutionResult {
         runtime_memory_size: no_vec_runtime_memory,
         memory,
-        pcs: trace.pcs,
-        fps: trace.fps,
+        pcs: ArenaVec::from_slice(&trace.pcs),
+        fps: ArenaVec::from_slice(&trace.fps),
         traces: trace.tables,
         metadata,
     })
@@ -432,15 +437,16 @@ fn handle_parallel_batch(
     let split_at = batch.batch_fp + stride; // end of iteration 0's frame
     let (left, right) = memory.0.split_at_mut(split_at);
     let shared: &[Option<F>] = &*left;
-    let segment_slices: Vec<&mut [Option<F>]> = right.chunks_mut(stride).take(n_par).collect();
+    let mut segment_slices: Vec<&mut [Option<F>]> = right.chunks_mut(stride).take(n_par).collect();
 
     type SegResult = Result<(Trace, Vec<(usize, F)>), RunnerError>;
-    let results: Vec<SegResult> = segment_slices
-        .into_par_iter()
-        .enumerate()
-        .map(|(i, seg_slice)| {
+    let mut results: Vec<SegResult> = (0..segment_slices.len())
+        .map(|_| Ok((Trace::new(), Vec::new())))
+        .collect();
+    parallel::par_for_each_mut2(&mut segment_slices, &mut results, |i, seg_slice, result| {
+        *result = (|| -> SegResult {
             let seg_start = split_at + i * stride;
-            let mut seg_mem = SegmentMemory::new(shared, seg_slice, seg_start);
+            let mut seg_mem = SegmentMemory::new(shared, &mut **seg_slice, seg_start);
             let fp_i = batch.batch_fp + (i + 1) * stride;
             let mut seg_trace = Trace::new();
             let mut seg_pc = batch.batch_pc;
@@ -452,8 +458,10 @@ fn handle_parallel_batch(
                     cursor.index += i * delta;
                 }
             }
-            let seg_start_indices: HashMap<_, _> =
-                seg_named_hints.iter().map(|(name, c)| (name.clone(), c.index)).collect();
+            let seg_start_indices: HashMap<_, _> = seg_named_hints
+                .iter()
+                .map(|(name, c)| (name.clone(), c.index))
+                .collect();
             let mut hints = HintState {
                 diagnostics: None,
                 named_hints: &mut seg_named_hints,
@@ -478,8 +486,8 @@ fn handle_parallel_batch(
             }
             let deferred = seg_mem.into_deferred_writes();
             Ok((seg_trace, deferred))
-        })
-        .collect();
+        })();
+    });
 
     for (idx, result) in results.into_iter().enumerate() {
         let (seg_trace, deferred) = result.map_err(|e| RunnerError::ParallelSegmentFailed(idx + 1, Box::new(e)))?;

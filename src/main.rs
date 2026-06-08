@@ -1,10 +1,6 @@
 use clap::Parser;
 use rec_aggregation::benchmark::{AggregationTopology, biggest_leaf, run_aggregation_benchmark};
 
-#[cfg(not(feature = "standard-alloc"))]
-#[global_allocator]
-static ALLOC: zk_alloc::ZkAllocator = zk_alloc::ZkAllocator;
-
 #[derive(Parser)]
 enum Cli {
     #[command(about = "Aggregate XMSS")]
@@ -67,8 +63,8 @@ fn run_with_warmup(topology: &AggregationTopology, tracing: bool, json: bool, re
 
 #[allow(clippy::too_many_lines)]
 fn main() {
-    #[cfg(not(feature = "standard-alloc"))]
-    zk_alloc::init();
+    zk_alloc::enable_arena();
+    parallel::init();
 
     let cli = Cli::parse();
 

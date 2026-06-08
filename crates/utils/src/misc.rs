@@ -1,5 +1,3 @@
-use std::sync::atomic::{AtomicPtr, Ordering};
-
 use backend::*;
 
 pub fn from_end<A>(slice: &[A], n: usize) -> &[A] {
@@ -7,15 +5,18 @@ pub fn from_end<A>(slice: &[A], n: usize) -> &[A] {
     &slice[slice.len() - n..]
 }
 
-pub fn transposed_par_iter_mut<A: Send + Sync, const N: usize>(
-    array: &mut [Vec<A>; N], // all vectors must have the same length
-) -> impl IndexedParallelIterator<Item = [&mut A; N]> + '_ {
+pub fn transposed_par_for_each_mut<A: Send + Sync, const N: usize>(
+    array: &mut [ArenaVec<A>; N], // all vectors must have the same length
+    f: impl Fn(usize, [&mut A; N]) + Sync,
+) {
     let len = array[0].len();
-    let data_ptrs: [AtomicPtr<A>; N] = array.each_mut().map(|v| AtomicPtr::new(v.as_mut_ptr()));
-
-    (0..len)
-        .into_par_iter()
-        .map(move |i| unsafe { std::array::from_fn(|j| &mut *data_ptrs[j].load(Ordering::Relaxed).add(i)) })
+    let data_ptrs: [parallel::SendPtr<A>; N] = std::array::from_fn(|j| parallel::SendPtr(array[j].as_mut_ptr()));
+    parallel::for_each_index(len, |i| {
+        // SAFETY: distinct `i` index disjoint rows across all N columns; the column base pointers
+        // stay valid for the whole call (`array` is borrowed mutably for its duration).
+        let row: [&mut A; N] = unsafe { std::array::from_fn(|j| &mut *data_ptrs[j].0.add(i)) };
+        f(i, row);
+    });
 }
 
 pub fn collect_refs<T>(vecs: &[Vec<T>]) -> Vec<&[T]> {

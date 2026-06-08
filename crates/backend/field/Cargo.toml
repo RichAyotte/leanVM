@@ -10,6 +10,6 @@ itertools.workspace = true
 num-bigint = "*"
 paste = "*"
 rand.workspace = true
-rayon.workspace = true
+parallel.workspace = true
 serde.workspace = true
 tracing.workspace = true

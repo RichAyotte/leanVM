@@ -6,7 +6,6 @@ use field::Field;
 use field::PackedValue;
 use field::{ExtensionField, TwoAdicField};
 use poly::*;
-use rayon::prelude::*;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -138,15 +137,12 @@ fn prepare_evals_for_fft_unpacked<A: Copy + Send + Sync>(
     let log_block_size = log2_strict_usize(block_size);
     let out_len = block_size * dft_n_cols;
 
-    (0..out_len)
-        .into_par_iter()
-        .map(|i| {
-            let block_index = i % dft_n_cols;
-            let offset_in_block = i / dft_n_cols;
-            let src_index = ((block_index << log_block_size) + offset_in_block) >> log_inv_rate;
-            unsafe { *evals.get_unchecked(src_index) }
-        })
-        .collect()
+    parallel::par_map_collect(out_len, |i| {
+        let block_index = i % dft_n_cols;
+        let offset_in_block = i / dft_n_cols;
+        let src_index = ((block_index << log_block_size) + offset_in_block) >> log_inv_rate;
+        unsafe { *evals.get_unchecked(src_index) }
+    })
 }
 
 fn prepare_evals_for_fft_packed_extension<EF: ExtensionField<PF<EF>>>(
@@ -163,22 +159,19 @@ fn prepare_evals_for_fft_packed_extension<EF: ExtensionField<PF<EF>>>(
     let n_blocks_mask = n_blocks - 1;
     let packing_mask = (1 << log_packing) - 1;
 
-    (0..full_len)
-        .into_par_iter()
-        .map(|i| {
-            let block_index = i & n_blocks_mask;
-            let offset_in_block = i >> folding_factor;
-            let src_index = ((block_index << log_block_size) + offset_in_block) >> log_inv_rate;
-            let packed_src_index = src_index >> log_packing;
-            let offset_in_packing = src_index & packing_mask;
-            let packed = unsafe { evals.get_unchecked(packed_src_index) };
-            let unpacked: &[PFPacking<EF>] = packed.as_basis_coefficients_slice();
-            EF::from_basis_coefficients_fn(|i| unsafe {
-                let u: &PFPacking<EF> = unpacked.get_unchecked(i);
-                *u.as_slice().get_unchecked(offset_in_packing)
-            })
+    parallel::par_map_collect(full_len, |i| {
+        let block_index = i & n_blocks_mask;
+        let offset_in_block = i >> folding_factor;
+        let src_index = ((block_index << log_block_size) + offset_in_block) >> log_inv_rate;
+        let packed_src_index = src_index >> log_packing;
+        let offset_in_packing = src_index & packing_mask;
+        let packed = unsafe { evals.get_unchecked(packed_src_index) };
+        let unpacked: &[PFPacking<EF>] = packed.as_basis_coefficients_slice();
+        EF::from_basis_coefficients_fn(|i| unsafe {
+            let u: &PFPacking<EF> = unpacked.get_unchecked(i);
+            *u.as_slice().get_unchecked(offset_in_packing)
         })
-        .collect()
+    })
 }
 
 type CacheKey = TypeId;

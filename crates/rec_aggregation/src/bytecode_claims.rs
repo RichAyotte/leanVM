@@ -72,12 +72,14 @@ pub(crate) fn reduce_bytecode_claims(verified: &[InnerVerified]) -> ReducedBytec
     let n_claims = claims.len();
     let alpha_powers: Vec<EF> = alpha.powers().take(n_claims).collect();
 
-    let weights_packed = claims
-        .par_iter()
-        .zip(&alpha_powers)
-        .map(|(eval, &alpha_i)| eval_eq_packed_scaled(&eval.point.0, alpha_i))
-        .reduce_with(|mut acc, eq_i| {
-            acc.par_iter_mut().zip(&eq_i).for_each(|(w, e)| *w += *e);
+    // Sequential outer fold: `n_claims` is small and `eval_eq_packed_scaled` is itself parallel,
+    // so parallelizing here would nest parallel dispatch (forbidden by the `parallel` pool).
+    let weights_packed = (0..n_claims)
+        .map(|i| eval_eq_packed_scaled(&claims[i].point.0, alpha_powers[i]))
+        .reduce(|mut acc, eq_i| {
+            for (w, e) in acc.iter_mut().zip(eq_i.iter()) {
+                *w += *e;
+            }
             acc
         })
         .unwrap();

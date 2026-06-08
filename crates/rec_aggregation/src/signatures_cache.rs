@@ -91,18 +91,16 @@ fn gen_benchmark_signers_cache() -> Vec<(XmssPublicKey, XmssSignature)> {
 
     let completed = AtomicUsize::new(1);
     let time = Instant::now();
-    let rest: Vec<_> = (1..NUM_BENCHMARK_SIGNERS)
-        .into_par_iter()
-        .map(|index| {
-            let signer = compute_signer(index);
-            let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
-            print!(
-                "\rPrecomputing benchmark signatures (cached after first run): {:.0}%",
-                100.0 * done as f64 / NUM_BENCHMARK_SIGNERS as f64
-            );
-            signer
-        })
-        .collect();
+    let rest: Vec<_> = parallel::par_map_collect(NUM_BENCHMARK_SIGNERS - 1, |j| {
+        let index = j + 1;
+        let signer = compute_signer(index);
+        let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
+        print!(
+            "\rPrecomputing benchmark signatures (cached after first run): {:.0}%",
+            100.0 * done as f64 / NUM_BENCHMARK_SIGNERS as f64
+        );
+        signer
+    });
 
     println!(
         "\rGenerating signatures for benchmark (one-time operation): 100% - done ({:.2}s)",
@@ -130,7 +128,8 @@ fn gen_benchmark_signers_cache() -> Vec<(XmssPublicKey, XmssSignature)> {
 #[test]
 fn test_signature_cache() {
     let signatures = get_benchmark_signatures();
-    signatures.par_iter().enumerate().for_each(|(i, (pk, sig))| {
+    parallel::for_each_index(signatures.len(), |i| {
+        let (pk, sig) = &signatures[i];
         xmss_verify(pk, BENCHMARK_SLOT, &BENCHMARK_MESSAGE, sig)
             .unwrap_or_else(|_| panic!("Signature {} failed to verify", i));
     });
