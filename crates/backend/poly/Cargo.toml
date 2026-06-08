@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-field = { path = "../field", package = "mt-field" }
+field = { path = "../field", package = "field" }
 utils = { path = "../utils", package = "utils" }
 system-info.workspace = true
 parallel.workspace = true

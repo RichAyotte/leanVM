@@ -4,5 +4,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-field = { path = "../field", package = "mt-field" }
+field = { path = "../field", package = "field" }
 poly = { path = "../poly", package = "poly" }

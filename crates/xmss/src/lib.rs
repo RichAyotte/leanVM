@@ -1,6 +1,6 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 use backend::PrimeCharacteristicRing;
-use backend::{DIGEST_LEN_FE, Goldilocks, POSEIDON1_WIDTH};
+use backend::{DIGEST_LEN_FE, Goldilocks, POSEIDON1_WIDTH, poseidon8_compress};
 
 pub mod signers_cache;
 mod wots;
@@ -42,6 +42,40 @@ pub const TWEAK_TYPE_MERKLE: usize = 2;
 pub const TWEAK_TYPE_ENCODING: usize = 3;
 
 const _: () = assert!(V.is_multiple_of(2)); // For efficiency of the snark (we can batch chains in pairs)
+
+pub(crate) const PRF_DOMAINSEP_WOTS_SECRET_KEY: u32 = 1000;
+pub(crate) const PRF_DOMAINSEP_PUBLIC_PARAM: u32 = 1001;
+pub(crate) const PRF_DOMAINSEP_RANDOM_NODE: u32 = 1002;
+
+/// Deterministic Poseidon PRF for key generation (replaces the former Keccak PRF).
+///
+/// Goldilocks holds 63 bits per element, so the 256-bit seed packs into 5 limbs (vs
+/// 9 on a 31-bit field) and each index (< 2^60) fits in one element. The whole
+/// `(domain, seed, indices)` tuple thus fits in a single width-8 compression.
+pub(crate) fn poseidon_prf(domain: u32, seed: &[u8; 32], indices: [usize; 2]) -> [F; DIGEST_LEN_FE] {
+    let mut input = [F::ZERO; POSEIDON1_WIDTH];
+    input[0] = F::from_u32(domain);
+    // Pack the 256-bit seed into 5 little-endian limbs of 63 bits: input[1..=5].
+    let mut acc: u128 = 0;
+    let mut acc_bits = 0u32;
+    let mut limb = 1;
+    for &byte in seed {
+        acc |= u128::from(byte) << acc_bits;
+        acc_bits += 8;
+        if acc_bits >= 63 {
+            input[limb] = F::from_u64((acc & ((1u128 << 63) - 1)) as u64);
+            acc >>= 63;
+            acc_bits -= 63;
+            limb += 1;
+        }
+    }
+    input[limb] = F::from_u64(acc as u64); // trailing 4 bits -> input[5]
+    for (i, &idx) in indices.iter().enumerate() {
+        assert!(idx < 1 << 60);
+        input[6 + i] = F::from_usize(idx);
+    }
+    poseidon8_compress(input)
+}
 
 /// index = slot or node_index in Merkle tree
 ///

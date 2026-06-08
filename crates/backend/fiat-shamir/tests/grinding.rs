@@ -1,5 +1,5 @@
+use fiat_shamir::{FSProver, FSVerifier, ProverState, VerifierState};
 use goldilocks::{CubicExtensionFieldGL, default_goldilocks_poseidon1_8};
-use mt_fiat_shamir::{FSProver, FSVerifier, ProverState, VerifierState};
 use std::time::Instant;
 
 type EF = CubicExtensionFieldGL;

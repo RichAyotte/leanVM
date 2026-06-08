@@ -15,7 +15,7 @@ dependencies = [
 name = "air"
 version = "0.1.0"
 dependencies = [
- "mt-field",
+ "field",
  "poly",
 ]
 
@@ -98,15 +98,15 @@ name = "backend"
 version = "0.1.0"
 dependencies = [
  "air",
+ "fiat-shamir",
+ "field",
  "goldilocks",
- "mt-fiat-shamir",
- "mt-field",
- "mt-sumcheck",
- "mt-symetric",
- "mt-whir",
  "parallel",
  "poly",
+ "sumcheck",
+ "symetric",
  "utils",
+ "whir",
  "zk-alloc",
 ]
 
@@ -123,15 +123,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
-]
-
-[[package]]
-name = "block-buffer"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdd35008169921d80bc60d3d0ab416eecb028c4cd653352907921d95084790be"
-dependencies = [
- "hybrid-array",
 ]
 
 [[package]]
@@ -213,12 +204,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 
 [[package]]
-name = "const-oid"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
-
-[[package]]
 name = "cpufeatures"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -253,33 +238,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "crypto-common"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453"
-dependencies = [
- "hybrid-array",
-]
-
-[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
- "block-buffer 0.10.4",
- "crypto-common 0.1.7",
-]
-
-[[package]]
-name = "digest"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
-dependencies = [
- "block-buffer 0.12.0",
- "const-oid",
- "crypto-common 0.2.2",
+ "block-buffer",
+ "crypto-common",
 ]
 
 [[package]]
@@ -299,6 +264,29 @@ name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
+
+[[package]]
+name = "fiat-shamir"
+version = "0.1.0"
+dependencies = [
+ "field",
+ "goldilocks",
+ "parallel",
+ "serde",
+ "symetric",
+ "utils",
+]
+
+[[package]]
+name = "field"
+version = "0.1.0"
+dependencies = [
+ "parallel",
+ "paste",
+ "rand",
+ "serde",
+ "utils",
+]
 
 [[package]]
 name = "foldhash"
@@ -334,7 +322,7 @@ dependencies = [
 name = "goldilocks"
 version = "0.1.0"
 dependencies = [
- "mt-field",
+ "field",
  "paste",
  "rand",
  "serde",
@@ -387,15 +375,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
-name = "hybrid-array"
-version = "0.4.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9155a582abd142abc056962c29e3ce5ff2ad5469f4246b537ed42c5deba857da"
-dependencies = [
- "typenum",
-]
-
-[[package]]
 name = "id-arena"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -445,13 +424,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
-name = "keccak"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e24a010dd405bd7ed803e5253182815b41bf2e6a80cc3bfc066658e03a198aa"
+name = "koala-bear"
+version = "0.1.0"
 dependencies = [
- "cfg-if",
- "cpufeatures 0.3.0",
+ "field",
+ "paste",
+ "rand",
+ "serde",
+ "utils",
 ]
 
 [[package]]
@@ -542,15 +522,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "953f07c43838f8e6f9758cab68bf5bed85465e7587ebe0b823f1bcd81978ad3a"
 
 [[package]]
-name = "lz4_flex"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ef0d4ed8669f8f8826eb00dc878084aa8f253506c4fd5e8f58f5bce72ddb97e"
-dependencies = [
- "twox-hash",
-]
-
-[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -564,84 +535,6 @@ name = "memchr"
 version = "2.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b947ae49db0d222b1dbc6b113ce7248a3fc3a6ca21b696717bfc000ba4484d8"
-
-[[package]]
-name = "mt-fiat-shamir"
-version = "0.1.0"
-dependencies = [
- "goldilocks",
- "mt-field",
- "mt-symetric",
- "parallel",
- "serde",
- "utils",
-]
-
-[[package]]
-name = "mt-field"
-version = "0.1.0"
-dependencies = [
- "parallel",
- "paste",
- "rand",
- "serde",
- "utils",
-]
-
-[[package]]
-name = "mt-koala-bear"
-version = "0.1.0"
-dependencies = [
- "mt-field",
- "paste",
- "rand",
- "serde",
- "utils",
-]
-
-[[package]]
-name = "mt-sumcheck"
-version = "0.1.0"
-dependencies = [
- "air",
- "mt-fiat-shamir",
- "mt-field",
- "mt-koala-bear",
- "parallel",
- "poly",
- "tracing",
- "zk-alloc",
-]
-
-[[package]]
-name = "mt-symetric"
-version = "0.1.0"
-dependencies = [
- "goldilocks",
- "mt-field",
- "parallel",
- "zk-alloc",
-]
-
-[[package]]
-name = "mt-whir"
-version = "0.1.0"
-dependencies = [
- "goldilocks",
- "mt-fiat-shamir",
- "mt-field",
- "mt-sumcheck",
- "mt-symetric",
- "parallel",
- "poly",
- "rand",
- "system-info",
- "tracing",
- "tracing-forest",
- "tracing-subscriber",
- "utils",
- "zk-alloc",
-]
 
 [[package]]
 name = "nu-ansi-term"
@@ -755,8 +648,8 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 name = "poly"
 version = "0.1.0"
 dependencies = [
+ "field",
  "goldilocks",
- "mt-field",
  "parallel",
  "rand",
  "serde",
@@ -838,7 +731,6 @@ dependencies = [
  "lean_compiler",
  "lean_prover",
  "lean_vm",
- "lz4_flex",
  "objc2",
  "objc2-foundation",
  "postcard",
@@ -937,17 +829,7 @@ checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
- "digest 0.10.7",
-]
-
-[[package]]
-name = "sha3"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be176f1a57ce4e3d31c1a166222d9768de5954f811601fb7ca06fc8203905ce1"
-dependencies = [
- "digest 0.11.3",
- "keccak",
+ "digest",
 ]
 
 [[package]]
@@ -995,6 +877,30 @@ dependencies = [
  "lean_vm",
  "rand",
  "tracing",
+]
+
+[[package]]
+name = "sumcheck"
+version = "0.1.0"
+dependencies = [
+ "air",
+ "fiat-shamir",
+ "field",
+ "koala-bear",
+ "parallel",
+ "poly",
+ "tracing",
+ "zk-alloc",
+]
+
+[[package]]
+name = "symetric"
+version = "0.1.0"
+dependencies = [
+ "field",
+ "goldilocks",
+ "parallel",
+ "zk-alloc",
 ]
 
 [[package]]
@@ -1119,12 +1025,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "twox-hash"
-version = "2.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
-
-[[package]]
 name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1226,6 +1126,26 @@ dependencies = [
  "hashbrown 0.15.5",
  "indexmap",
  "semver",
+]
+
+[[package]]
+name = "whir"
+version = "0.1.0"
+dependencies = [
+ "fiat-shamir",
+ "field",
+ "goldilocks",
+ "parallel",
+ "poly",
+ "rand",
+ "sumcheck",
+ "symetric",
+ "system-info",
+ "tracing",
+ "tracing-forest",
+ "tracing-subscriber",
+ "utils",
+ "zk-alloc",
 ]
 
 [[package]]
@@ -1364,11 +1284,9 @@ name = "xmss"
 version = "0.1.0"
 dependencies = [
  "backend",
- "lz4_flex",
  "postcard",
  "rand",
  "serde",
- "sha3",
 ]
 
 [[package]]
