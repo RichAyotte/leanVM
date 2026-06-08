@@ -4,15 +4,58 @@ use fiat_shamir::{ChallengeSampler, FSProver};
 use field::BasedVectorSpace;
 use field::Field;
 use field::PackedValue;
+use field::PrimeCharacteristicRing;
 use field::{ExtensionField, TwoAdicField};
 use poly::*;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use tracing::instrument;
+use zk_alloc::ArenaVec;
 
 use crate::EvalsDft;
 use crate::Matrix;
+
+#[inline]
+#[must_use]
+pub(crate) fn flatten_to_base_arena<F: PrimeCharacteristicRing, V: BasedVectorSpace<F>>(
+    vec: ArenaVec<V>,
+) -> ArenaVec<F> {
+    const {
+        assert!(align_of::<V>() == align_of::<F>());
+        assert!(size_of::<V>() == V::DIMENSION * size_of::<F>());
+    }
+    let (ptr, len, cap) = vec.into_raw_parts();
+    unsafe { ArenaVec::from_raw_parts(ptr.cast::<F>(), len * V::DIMENSION, cap * V::DIMENSION) }
+}
+
+#[inline]
+#[must_use]
+pub(crate) fn reconstitute_from_base_arena<F: PrimeCharacteristicRing, V: BasedVectorSpace<F> + Clone>(
+    vec: ArenaVec<F>,
+) -> ArenaVec<V> {
+    const {
+        assert!(align_of::<V>() == align_of::<F>());
+        assert!(size_of::<V>() == V::DIMENSION * size_of::<F>());
+    }
+    let d = V::DIMENSION;
+    assert!(
+        vec.len().is_multiple_of(d),
+        "ArenaVec length (got {}) must be a multiple of the extension field dimension ({}).",
+        vec.len(),
+        d
+    );
+    let new_len = vec.len() / d;
+    if vec.capacity().is_multiple_of(d) {
+        let (ptr, _len, cap) = vec.into_raw_parts();
+        unsafe { ArenaVec::from_raw_parts(ptr.cast::<V>(), new_len, cap / d) }
+    } else {
+        let slice_ref = unsafe { std::slice::from_raw_parts(vec.as_ptr().cast::<V>(), new_len) };
+        let mut out = ArenaVec::with_capacity(new_len);
+        out.extend_from_slice(slice_ref);
+        out
+    }
+}
 
 pub(crate) fn get_challenge_stir_queries<F: Field, Chal: ChallengeSampler<F>>(
     folded_domain_size: usize,
@@ -55,13 +98,13 @@ where
 }
 
 pub(crate) enum DftInput<EF: Field> {
-    Base(Vec<PF<EF>>),
-    Extension(Vec<EF>),
+    Base(ArenaVec<PF<EF>>),
+    Extension(ArenaVec<EF>),
 }
 
 pub(crate) enum DftOutput<EF: Field> {
-    Base(Matrix<PF<EF>>),
-    Extension(Matrix<EF>),
+    Base(Matrix<PF<EF>, ArenaVec<PF<EF>>>),
+    Extension(Matrix<EF, ArenaVec<EF>>),
 }
 
 pub(crate) fn reorder_and_dft<EF: ExtensionField<PF<EF>>>(
@@ -126,7 +169,7 @@ fn prepare_evals_for_fft_unpacked<A: Copy + Send + Sync>(
     folding_factor: usize,
     log_inv_rate: usize,
     dft_n_cols: usize,
-) -> Vec<A> {
+) -> ArenaVec<A> {
     assert!(evals.len().is_multiple_of(1 << folding_factor));
     let n_blocks = 1 << folding_factor;
     let full_len = evals.len() << log_inv_rate;
@@ -135,19 +178,21 @@ fn prepare_evals_for_fft_unpacked<A: Copy + Send + Sync>(
 
     // LSB-cols layout (split-eq): column = LSB k bits of source index, row's high bits = remaining
     // vars, row's low log_inv_rate bits = rate-extension dummy (data is constant in those).
-    parallel::par_map_collect(out_len, |i| {
+    let mut out: ArenaVec<A> = unsafe { ArenaVec::uninitialized(out_len) };
+    parallel::par_fill(&mut out, |i| {
         let block_index = i % dft_n_cols;
         let offset_in_block = i / dft_n_cols;
         let src_index = ((offset_in_block >> log_inv_rate) << folding_factor) | block_index;
         unsafe { *evals.get_unchecked(src_index) }
-    })
+    });
+    out
 }
 
 fn prepare_evals_for_fft_packed_extension<EF: ExtensionField<PF<EF>>>(
     evals: &[EFPacking<EF>],
     folding_factor: usize,
     log_inv_rate: usize,
-) -> Vec<EF> {
+) -> ArenaVec<EF> {
     let log_packing = packing_log_width::<EF>();
     assert!((evals.len() << log_packing).is_multiple_of(1 << folding_factor));
     let n_blocks = 1 << folding_factor;
@@ -156,7 +201,8 @@ fn prepare_evals_for_fft_packed_extension<EF: ExtensionField<PF<EF>>>(
     let packing_mask = (1 << log_packing) - 1;
 
     // LSB-cols layout (split-eq): see prepare_evals_for_fft_unpacked.
-    parallel::par_map_collect(full_len, |i| {
+    let mut out: ArenaVec<EF> = unsafe { ArenaVec::uninitialized(full_len) };
+    parallel::par_fill(&mut out, |i| {
         let block_index = i & n_blocks_mask;
         let offset_in_block = i >> folding_factor;
         let src_index = ((offset_in_block >> log_inv_rate) << folding_factor) | block_index;
@@ -164,11 +210,12 @@ fn prepare_evals_for_fft_packed_extension<EF: ExtensionField<PF<EF>>>(
         let offset_in_packing = src_index & packing_mask;
         let packed = unsafe { evals.get_unchecked(packed_src_index) };
         let unpacked: &[PFPacking<EF>] = packed.as_basis_coefficients_slice();
-        EF::from_basis_coefficients_fn(|i| unsafe {
-            let u: &PFPacking<EF> = unpacked.get_unchecked(i);
+        EF::from_basis_coefficients_fn(|j| unsafe {
+            let u: &PFPacking<EF> = unpacked.get_unchecked(j);
             *u.as_slice().get_unchecked(offset_in_packing)
         })
-    })
+    });
+    out
 }
 
 type CacheKey = TypeId;

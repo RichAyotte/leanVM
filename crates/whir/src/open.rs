@@ -7,6 +7,7 @@ use fiat_shamir::{FSProver, MerklePath, ProofResult};
 use field::{ExtensionField, Field, PrimeCharacteristicRing, TwoAdicField};
 use poly::*;
 use tracing::{info_span, instrument};
+use zk_alloc::{ArenaVec, arena_vec};
 
 use crate::{config::WhirConfig, *};
 
@@ -230,14 +231,14 @@ fn open_merkle_tree_at_challenges<EF: ExtensionField<PF<EF>>>(
         match &answer {
             MleOwned::Base(leaf) => {
                 base_paths.push(MerklePath {
-                    leaf_data: leaf.clone(),
+                    leaf_data: leaf.to_vec(),
                     sibling_hashes,
                     leaf_index: challenge,
                 });
             }
             MleOwned::Extension(leaf) => {
                 ext_paths.push(MerklePath {
-                    leaf_data: leaf.clone(),
+                    leaf_data: leaf.to_vec(),
                     sibling_hashes,
                     leaf_index: challenge,
                 });
@@ -260,7 +261,7 @@ fn open_merkle_tree_at_challenges<EF: ExtensionField<PF<EF>>>(
 #[derive(Debug, Clone)]
 pub struct SumcheckSingle<EF: ExtensionField<PF<EF>>> {
     pub(crate) evals: MleOwned<EF>,
-    pub(crate) weights: Vec<EF>,
+    pub(crate) weights: ArenaVec<EF>,
     pub(crate) sum: EF,
 }
 
@@ -385,7 +386,7 @@ where
             lagrange_tensor_extend(&mut lagrange, rho);
         }
 
-        let evals_ext: Vec<EF> = fold_by_tensor::<EF, _>(f, &challenges);
+        let evals_ext: ArenaVec<EF> = fold_by_tensor::<EF, _>(f, &challenges);
 
         let weights = build_post_svo_weights(&relaxed_statement, combination_randomness, &challenges);
         debug_assert_eq!(weights.len(), evals_ext.len());
@@ -459,7 +460,7 @@ fn take_next_powers<EF: Field>(gamma_pow: &mut EF, gamma: EF, k: usize) -> Vec<E
     out
 }
 
-fn build_post_svo_weights<EF>(statements: &[SparseStatement<EF>], gamma: EF, rhos: &[EF]) -> Vec<EF>
+fn build_post_svo_weights<EF>(statements: &[SparseStatement<EF>], gamma: EF, rhos: &[EF]) -> ArenaVec<EF>
 where
     EF: ExtensionField<PF<EF>>,
 {
@@ -467,7 +468,8 @@ where
     let l_0 = rhos.len();
     assert!(l_0 <= n);
     let target_size = 1usize << (n - l_0);
-    let mut out = EF::zero_vec(target_size);
+    // SAFETY: EF (Montgomery field) has all-zero bytes as a valid zero value.
+    let mut out: ArenaVec<EF> = unsafe { ArenaVec::zeroed(target_size) };
     let mut gamma_pow = EF::ONE;
 
     for smt in statements {
@@ -480,7 +482,7 @@ where
 
         let alpha_powers = take_next_powers(&mut gamma_pow, gamma, smt.values.len());
 
-        let tail_eval: Vec<EF> = if smt.is_next {
+        let tail_eval: ArenaVec<EF> = if smt.is_next {
             rhos.iter().fold(matrix_next_mle_folded(p), |buf, &r| lsb_fold(&buf, r))
         } else {
             let scalar_eq: EF = (0..l_0)
@@ -491,7 +493,7 @@ where
                 .product();
             let tail = &p[..m - l_0];
             if tail.is_empty() {
-                vec![scalar_eq]
+                arena_vec![scalar_eq]
             } else {
                 eval_eq_scaled(tail, scalar_eq)
             }
@@ -570,7 +572,7 @@ where
     )
 }
 
-fn fold_by_tensor<EF, E>(evals: &[E], rhos: &[EF]) -> Vec<EF>
+fn fold_by_tensor<EF, E>(evals: &[E], rhos: &[EF]) -> ArenaVec<EF>
 where
     EF: ExtensionField<PF<EF>> + Mul<E, Output = EF> + From<E>,
     E: Copy + Send + Sync,
@@ -581,10 +583,12 @@ where
         return evals.iter().map(|&v| EF::from(v)).collect();
     }
     let tensor = eval_eq(&rhos.iter().rev().copied().collect::<Vec<_>>());
-    parallel::par_map_collect(evals.len() / width, |i| {
+    let mut out: ArenaVec<EF> = unsafe { ArenaVec::uninitialized(evals.len() / width) };
+    parallel::par_fill(&mut out, |i| {
         let chunk = &evals[i * width..i * width + width];
         tensor.iter().zip(chunk).map(|(&t, &e)| t * e).sum::<EF>()
-    })
+    });
+    out
 }
 
 fn sumcheck_finish_round<EF: ExtensionField<PF<EF>>>(
@@ -616,7 +620,7 @@ fn lsb_sumcheck_round<EF: ExtensionField<PF<EF>>>(
 }
 
 /// LSB-fold a slice of evaluations: `out[i] = m[2i] + r * (m[2i+1] - m[2i])`.
-fn lsb_fold<EF: ExtensionField<PF<EF>>>(m: &[EF], r: EF) -> Vec<EF> {
+fn lsb_fold<EF: ExtensionField<PF<EF>>>(m: &[EF], r: EF) -> ArenaVec<EF> {
     fold_multilinear_at_bit(m, r, 0, &|diff, alpha| alpha * diff, false)
 }
 

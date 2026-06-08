@@ -106,6 +106,7 @@ dependencies = [
  "parallel",
  "tracing",
  "utils",
+ "zk-alloc",
 ]
 
 [[package]]
@@ -636,8 +637,8 @@ dependencies = [
  "rand",
  "serde",
  "system-info",
- "tracing",
  "utils",
+ "zk-alloc",
 ]
 
 [[package]]
@@ -651,6 +652,7 @@ dependencies = [
  "mt-poly",
  "parallel",
  "tracing",
+ "zk-alloc",
 ]
 
 [[package]]
@@ -660,6 +662,7 @@ dependencies = [
  "mt-field",
  "mt-koala-bear",
  "parallel",
+ "zk-alloc",
 ]
 
 [[package]]
@@ -680,6 +683,7 @@ dependencies = [
  "tracing-forest",
  "tracing-subscriber",
  "utils",
+ "zk-alloc",
 ]
 
 [[package]]
@@ -900,7 +904,6 @@ dependencies = [
  "sub_protocols",
  "tracing",
  "xmss",
- "zk-alloc",
 ]
 
 [[package]]
@@ -1433,6 +1436,7 @@ name = "zk-alloc"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "parallel",
  "system-info",
 ]
 

@@ -1,18 +1,16 @@
-use std::{
-    mem::ManuallyDrop,
-    ops::{Add, Sub},
-};
+use std::ops::{Add, Sub};
 
 use field::*;
+use zk_alloc::{ArenaVec, OwnedBuffer};
 
 use crate::{EFPacking, PF, PFPacking};
 
 pub const PARALLEL_THRESHOLD: usize = 1 << 9;
 
-pub fn pack_extension<EF: ExtensionField<PF<EF>>>(slice: &[EF]) -> Vec<EFPacking<EF>> {
+/// AoS->SoA transpose of `slice` into the already-sized packed buffer `out` (`out.len()`
+/// packed elements, each consuming `packing_width` scalars).
+fn fill_packed_extension<EF: ExtensionField<PF<EF>>>(slice: &[EF], out: &mut [EFPacking<EF>]) {
     let width = packing_width::<EF>();
-    let n_packed = slice.len() / width;
-    let mut out: Vec<EFPacking<EF>> = unsafe { uninitialized_vec(n_packed) };
     let write = |slot: &mut EFPacking<EF>, chunk: &[EF]| {
         *slot = EFPacking::<EF>::from_ext_slice(chunk);
     };
@@ -21,17 +19,21 @@ pub fn pack_extension<EF: ExtensionField<PF<EF>>>(slice: &[EF]) -> Vec<EFPacking
             write(slot, chunk);
         }
     } else {
-        parallel::par_for_each_mut(&mut out, |idx, slot| {
+        parallel::par_for_each_mut(out, |idx, slot| {
             write(slot, &slice[idx * width..][..width]);
         });
     }
-    out
 }
 
-pub fn unpack_extension<EF: ExtensionField<PF<EF>>>(vec: &[EFPacking<EF>]) -> Vec<EF> {
+pub fn pack_extension<EF: ExtensionField<PF<EF>>, B: OwnedBuffer<EFPacking<EF>>>(slice: &[EF]) -> B {
+    B::build(slice.len() / packing_width::<EF>(), |out| {
+        fill_packed_extension(slice, out)
+    })
+}
+
+fn fill_unpacked_extension<EF: ExtensionField<PF<EF>>>(vec: &[EFPacking<EF>], out: &mut [EF]) {
     let width = packing_width::<EF>();
-    let total = vec.len() * width;
-    let mut out: Vec<EF> = unsafe { uninitialized_vec(total) };
+    let total = out.len();
     let write = |out_chunk: &mut [EF], x: &EFPacking<EF>| {
         let packed_coeffs = x.as_basis_coefficients_slice();
         for (lane, slot) in out_chunk.iter_mut().enumerate() {
@@ -46,13 +48,18 @@ pub fn unpack_extension<EF: ExtensionField<PF<EF>>>(vec: &[EFPacking<EF>]) -> Ve
         // One pool task per group of `group` packed elements, each writing `group * width`
         // contiguous output scalars from a disjoint slice of `vec`.
         let group = parallel::recommended_chunk_size(vec.len());
-        parallel::par_chunks_mut(&mut out, group * width, |ci, out_chunk| {
+        parallel::par_chunks_mut(out, group * width, |ci, out_chunk| {
             for (k, sub) in out_chunk.chunks_exact_mut(width).enumerate() {
                 write(sub, &vec[ci * group + k]);
             }
         });
     }
-    out
+}
+
+pub fn unpack_extension<EF: ExtensionField<PF<EF>>, B: OwnedBuffer<EF>>(vec: &[EFPacking<EF>]) -> B {
+    B::build(vec.len() * packing_width::<EF>(), |out| {
+        fill_unpacked_extension(vec, out)
+    })
 }
 
 pub const fn packing_log_width<EF: Field>() -> usize {
@@ -68,50 +75,55 @@ pub const fn must_unpack_multilinears<EF: Field>(n_vars: usize) -> bool {
 }
 
 #[inline]
-fn fold_fill<OF: Send, C: Fn(usize) -> OF + Sync>(len: usize, seq: bool, compute: C) -> Vec<OF> {
-    let mut res = unsafe { uninitialized_vec(len) };
-    if seq || len < PARALLEL_THRESHOLD {
+fn fill_fold<OF: Send, C: Fn(usize) -> OF + Sync>(res: &mut [OF], seq: bool, compute: C) {
+    if seq || res.len() < PARALLEL_THRESHOLD {
         for (i, r) in res.iter_mut().enumerate() {
             *r = compute(i);
         }
     } else {
-        parallel::par_fill(&mut res, &compute);
+        parallel::par_fill(res, &compute);
     }
-    res
 }
 
-fn fold_multilinear_lsb<
+#[inline]
+fn fold_fill<OF: Send, B: OwnedBuffer<OF>, C: Fn(usize) -> OF + Sync>(len: usize, seq: bool, compute: C) -> B {
+    B::build(len, |res| fill_fold(res, seq, compute))
+}
+
+pub fn fold_multilinear<
     EF: PrimeCharacteristicRing + Copy + Send + Sync,
     IF: Copy + Sub<Output = IF> + Send + Sync,
     OF: Copy + Add<IF, Output = OF> + Send + Sync,
-    Mul: Fn(IF, EF) -> OF + Sync + Send,
+    F: Fn(IF, EF) -> OF + Sync + Send,
+    B: OwnedBuffer<OF>,
 >(
     m: &[IF],
     alpha: EF,
-    mul_if_of: &Mul,
+    mul_if_of: &F,
     seq: bool,
-) -> Vec<OF> {
-    fold_fill(m.len() / 2, seq, |j| {
-        mul_if_of(m[2 * j + 1] - m[2 * j], alpha) + m[2 * j]
-    })
+) -> B {
+    let new_size = m.len() / 2;
+    fold_fill(new_size, seq, |i| mul_if_of(m[i + new_size] - m[i], alpha) + m[i])
 }
 
-/// Fold `m` at variable `bit`. `seq` forces sequential execution (see [`fold_fill`]).
 pub fn fold_multilinear_at_bit<
     EF: PrimeCharacteristicRing + Copy + Send + Sync,
     IF: Copy + Sub<Output = IF> + Send + Sync,
     OF: Copy + Add<IF, Output = OF> + Send + Sync,
-    Mul: Fn(IF, EF) -> OF + Sync + Send,
+    F: Fn(IF, EF) -> OF + Sync + Send,
+    B: OwnedBuffer<OF>,
 >(
     m: &[IF],
     alpha: EF,
     bit: usize,
-    mul_if_of: &Mul,
+    mul_if_of: &F,
     seq: bool,
-) -> Vec<OF> {
+) -> B {
     assert!(m.len() >= 2 * (1 << bit), "bit out of range for slice length");
     if bit == 0 {
-        return fold_multilinear_lsb(m, alpha, mul_if_of, seq);
+        return fold_fill(m.len() / 2, seq, |j| {
+            mul_if_of(m[2 * j + 1] - m[2 * j], alpha) + m[2 * j]
+        });
     }
     let stride = 1usize << bit;
     let lo_mask = stride - 1;
@@ -124,22 +136,6 @@ pub fn fold_multilinear_at_bit<
     })
 }
 
-/// Fold `m` at its top variable. `seq` forces sequential execution (see [`fold_fill`]).
-pub fn fold_multilinear<
-    EF: PrimeCharacteristicRing + Copy + Send + Sync,
-    IF: Copy + Sub<Output = IF> + Send + Sync,
-    OF: Copy + Add<IF, Output = OF> + Send + Sync,
-    F: Fn(IF, EF) -> OF + Sync + Send,
->(
-    m: &[IF],
-    alpha: EF,
-    mul_if_of: &F,
-    seq: bool,
-) -> Vec<OF> {
-    let new_size = m.len() / 2;
-    fold_fill(new_size, seq, |i| mul_if_of(m[i + new_size] - m[i], alpha) + m[i])
-}
-
 pub fn batch_fold_multilinears<
     EF: PrimeCharacteristicRing + Copy + Send + Sync,
     IF: Copy + Sub<Output = IF> + Send + Sync,
@@ -149,7 +145,7 @@ pub fn batch_fold_multilinears<
     polys: &[&[IF]],
     alpha: EF,
     mul_if_of: F,
-) -> Vec<Vec<OF>> {
+) -> Vec<ArenaVec<OF>> {
     let total_size: usize = polys.iter().map(|p| p.len()).sum();
     if total_size < PARALLEL_THRESHOLD {
         polys
@@ -171,7 +167,7 @@ pub fn batch_fold_multilinears_at_bit<
     alpha: EF,
     bit: usize,
     mul_if_of: F,
-) -> Vec<Vec<OF>> {
+) -> Vec<ArenaVec<OF>> {
     let total_size: usize = polys.iter().map(|p| p.len()).sum();
     if total_size < PARALLEL_THRESHOLD {
         polys
@@ -196,35 +192,6 @@ pub unsafe fn uninitialized_vec<A>(len: usize) -> Vec<A> {
         vec.set_len(len);
         vec
     }
-}
-
-pub fn split_at_many<'a, A>(slice: &'a [A], indices: &[usize]) -> Vec<&'a [A]> {
-    for i in 0..indices.len() {
-        if i > 0 {
-            assert!(indices[i] > indices[i - 1]);
-        }
-        assert!(indices[i] <= slice.len());
-    }
-
-    if indices.is_empty() {
-        return vec![slice];
-    }
-
-    let mut result = Vec::with_capacity(indices.len() + 1);
-    let mut current_slice = slice;
-    let mut prev_idx = 0;
-
-    for &idx in indices {
-        let adjusted_idx = idx - prev_idx;
-        let (left, right) = current_slice.split_at(adjusted_idx);
-        result.push(left);
-        current_slice = right;
-        prev_idx = idx;
-    }
-
-    result.push(current_slice);
-
-    result
 }
 
 pub fn split_at_mut_many<'a, A>(slice: &'a mut [A], indices: &[usize]) -> Vec<&'a mut [A]> {
@@ -258,13 +225,6 @@ pub fn split_at_mut_many<'a, A>(slice: &'a mut [A], indices: &[usize]) -> Vec<&'
 
 // Sequential
 
-pub fn iter_split_2<A>(u: &[A]) -> impl Iterator<Item = (&A, &A)> {
-    let n = u.len();
-    assert!(n.is_multiple_of(2));
-    let (u_left, u_right) = u.split_at(n / 2);
-    u_left.iter().zip(u_right.iter())
-}
-
 pub fn iter_split_4<A>(u: &[A]) -> impl Iterator<Item = ((&A, &A), (&A, &A))> {
     let n = u.len();
     assert!(n.is_multiple_of(4));
@@ -292,18 +252,6 @@ pub fn zip_fold_2<'a, 'b, A, B>(
     iter_split_4(u).zip(iter_mut_split_2(folded))
 }
 
-pub fn transmute_array<A, const N: usize, const M: usize>(input: [A; N]) -> [A; M] {
-    assert_eq!(N, M, "Array sizes must match");
-
-    unsafe {
-        // Prevent input from being dropped
-        let input = ManuallyDrop::new(input);
-
-        // Read the array as a pointer and cast to the output type
-        std::ptr::read(&*input as *const [A; N] as *const [A; M])
-    }
-}
-
 pub fn to_big_endian_bits(value: usize, bit_count: usize) -> Vec<bool> {
     (0..bit_count).rev().map(|i| (value >> i) & 1 == 1).collect()
 }
@@ -317,12 +265,6 @@ pub fn to_big_endian_in_field<F: Field>(value: usize, bit_count: usize) -> Vec<F
 
 pub fn to_little_endian_bits(value: usize, bit_count: usize) -> Vec<bool> {
     let mut res = to_big_endian_bits(value, bit_count);
-    res.reverse();
-    res
-}
-
-pub fn to_little_endian_in_field<F: Field>(value: usize, bit_count: usize) -> Vec<F> {
-    let mut res = to_big_endian_in_field::<F>(value, bit_count);
     res.reverse();
     res
 }
@@ -392,9 +334,9 @@ mod bench_tests {
         for &log_n in &LOG_SIZES {
             let n = 1usize << log_n;
             let ext_vec: Vec<EF> = (0..n).map(|_| rng.random()).collect();
-            let packed = pack_extension(&ext_vec);
-            let _ = unpack_extension::<EF>(&packed); // warmup
-            let (avg, min_t, max_t) = measure(|| unpack_extension::<EF>(&packed));
+            let packed: Vec<_> = pack_extension(&ext_vec);
+            let _ = unpack_extension::<EF, Vec<_>>(&packed); // warmup
+            let (avg, min_t, max_t) = measure(|| unpack_extension::<EF, Vec<_>>(&packed));
             print_row(log_n, n, avg, min_t, max_t);
         }
     }
@@ -406,8 +348,8 @@ mod bench_tests {
         for &log_n in &LOG_SIZES {
             let n = 1usize << log_n;
             let ext_vec: Vec<EF> = (0..n).map(|_| rng.random()).collect();
-            let _ = pack_extension::<EF>(&ext_vec); // warmup
-            let (avg, min_t, max_t) = measure(|| pack_extension::<EF>(&ext_vec));
+            let _ = pack_extension::<EF, Vec<_>>(&ext_vec); // warmup
+            let (avg, min_t, max_t) = measure(|| pack_extension::<EF, Vec<_>>(&ext_vec));
             print_row(log_n, n, avg, min_t, max_t);
         }
     }
