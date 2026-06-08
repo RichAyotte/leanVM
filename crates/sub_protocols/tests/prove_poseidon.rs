@@ -25,14 +25,14 @@ fn prove_air_poseidon_8(log_n_rows: usize) {
     let n_rows = 1 << log_n_rows;
     let mut rng = StdRng::seed_from_u64(0);
     let n_cols = num_cols_poseidon_8();
-    let mut trace = vec![vec![F::ZERO; n_rows]; n_cols];
+    let mut trace: Vec<ArenaVec<F>> = (0..n_cols).map(|_| ArenaVec::filled(F::ZERO, n_rows)).collect();
     for t in trace.iter_mut().skip(POSEIDON_8_COL_INPUT_START).take(WIDTH) {
-        *t = (0..n_rows).map(|_| rng.random()).collect();
+        *t = ArenaVec::from_iter((0..n_rows).map(|_| rng.random()));
     }
-    trace[POSEIDON_8_COL_MULTIPLICITY] = vec![F::ONE; n_rows];
-    trace[POSEIDON_8_COL_FLAG_OUT4] = vec![F::ONE; n_rows];
-    trace[POSEIDON_8_COL_ADDR_LEFT_LO] = vec![F::ZERO; n_rows];
-    trace[POSEIDON_8_COL_ADDR_LEFT_HI] = vec![F::from_usize(HALF_DIGEST_LEN); n_rows];
+    trace[POSEIDON_8_COL_MULTIPLICITY] = ArenaVec::filled(F::ONE, n_rows);
+    trace[POSEIDON_8_COL_FLAG_OUT4] = ArenaVec::filled(F::ONE, n_rows);
+    trace[POSEIDON_8_COL_ADDR_LEFT_LO] = ArenaVec::filled(F::ZERO, n_rows);
+    trace[POSEIDON_8_COL_ADDR_LEFT_HI] = ArenaVec::filled(F::from_usize(HALF_DIGEST_LEN), n_rows);
 
     // Fill the per-round witness columns + outputs from the inputs.
     // The AIR's transition constraints require a consistent Poseidon1 permutation
@@ -74,7 +74,7 @@ fn prove_air_poseidon_8(log_n_rows: usize) {
 
     let time = Instant::now();
 
-    let mut commitmed_pol = F::zero_vec((n_cols << log_n_rows).next_power_of_two());
+    let mut commitmed_pol = ArenaVec::filled(F::ZERO, (n_cols << log_n_rows).next_power_of_two());
     for (i, col) in trace.iter().enumerate() {
         commitmed_pol[i << log_n_rows..(i + 1) << log_n_rows].copy_from_slice(col);
     }
@@ -84,10 +84,10 @@ fn prove_air_poseidon_8(log_n_rows: usize) {
     let alpha = prover_state.sample();
     let air_alpha_powers: Vec<EF> = alpha.powers().collect_n(n_constraints);
     // BUS=false => `logup_alphas_eq_poly` is unused; only `alpha_powers` matter.
-    let extra_data = ExtraDataForBuses::new(Vec::new(), air_alpha_powers);
+    let extra_data = ExtraDataForBuses::new(&[], air_alpha_powers);
     prover_state.duplex();
     let eq_factor: Vec<EF> = prover_state.sample_vec(log_n_rows);
-    let column_refs: Vec<&[F]> = trace.iter().map(Vec::as_slice).collect();
+    let column_refs: Vec<&[F]> = trace.iter().map(|c| c.as_slice()).collect();
     let packed = MleGroupRef::<EF>::Base(column_refs).pack();
 
     let mut sessions: Vec<Box<dyn OuterSumcheckSession<EF> + '_>> = vec![Box::new(AirSumcheckSession::new(
@@ -127,7 +127,7 @@ fn prove_air_poseidon_8(log_n_rows: usize) {
 
     let alpha = verifier_state.sample();
     let air_alpha_powers: Vec<EF> = alpha.powers().collect_n(n_constraints);
-    let extra_data = ExtraDataForBuses::new(Vec::new(), air_alpha_powers);
+    let extra_data = ExtraDataForBuses::new(&[], air_alpha_powers);
 
     verifier_state.duplex();
     let eq_factor_v: Vec<EF> = verifier_state.sample_vec(log_n_rows);

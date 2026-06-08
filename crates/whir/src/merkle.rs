@@ -15,34 +15,37 @@ use poly::*;
 use symetric::merkle::unpack_array;
 use tracing::instrument;
 use utils::log2_ceil_usize;
+use zk_alloc::ArenaVec;
 
 use crate::Dimensions;
 use crate::Matrix;
+use crate::utils::flatten_to_base_arena;
 pub use symetric::DIGEST_ELEMS;
 
 pub(crate) type RoundMerkleTree<F> = WhirMerkleTree<F, DIGEST_ELEMS>;
 
 #[allow(clippy::missing_transmute_annotations)]
 pub(crate) fn merkle_commit<F: Field, EF: ExtensionField<F>>(
-    matrix: Matrix<EF>,
+    matrix: Matrix<EF, ArenaVec<EF>>,
     full_n_cols: usize,
     effective_n_cols: usize,
 ) -> ([F; DIGEST_ELEMS], RoundMerkleTree<F>) {
     if TypeId::of::<(F, EF)>() == TypeId::of::<(Goldilocks, CubicExtensionFieldGL)>() {
-        let matrix = unsafe { std::mem::transmute::<_, Matrix<CubicExtensionFieldGL>>(matrix) };
+        let matrix =
+            unsafe { std::mem::transmute::<_, Matrix<CubicExtensionFieldGL, ArenaVec<CubicExtensionFieldGL>>>(matrix) };
         let dim = <CubicExtensionFieldGL as BasedVectorSpace<Goldilocks>>::DIMENSION;
         let dft_base_width = matrix.width * dim;
         let full_base_width = full_n_cols * dim;
         let effective_base_width = effective_n_cols * dim;
-        let base_values = CubicExtensionFieldGL::flatten_to_base(matrix.values);
-        let base_matrix = Matrix::<Goldilocks>::new(base_values, dft_base_width);
+        let base_values = flatten_to_base_arena::<Goldilocks, CubicExtensionFieldGL>(matrix.values);
+        let base_matrix = Matrix::new(base_values, dft_base_width);
         let tree = build_merkle_tree_goldilocks(base_matrix, full_base_width, effective_base_width);
         let root: [_; DIGEST_ELEMS] = tree.root();
         let root = unsafe { std::mem::transmute_copy::<_, [F; DIGEST_ELEMS]>(&root) };
         let tree = unsafe { std::mem::transmute::<_, RoundMerkleTree<F>>(tree) };
         (root, tree)
     } else if TypeId::of::<(F, EF)>() == TypeId::of::<(Goldilocks, Goldilocks)>() {
-        let matrix = unsafe { std::mem::transmute::<_, Matrix<Goldilocks>>(matrix) };
+        let matrix = unsafe { std::mem::transmute::<_, Matrix<Goldilocks, ArenaVec<Goldilocks>>>(matrix) };
         let tree = build_merkle_tree_goldilocks(matrix, full_n_cols, effective_n_cols);
         let root: [_; DIGEST_ELEMS] = tree.root();
         let root = unsafe { std::mem::transmute_copy::<_, [F; DIGEST_ELEMS]>(&root) };
@@ -55,7 +58,7 @@ pub(crate) fn merkle_commit<F: Field, EF: ExtensionField<F>>(
 
 #[instrument(name = "build merkle tree", skip_all)]
 fn build_merkle_tree_goldilocks(
-    leaf: Matrix<Goldilocks>,
+    leaf: Matrix<Goldilocks, ArenaVec<Goldilocks>>,
     full_base_width: usize,
     effective_base_width: usize,
 ) -> RoundMerkleTree<Goldilocks> {
@@ -71,7 +74,7 @@ fn build_merkle_tree_goldilocks(
     );
     let packed_state: [PFPacking<Goldilocks>; 8] =
         std::array::from_fn(|i| PFPacking::<Goldilocks>::from_fn(|_| scalar_state[i]));
-    let first_layer = first_digest_layer_with_initial_state::<PFPacking<Goldilocks>, _, DIGEST_ELEMS, 8, 4>(
+    let first_layer = first_digest_layer_with_initial_state::<PFPacking<Goldilocks>, _, _, DIGEST_ELEMS, 8, 4>(
         &perm,
         &leaf,
         &packed_state,
@@ -154,7 +157,7 @@ pub(crate) fn merkle_verify<F: Field, EF: ExtensionField<F>>(
 
 #[derive(Debug, Clone)]
 pub struct WhirMerkleTree<F, const DIGEST_ELEMS: usize> {
-    pub(crate) leaf: Matrix<F>,
+    pub(crate) leaf: Matrix<F, ArenaVec<F>>,
     pub(crate) tree: symetric::merkle::MerkleTree<F, DIGEST_ELEMS>,
     full_leaf_base_width: usize,
 }
@@ -175,14 +178,22 @@ impl<F: field::PrimeCharacteristicRing + Send + Sync, const DIGEST_ELEMS: usize>
 }
 
 #[instrument(name = "first digest layer", level = "debug", skip_all)]
-fn first_digest_layer_with_initial_state<P, Perm, const DIGEST_ELEMS: usize, const WIDTH: usize, const RATE: usize>(
+fn first_digest_layer_with_initial_state<
+    P,
+    Perm,
+    LV,
+    const DIGEST_ELEMS: usize,
+    const WIDTH: usize,
+    const RATE: usize,
+>(
     perm: &Perm,
-    matrix: &Matrix<P::Value>,
+    matrix: &Matrix<P::Value, LV>,
     packed_initial_state: &[P; WIDTH],
     effective_base_width: usize,
-) -> Vec<[P::Value; DIGEST_ELEMS]>
+) -> ArenaVec<[P::Value; DIGEST_ELEMS]>
 where
     P: PackedValue + Default,
+    LV: AsRef<[P::Value]> + Send + Sync,
     P::Value: Default + Copy + Send + Sync,
     Perm: symetric::Permutation<[P::Value; WIDTH]> + symetric::Permutation<[P; WIDTH]>,
 {
@@ -191,7 +202,7 @@ where
     assert!(height.is_multiple_of(width));
     let n_pad = (RATE - effective_base_width % RATE) % RATE;
 
-    let mut digests = unsafe { uninitialized_vec(height) };
+    let mut digests = unsafe { ArenaVec::uninitialized(height) };
 
     parallel::par_chunks_mut(&mut digests, width, |i, digests_chunk| {
         let first_row = i * width;

@@ -108,7 +108,7 @@ fn all_precompiles_flags(loop_iters: usize) -> CompilationFlags {
     }
 }
 
-fn all_precompiles_witness() -> ([F; PUBLIC_INPUT_LEN], ExecutionWitness) {
+fn all_precompiles_witness(bytecode: &Bytecode) -> ([F; PUBLIC_INPUT_LEN], ExecutionWitness) {
     let mut rng = StdRng::seed_from_u64(0);
     let mut scratch = F::zero_vec(8192);
 
@@ -206,8 +206,8 @@ fn all_precompiles_witness() -> ([F; PUBLIC_INPUT_LEN], ExecutionWitness) {
     let mut public_input = [F::ZERO; PUBLIC_INPUT_LEN];
     public_input[..2].copy_from_slice(&hardcoded_prefix);
 
-    let mut hints = std::collections::HashMap::new();
-    hints.insert("scratch".to_string(), vec![scratch]);
+    let mut hints = Hints::default();
+    hints.insert(bytecode, "scratch", arena_vec![ArenaVec::from_slice(&scratch)]);
     let witness = ExecutionWitness {
         hints,
         ..Default::default()
@@ -217,13 +217,12 @@ fn all_precompiles_witness() -> ([F; PUBLIC_INPUT_LEN], ExecutionWitness) {
 
 #[test]
 fn test_zk_vm_all_precompiles() {
-    let (public_input, witness) = all_precompiles_witness();
-    test_zk_vm_helper_with_witness(
-        ALL_PRECOMPILES_PROGRAM,
-        &public_input,
-        witness,
+    let bytecode = compile_program_with_flags(
+        &ProgramSource::Raw(ALL_PRECOMPILES_PROGRAM.to_string()),
         all_precompiles_flags(100),
     );
+    let (public_input, witness) = all_precompiles_witness(&bytecode);
+    test_zk_vm_helper_with_bytecode(&bytecode, &public_input, witness);
 }
 
 #[test]
@@ -296,10 +295,18 @@ fn test_zk_vm_helper_with_witness(
 ) {
     init_tracing();
     let bytecode = compile_program_with_flags(&ProgramSource::Raw(program_str.to_string()), flags);
+    test_zk_vm_helper_with_bytecode(&bytecode, public_input, witness);
+}
+
+fn test_zk_vm_helper_with_bytecode(
+    bytecode: &Bytecode,
+    public_input: &[F; PUBLIC_INPUT_LEN],
+    witness: ExecutionWitness,
+) {
     let time = std::time::Instant::now();
     let starting_log_inv_rate = 1;
     let proof = prove_execution(
-        &bytecode,
+        bytecode,
         public_input,
         &witness,
         &default_whir_config(starting_log_inv_rate),
@@ -307,7 +314,7 @@ fn test_zk_vm_helper_with_witness(
     )
     .unwrap();
     let proof_time = time.elapsed();
-    verify_execution(&bytecode, public_input, proof.proof).unwrap();
+    verify_execution(bytecode, public_input, proof.proof).unwrap();
     println!("{}", proof.metadata.as_ref().unwrap().display());
     println!("Proof time: {:.3} s", proof_time.as_secs_f32());
 }

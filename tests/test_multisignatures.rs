@@ -1,14 +1,15 @@
+use std::sync::{Mutex, MutexGuard};
 use std::time::Instant;
 
 use lean_multisig::{
-    MultiMessageAggregateSignature, SingleMessageAggregateSignature, aggregate_single_msg_signatures,
+    MultiMessageAggregateSignature, SingleMessageAggregateSignature, aggregate_single_message_signatures,
     merge_single_message_aggregates, setup_prover, split_multi_message_aggregate, verify_multi_message_aggregate,
     verify_single_message_aggregate,
 };
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 use rec_aggregation::{
     benchmark::{AggregationTopology, run_aggregation_benchmark},
-    split_multi_message_aggregate_by_msg,
+    split_multi_message_aggregate_by_message,
 };
 use xmss::{
     MESSAGE_LEN_FE,
@@ -16,21 +17,28 @@ use xmss::{
     xmss_key_gen, xmss_sign, xmss_verify,
 };
 
+static ARENA_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+fn serialize_arena_tests() -> MutexGuard<'static, ()> {
+    ARENA_TEST_LOCK.lock().unwrap()
+}
+
 #[test]
 fn test_xmss_signature() {
     let start_slot = 111;
     let end_slot = 200;
     let slot: u32 = 124;
     let mut rng: StdRng = StdRng::seed_from_u64(0);
-    let msg = rng.random();
+    let message = rng.random();
 
     let (secret_key, pub_key) = xmss_key_gen(rng.random(), start_slot, end_slot, false).unwrap();
-    let signature = xmss_sign(&mut rng, &secret_key, &msg, slot).unwrap();
-    xmss_verify(&pub_key, &msg, &signature, slot).unwrap();
+    let signature = xmss_sign(&mut rng, &secret_key, &message, slot).unwrap();
+    xmss_verify(&pub_key, &message, &signature, slot).unwrap();
 }
 
 #[test]
 fn test_aggregation() {
+    let _arena_guard = serialize_arena_tests();
     for n_signatures in [1, 2, 4, 8, 16, 32, 64, 128] {
         let topology = AggregationTopology {
             raw_xmss: n_signatures,
@@ -44,6 +52,7 @@ fn test_aggregation() {
 
 #[test]
 fn test_single_message_aggregation() {
+    let _arena_guard = serialize_arena_tests();
     setup_prover();
 
     let log_inv_rate = 2; // [1, 2, 3 or 4] (lower = faster but bigger proofs)
@@ -52,13 +61,13 @@ fn test_single_message_aggregation() {
     let signatures = get_benchmark_signatures();
 
     let raws_a = signatures[0..3].to_vec();
-    let single_message_a = aggregate_single_msg_signatures(&[], raws_a, message, slot, log_inv_rate).unwrap();
+    let single_message_a = aggregate_single_message_signatures(&[], raws_a, message, slot, log_inv_rate).unwrap();
 
     let raws_b = signatures[3..5].to_vec();
-    let single_message_b = aggregate_single_msg_signatures(&[], raws_b, message, slot, log_inv_rate).unwrap();
+    let single_message_b = aggregate_single_message_signatures(&[], raws_b, message, slot, log_inv_rate).unwrap();
 
     let raws_c = signatures[5..6].to_vec();
-    let final_sig = aggregate_single_msg_signatures(
+    let final_sig = aggregate_single_message_signatures(
         &[single_message_a, single_message_b],
         raws_c,
         message,
@@ -76,6 +85,7 @@ fn test_single_message_aggregation() {
 
 #[test]
 fn test_multi_message_aggregation() {
+    let _arena_guard = serialize_arena_tests();
     setup_prover();
 
     let log_inv_rate = 2; // [1, 2, 3 or 4] (lower = faster but bigger proofs)
@@ -98,8 +108,8 @@ fn test_multi_message_aggregation() {
         })
         .collect();
 
-    let single_message_a = aggregate_single_msg_signatures(&[], raws_a, message_a, slot_a, log_inv_rate).unwrap();
-    let single_message_b = aggregate_single_msg_signatures(&[], raws_b, message_b, slot_b, log_inv_rate).unwrap();
+    let single_message_a = aggregate_single_message_signatures(&[], raws_a, message_a, slot_a, log_inv_rate).unwrap();
+    let single_message_b = aggregate_single_message_signatures(&[], raws_b, message_b, slot_b, log_inv_rate).unwrap();
 
     verify_single_message_aggregate(&single_message_a).unwrap();
     verify_single_message_aggregate(&single_message_b).unwrap();
@@ -123,7 +133,7 @@ fn test_multi_message_aggregation() {
     let split_a = split_multi_message_aggregate(multi_message.clone(), 0, log_inv_rate).unwrap();
     println!("split index 0: {:.2}s", time.elapsed().as_secs_f64());
     let time = Instant::now();
-    let split_b = split_multi_message_aggregate_by_msg(multi_message, message_b, log_inv_rate).unwrap();
+    let split_b = split_multi_message_aggregate_by_message(multi_message, message_b, log_inv_rate).unwrap();
     println!("split index 1: {:.2}s", time.elapsed().as_secs_f64());
     assert_eq!(
         (split_a.info.message, &split_a.info.slot, &split_a.info.pubkeys),
