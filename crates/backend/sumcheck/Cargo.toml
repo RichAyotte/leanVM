@@ -5,8 +5,8 @@ edition.workspace = true
 
 [dependencies]
 field = { path = "../field", package = "mt-field" }
-air = { path = "../air", package = "mt-air" }
-poly = { path = "../poly", package = "mt-poly" }
+air = { path = "../air", package = "air" }
+poly = { path = "../poly", package = "poly" }
 zk-alloc.workspace = true
 fiat-shamir = { path = "../fiat-shamir", package = "mt-fiat-shamir" }
 parallel.workspace = true

@@ -1,5 +1,5 @@
 [package]
-name = "mt-goldilocks"
+name = "goldilocks"
 version.workspace = true
 edition.workspace = true
 
@@ -9,7 +9,5 @@ utils = { path = "../utils", package = "utils" }
 
 rand.workspace = true
 serde.workspace = true
-itertools.workspace = true
 tracing.workspace = true
-num-bigint = "*"
 paste = "1"

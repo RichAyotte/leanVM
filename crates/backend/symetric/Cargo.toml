@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-goldilocks = { path = "../goldilocks", package = "mt-goldilocks" }
+goldilocks = { path = "../goldilocks", package = "goldilocks" }
 field = { path = "../field", package = "mt-field" }
 parallel.workspace = true
 zk-alloc.workspace = true

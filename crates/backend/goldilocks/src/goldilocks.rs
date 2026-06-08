@@ -15,7 +15,6 @@ use field::{
     RawDataSerializable, TwoAdicField, impl_raw_serializable_primefield64, quotient_map_large_iint,
     quotient_map_large_uint, quotient_map_small_int,
 };
-use num_bigint::BigUint;
 use rand::Rng;
 use rand::distr::{Distribution, StandardUniform};
 use serde::{Deserialize, Serialize};
@@ -333,8 +332,8 @@ impl Field for Goldilocks {
     }
 
     #[inline]
-    fn order() -> BigUint {
-        P.into()
+    fn bits() -> usize {
+        64
     }
 }
 
@@ -400,11 +399,7 @@ impl QuotientMap<i64> for Goldilocks {
     }
 }
 
-impl PrimeField for Goldilocks {
-    fn as_canonical_biguint(&self) -> BigUint {
-        self.as_canonical_u64().into()
-    }
-}
+impl PrimeField for Goldilocks {}
 
 impl PrimeField64 for Goldilocks {
     const ORDER_U64: u64 = P;

@@ -1,5 +1,5 @@
 [package]
-name = "mt-poly"
+name = "poly"
 version.workspace = true
 edition.workspace = true
 
@@ -10,9 +10,8 @@ system-info.workspace = true
 parallel.workspace = true
 zk-alloc.workspace = true
 
-itertools.workspace = true
 rand.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
-goldilocks = { path = "../goldilocks", package = "mt-goldilocks" }
+goldilocks = { path = "../goldilocks", package = "goldilocks" }

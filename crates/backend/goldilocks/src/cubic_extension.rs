@@ -17,8 +17,6 @@ use field::{
     Algebra, BasedVectorSpace, ExtensionField, Field, Packable, PrimeCharacteristicRing, RawDataSerializable,
     TwoAdicField, field_to_array,
 };
-use itertools::Itertools;
-use num_bigint::BigUint;
 use rand::distr::{Distribution, StandardUniform};
 use rand::prelude::Rng;
 use serde::{Deserialize, Serialize};
@@ -269,8 +267,8 @@ impl Field for CubicExtensionFieldGL {
     }
 
     #[inline]
-    fn order() -> BigUint {
-        Goldilocks::order().pow(3)
+    fn bits() -> usize {
+        3 * Goldilocks::bits()
     }
 }
 
@@ -291,6 +289,7 @@ impl Display for CubicExtensionFieldGL {
                     (_, true) => format!("X^{i}"),
                     (_, false) => format!("{x} X^{i}"),
                 })
+                .collect::<Vec<_>>()
                 .join(" + ");
             write!(f, "{str}")
         }

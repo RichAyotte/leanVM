@@ -5,9 +5,8 @@ edition.workspace = true
 
 [dependencies]
 field = { path = "../field", package = "mt-field" }
-goldilocks = { path = "../goldilocks", package = "mt-goldilocks" }
+goldilocks = { path = "../goldilocks", package = "goldilocks" }
 symetric = { path = "../symetric", package = "mt-symetric" }
 utils = { path = "../utils", package = "utils" }
-tracing.workspace = true
 serde.workspace = true
 parallel.workspace = true
