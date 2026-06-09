@@ -44,7 +44,7 @@ def powers(alpha, n):
     # n: F
     assert n < 400
     assert 0 < n
-    # 2**log2_ceil(i) is not really necessary but helps reduce byetcode size (traedoff cycles / bytecode size)
+    # 2**log2_ceil(i) is not really necessary but helps reduce bytecode size (tradeoff cycles / bytecode size)
     res = match_range(n, range(1, 400), lambda i: powers_const(alpha, 2 ** log2_ceil(i)))
     return res
 
@@ -470,24 +470,6 @@ def copy_many_ef(a, b, n):
 def set_to_one(a):
     dot_product_ee(ONE_EF_PTR, ONE_EF_PTR, a)
     return
-
-
-def print_ef(a):
-    for i in unroll(0, DIM):
-        print(a[i])
-    return
-
-
-def print_vec(a):
-    for i in unroll(0, DIGEST_LEN):
-        print(a[i])
-    return
-
-
-@inline
-def read_memory(ptr):
-    mem = 0
-    return mem[ptr]
 
 
 @inline

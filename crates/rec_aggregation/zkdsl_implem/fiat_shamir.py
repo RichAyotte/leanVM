@@ -150,16 +150,6 @@ def fs_sample_many_ef(fs, n):
     return new_fs, sampled
 
 
-@inline
-def fs_hint(fs, n):
-    # Hint = read `n` cells from the transcript without absorbing them. Just advance the
-    # transcript pointer; the sponge state is unchanged.
-    new_fs = Array(9)
-    copy_8(new_fs, fs)
-    new_fs[8] = fs[8] + n
-    return new_fs, fs[8]
-
-
 def fs_receive_chunks(fs, n_chunks: Const):
     # Read n_chunks * DIGEST_LEN cells from the transcript and absorb them. Returns the
     # new fs and a pointer to the just-consumed transcript region.
@@ -190,12 +180,6 @@ def fs_receive_ef(fs, n: Const):
     for i in unroll(n * DIM, next_multiple_of(n * DIM, DIGEST_LEN)):
         assert ef_ptr[i] == 0
     return new_fs, ef_ptr
-
-
-def fs_print_state(fs_state):
-    for i in unroll(0, 9):
-        print(i, fs_state[i])
-    return
 
 
 @inline

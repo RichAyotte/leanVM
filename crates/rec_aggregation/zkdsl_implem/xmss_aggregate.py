@@ -11,7 +11,6 @@ RANDOMNESS_LEN = RANDOMNESS_LEN_PLACEHOLDER
 PUBLIC_PARAM_LEN_FE = PUBLIC_PARAM_LEN_FE_PLACEHOLDER
 XMSS_DIGEST_LEN = XMSS_DIGEST_LEN_PLACEHOLDER
 PUB_KEY_SIZE = XMSS_DIGEST_LEN + PUBLIC_PARAM_LEN_FE
-PP_IN_LEFT = DIGEST_LEN - XMSS_DIGEST_LEN  # = 2 (Goldilocks: pp(2)|zeros(2))
 WOTS_SIG_SIZE = RANDOMNESS_LEN + V * XMSS_DIGEST_LEN
 # wots_public_key pair stride: each pair occupies (1 + 2*XMSS_DIGEST_LEN + 1) cells.
 # `[leading_0 | tip_a(2) | tip_b(2) | trailing_0]` so that copy_ef can be used on
@@ -55,12 +54,12 @@ def xmss_verify(pub_key, message, merkle_chunks):
 
     # `[0 | pp(2) | zeros(2) | 0]` so poseidon8_compress_hardcoded_left could be applied later
     # (here we just need the right operand layout `[pp(2) | zeros(2)]`).
-    public_params_paded_buff = Array(DIGEST_LEN + 2)
-    copy_ef(public_param - 1, public_params_paded_buff)
-    zero_ef(public_params_paded_buff + 3)
-    public_params_paded = public_params_paded_buff + 1
+    public_params_padded_buff = Array(DIGEST_LEN + 2)
+    copy_ef(public_param - 1, public_params_padded_buff)
+    zero_ef(public_params_padded_buff + 3)
+    public_params_padded = public_params_padded_buff + 1
     encoding_fe = Array(DIGEST_LEN)
-    poseidon8_compress_half(pre_compressed, public_params_paded, encoding_fe)
+    poseidon8_compress_half(pre_compressed, public_params_padded, encoding_fe)
 
     debug_assert(V % 2 == 0)
     encoding = Array(V / 2)
@@ -91,7 +90,7 @@ def xmss_verify(pub_key, message, merkle_chunks):
                 chain_end_b,
                 tweaks_a,
                 tweaks_b,
-                public_params_paded,
+                public_params_padded,
                 pair_sum_ptr,
             ),
         )
