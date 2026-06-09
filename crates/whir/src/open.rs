@@ -5,7 +5,6 @@ use std::ops::{Mul, Sub};
 use ::utils::log2_strict_usize;
 use fiat_shamir::{FSProver, MerklePath, ProofResult};
 use field::{ExtensionField, Field, PrimeCharacteristicRing, TwoAdicField};
-use poly::*;
 use tracing::{info_span, instrument};
 use zk_alloc::{ArenaVec, arena_vec};
 
