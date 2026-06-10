@@ -3,7 +3,10 @@
 use field::{Field, TwoAdicField};
 use poly::*;
 
-// (Goldilocks two adicity is 32) We use a smaller one to avoid having to deal with PoW grinding at folding in WHIR
+/// Cap on the log-size of WHIR's RS domains (Goldilocks' true two-adicity is 32).
+/// Keeping codewords small is what lets us skip folding PoW: the folding
+/// errors stay ≥ 128 bits over our ~192-bit field, with 128.75 bits in the worst admissible
+/// config per soundcalc (`scripts/check_whir_soundness.py`, branch `soundcalc-goldilocks`).
 // TODO we likely want a bit more than 24, so we should reintroduce PoW grinding for folding in the future
 // But hopefully we will have better proximity gaps formulas by then
 pub const EFFECTIVE_TWO_ADICITY: usize = 24;
