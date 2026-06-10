@@ -38,6 +38,8 @@
 \newcommand{\offopone}{\text{off}_{\text{op1}}}
 \newcommand*{\logeq}{\ratio\Leftrightarrow}
 \newcommand{\nextmle}{\overset{\scriptscriptstyle\wedge}{\textsf{next}}}
+\newcommand{\pow}{\mathsf{pow}}
+\newcommand{\fold}{\mathsf{fold}}
 
 \newtheorem{lemma}{Lemma}
 \newtheorem{theorem}{Theorem}
@@ -210,8 +212,10 @@ $\textsf{bytecode\_sep}$ & 2 & domain separator of bytecode interactions \\
 $\textsf{flag}_\textsc{single}$ & 1 & public-input flag for a single-message aggregation (\Cref{sec:aggregation-layout}) \\
 $\textsf{flag}_\textsc{multi}$ & 0 & public-input flag for a multi-message aggregation (\Cref{sec:aggregation-layout}) \\
 $n_{cols}^{execution}$ & 20 & number of columns in the \texttt{execution} table \\
-$f_0^\text{whir}$ & 7 & WHIR initial folding factor \\
-$f_{>0}^\text{whir}$ & 5 & WHIR subsequent folding factor \\
+$k_0^\text{whir}$ & 7 & WHIR initial folding factor \\
+$k_{>0}^\text{whir}$ & 5 & WHIR subsequent folding factor \\
+$v_0^\text{whir}$ & 5 & WHIR initial domain log-reduction (later rounds use $1$) \\
+$m_\text{fin}^\text{whir}$ & 8 & WHIR maximum number of variables of the final polynomial \\
 $\textsf{log\_inv\_rate}^{\min}$ & $1$ & minimum value of $\textsf{log\_inv\_rate}$ (WHIR) \\
 $\textsf{log\_inv\_rate}^{\max}$ & $4$ & maximum value of $\textsf{log\_inv\_rate}$ \\
 \bottomrule
@@ -524,6 +528,76 @@ The following program takes two base field elements $(n, r)$ as public input (oc
 
 \section{Proving system}\label{sec:proving}
 
+\subsection{WHIR, an Inner Product Commitment Scheme}\label{sec:whir-protocol}
+
+WHIR \cite{whir} is the Inner Product Commitment Scheme (\Cref{sec:inner_product_PCS}) used in LeanVM. The prover commits to a vector $v \in \Fp^{2^n}$, and later proves $J$ \emph{claims} $(\hat{w}_1, c_1), \dots, (\hat{w}_J, c_J)$: each \emph{weight} $\hat{w}_j$ is the MLE of a vector $w_j \in \Fq^{2^n}$, assumed to be efficiently evaluable by the verifier, and claim $j$ states that
+\[
+\sum_{i=0}^{2^n - 1} v[i] \cdot w_j[i] \;=\; \sum_{b \in \{0,1\}^n} \hat{v}(b) \cdot \hat{w}_j(b) \;=\; c_j \;\in\; \Fq .
+\]
+
+\subsubsection{Encoding and folding}
+
+Write $\pow(x, m) := (x, x^2, x^4, \dots, x^{2^{m-1}})$. An \emph{evaluation domain} $\mathcal{L} \subseteq \Fp^*$ is a multiplicative subgroup whose order is a power of two; for $k \geq 0$, $\mathcal{L}^{(2^k)} := \{x^{2^k}, \, x \in \mathcal{L}\}$ is a subgroup of order $|\mathcal{L}| / 2^k$, and each $y \in \mathcal{L}^{(2^k)}$ has $2^k$ preimages in $\mathcal{L}$, its \emph{fiber}. The \emph{encoding} over $\mathcal{L}$ of a vector $u$ of length $2^m \leq |\mathcal{L}|$ is the function $x \in \mathcal{L} \mapsto \hat{u}(\pow(x, m))$ (a Reed-Solomon codeword).
+
+For $f: \mathcal{L} \to \Fq$ and $\alpha \in \Fq$, the \emph{fold} of $f$ is $\fold(f, \alpha): \mathcal{L}^{(2)} \to \Fq$, defined by
+\[
+\fold(f, \alpha)(x^2) := \frac{f(x) + f(-x)}{2} + \alpha \cdot \frac{f(x) - f(-x)}{2 x} ;
+\]
+for $\vec{\alpha} = (\alpha_1, \dots, \alpha_k) \in \Fq^k$, $\fold(f, \vec{\alpha}): \mathcal{L}^{(2^k)} \to \Fq$ folds successively by $\alpha_1$, then $\alpha_2$, etc. Two facts:
+\begin{itemize}
+    \item \textbf{Locality:} $\fold(f, \vec{\alpha})(y)$ depends only on the $2^k$ values of $f$ on the fiber of $y$.
+    \item \textbf{Compatibility:} if $f$ encodes $\hat{f}$, then $\fold(f, \vec{\alpha})$ encodes $\hat{f}(\alpha_1, \dots, \alpha_k, \cdot)$: folding eliminates the first $k$ variables.
+\end{itemize}
+
+\subsubsection{Commitment}
+
+To commit to $v \in \Fp^{2^n}$, given a rate parameter $\textsf{log\_inv\_rate}$:
+\begin{enumerate}
+    \item The prover sends the oracle $f_0 : \mathcal{L}_0 \to \Fp$, the encoding of $\hat{v}$, where $|\mathcal{L}_0| = 2^{n + \textsf{log\_inv\_rate}}$.
+    \item \textbf{Out-of-domain sampling:} the verifier samples $s_0$ points $z \overset{\$}{\leftarrow} \Fq$; for each, the prover replies with $y := \hat{v}(\pow(z, n))$.
+\end{enumerate}
+
+\subsubsection{Opening}
+
+The opening proves the $J$ input claims together with the $s_0$ out-of-domain claims of the commitment. It is parameterized by an iteration count $M$, folding factors $k_0, \dots, k_{M-1}$, domain log-reductions $v_0, \dots, v_{M-2}$ with $v_i \leq k_i$, query counts $t_0, \dots, t_{M-1}$, and out-of-domain counts $s_1, \dots, s_{M-1}$. Define $m_0 := n$, $m_{i+1} := m_i - k_i$, $\mathcal{L}_{i+1} := \mathcal{L}_i^{(2^{v_i})}$, and the folded polynomials $\hat{f}_0 := \hat{v}$, $\hat{f}_{i+1} := \hat{f}_i(\vec{\alpha}_i, \cdot)$ (where $\vec{\alpha}_i$ are the sumcheck challenges below).
+
+The protocol maintains a \emph{running target} $\sigma \in \Fq$ and a \emph{running weight} $\hat{W}_i$: a multilinear polynomial in $m_i$ variables, defined by the batching steps below, which the verifier evaluates only once, in the final check. At the start of iteration $i$, the running claim is:
+\[
+\sum_{b \in \{0,1\}^{m_i}} \hat{f}_i(b) \cdot \hat{W}_i(b) \;=\; \sigma .
+\]
+
+\begin{enumerate}
+    \item \textbf{Batching.} The protocol starts by batching everything into a single claim, via a random linear combination: the initial weight $\hat{W}_0$ contains both the ``useful'' input claims and the out-of-domain claims of the commitment. The verifier samples $\gamma \overset{\$}{\leftarrow} \Fq$, and all the claims are combined with successive powers of $\gamma$:
+    \[
+    \hat{W}_0 := \sum\nolimits_j \gamma^{j-1} \, \hat{w}_j , \qquad \sigma := \sum\nolimits_j \gamma^{j-1} \, c_j ,
+    \]
+    where $j$ enumerates all the claims, the $s_0$ out-of-domain claims first (each pair $(z, y)$ counting as the claim with weight $\hat{eq}(\pow(z, n), \cdot)$ and value $y$), then the input claims.
+    \item \textbf{Iterations.} For $i = 0, 1, \dots, M-1$:
+    \begin{enumerate}
+        \item \emph{Sumcheck \cite{sumcheck} ($k_i$ rounds).} For $\ell = 1, \dots, k_i$: the prover sends the degree-$2$ univariate
+        \[
+        \hat{h}_\ell(X) := \sum_{b \in \{0,1\}^{m_i - \ell}} \hat{f}_i(\alpha_1, \dots, \alpha_{\ell-1}, X, b) \cdot \hat{W}_i(\alpha_1, \dots, \alpha_{\ell-1}, X, b) ;
+        \]
+        the verifier checks $\hat{h}_\ell(0) + \hat{h}_\ell(1) = \sigma$, samples $\alpha_\ell \overset{\$}{\leftarrow} \Fq$, and updates $\sigma := \hat{h}_\ell(\alpha_\ell)$. Write $\vec{\alpha}_i := (\alpha_1, \dots, \alpha_{k_i})$: the running claim now concerns $\hat{f}_{i+1} = \hat{f}_i(\vec{\alpha}_i, \cdot)$, with weight $\hat{W}_i(\vec{\alpha}_i, \cdot)$. \emph{The remaining steps are skipped in the last iteration.}
+        \item \emph{New oracle.} The prover sends $f_{i+1} : \mathcal{L}_{i+1} \to \Fq$, the encoding of $\hat{f}_{i+1}$.
+        \item \emph{Out-of-domain sampling.} The verifier samples $s_{i+1}$ points $z \overset{\$}{\leftarrow} \Fq$; for each, the prover replies with $y := \hat{f}_{i+1}(\pow(z, m_{i+1}))$.
+        \item \emph{STIR queries.} The verifier samples $t_i$ points $z \overset{\$}{\leftarrow} \mathcal{L}_i^{(2^{k_i})}$ and computes $y := \fold(f_i, \vec{\alpha}_i)(z)$ itself, reading the $2^{k_i}$ values of $f_i$ on the fiber of $z$. By compatibility, $y = \hat{f}_{i+1}(\pow(z, m_{i+1}))$: these queries tie the new oracle to the previous one.
+        \item \emph{Batching.} The verifier samples $\gamma \overset{\$}{\leftarrow} \Fq$. Enumerating the $s_{i+1} + t_i$ pairs $(z_j, y_j)$ from the two previous steps (out-of-domain first), update:
+        \[
+        \hat{W}_{i+1} := \hat{W}_i(\vec{\alpha}_i, \cdot) + \sum\nolimits_j \gamma^{j-1} \, \hat{eq}\big(\pow(z_j, m_{i+1}), \cdot\big) , \qquad \sigma := \sigma + \sum\nolimits_j \gamma^{j-1} \, y_j .
+        \]
+    \end{enumerate}
+    \item \textbf{Final polynomial.} The prover sends $\hat{f}_M = \hat{f}_{M-1}(\vec{\alpha}_{M-1}, \cdot)$ in the clear ($2^{m_M}$ coefficients). The verifier samples $t_{M-1}$ points $z \overset{\$}{\leftarrow} \mathcal{L}_{M-1}^{(2^{k_{M-1}})}$ and checks $\fold(f_{M-1}, \vec{\alpha}_{M-1})(z) = \hat{f}_M(\pow(z, m_M))$.
+    \item \textbf{Final sumcheck ($m_M$ rounds).} As in step 2.(a), on the $m_M$ remaining variables, yielding challenges $\vec{\beta} \in \Fq^{m_M}$ and a final target $\sigma$.
+    \item \textbf{Final check.} The verifier checks
+    \[
+    \hat{f}_M(\vec{\beta}) \cdot \hat{W}_{M-1}(\vec{\alpha}_{M-1}, \vec{\beta}) \;=\; \sigma ,
+    \]
+\end{enumerate}
+
+\subsubsection{Instantiation in LeanVM}
+
+The folding factors are $k_0 = k_0^\text{whir} = 7$, then $k_i = k_{>0}^\text{whir} = 5$; the domain log-reductions are $v_0 = v_0^\text{whir} = 5$, then $v_i = 1$. $M$ is the smallest integer such that $m_M \leq m_\text{fin}^\text{whir} = 8$.
 
 \subsection{Stacking multilinear polynomials}\label{sec:stacking}
 
@@ -1212,7 +1286,7 @@ TODO: Verify and (formally) prove soundness.
 
     \item \textbf{Boundary pc.} To ensure a valid initial / final program counter, we add two opening claims on the \textbf{pc} column of the \textsc{execution} table: $\hat{\textbf{pc}}(0, \ldots, 0) = 0$ and $\hat{\textbf{pc}}(1, \ldots, 1) = 2^{h_\textsc{bytecode}} - 1$ (handled by WHIR bellow).
 
-    \item \textbf{WHIR opening.} The prover and verifier run a single WHIR verification on the stacked commitment of step~2 against the list of evaluation claims (including shifted ones) gathered so far.
+    \item \textbf{WHIR opening.} The prover and verifier run a single WHIR opening (\Cref{sec:whir-protocol}) on the stacked commitment of step~2 against the list of evaluation claims (including shifted ones) gathered so far.
 
 \end{enumerate}
 
@@ -1222,7 +1296,7 @@ A slice $v$ of field elements, of arbitrary length $L \ge 1$, is hashed into a d
 $$c_0 = (L,\, 0, \dots, 0), \qquad (c_{i+1} \,\|\, r_{i+1}) = \texttt{POSEIDON}^\pi(c_i \,\|\, B_i) \quad (0 \le i < n), \qquad \mathsf{H}(v) = r_n.$$
 
 
-\subsection{Fiat-Shamir}
+\subsection{Fiat-Shamir}\label{sec:fiat-shamir}
 
 In order to turn the interactive protocol described in \Cref{sec:e2e-protocol} into a non-interactive one, we apply the BCS transformation \cite{BCS}. In particular, we use the Fiat-Shamir transformation implemented via a duplex sponge \cite{fiat_shamir_duplex_sponge} (using the $\texttt{POSEIDON}^\pi$ permutation over a state of 16 KoalaBear field elements).
 
@@ -1252,8 +1326,8 @@ Intuition:
 
 \begin{itemize}
     \item The first few OOD evaluations (at commitment) are protected by the randomness in $P(0, 1, .)$.
-    \item Denote by $f_0$ the initial folding factor ($f_0 = 7$ in practice). About the sumcheck polynomials in the intial round ($f_0$ degree-2 polynomials): as long as there is at least 1 OOD query, and except with negligible probability, (where the OOD points would be $(0, 0, \dots )$ or ($(1, 1, \dots)$)), the first sumcheck polynomial will contain a non trivial linear combination in the random coefficients of $P(0, 1, .)$. If we call $\alpha_1$ the first sumcheck challenge, the second sucmheck polynomial will contain a non trivial linear combination from the 'folded' random coefficients of $P(0, 1, ., \alpha_1)$, etc. 
-    \item The STIR querries will reveal at most $\approx 2 \cdot \lambda$ interleaved evaluations of the form $$(P(\omega, \omega^2, \omega^4, \dots, \omega^{2^{n - f_0}}, [i]_\text{bits}^{f_0}))_{i \in [0, 2^{f_0})}$$ where $\omega$ is a root-of-unity of order $\leq 2^{n-f_0}$. Important: the prover should reject the case $w = 1$ (restart the proof with another salt).
+    \item Denote by $k_0$ the initial folding factor ($k_0 = 7$ in practice). About the sumcheck polynomials in the intial round ($k_0$ degree-2 polynomials): as long as there is at least 1 OOD query, and except with negligible probability, (where the OOD points would be $(0, 0, \dots )$ or ($(1, 1, \dots)$)), the first sumcheck polynomial will contain a non trivial linear combination in the random coefficients of $P(0, 1, .)$. If we call $\alpha_1$ the first sumcheck challenge, the second sucmheck polynomial will contain a non trivial linear combination from the 'folded' random coefficients of $P(0, 1, ., \alpha_1)$, etc. 
+    \item The STIR querries will reveal at most $\approx 2 \cdot \lambda$ interleaved evaluations of the form $$(P(\omega, \omega^2, \omega^4, \dots, \omega^{2^{n - k_0}}, [i]_\text{bits}^{k_0}))_{i \in [0, 2^{k_0})}$$ where $\omega$ is a root-of-unity of order $\leq 2^{n-k_0}$. Important: the prover should reject the case $w = 1$ (restart the proof with another salt).
     \item Sufficient requirement for $P(0, 1, .)$ to protect the sumcheck polynomials, the STIR queries and the OOD queries: the number of variables $n$ shpule be greater than $4 + \log_2 \lambda$. Trivial in practice.
     \item At the end of the initial round, $P(1, .)$ plays the role of random mask (that has been protected untill then). The folded codeword becomes totally random: zero-knowledge follows for the rest of the protocol.
 \end{itemize}
@@ -1676,7 +1750,7 @@ The aggregation program supports two flavors, selected by a leading flag:
     \item \textbf{Multi-message} ($\textsf{flag}_\textsc{multi} = 0$): a bundle of $n$ independent single-message aggregates, each with its own $(\textsf{msg}, s)$ and pubkey set.
 \end{itemize}
 
-The public input is the hash of a field-element buffer (via the sponge of \Cref{sec:slice-hash}). The buffer is defined as follows:
+The public input is the hash of a field-element buffer (via the sponge of \Cref{sec:sponge}). The buffer is defined as follows:
 
 \begin{center}
 \begin{tabular}{cll}
@@ -1719,9 +1793,9 @@ The bytecode claim is one evaluation of the bytecode polynomial over $\Fq$ (\Cre
 
 \subsection{Avoid paying for (most of) the zero suffix from polynomial stacking}\label{sec:zero-suffix}
 
-The polynomial $S$ (in $\nu$ variables) committed by WHIR (using an interleaved Reed-Solomon code) is the \emph{stacking} (\Cref{sec:stacking}) of all columns, memory, and access counts, padded with zeros up to the next power of two; its $2^\nu$ evaluations are therefore non-zero only on a prefix of some length $L$ ($2^{\nu - 1} < L \leq 2^\nu$). The first WHIR round folds $X_1, \ldots, X_{f_0^\text{whir}}$ (where $f_0^\text{whir} = 7$ is the initial folding factor), which splits the evaluations (on the boolean hypercube) of $S$ into $2^{f_0^\text{whir}} = 128$ contiguous blocks. Each block is Reed-Solomon encoded, and the $128$ encoded blocks become the columns of a matrix whose rows are the Merkle leaves.
+The polynomial $S$ (in $\nu$ variables) committed by WHIR (using an interleaved Reed-Solomon code) is the \emph{stacking} (\Cref{sec:stacking}) of all columns, memory, and access counts, padded with zeros up to the next power of two; its $2^\nu$ evaluations are therefore non-zero only on a prefix of some length $L$ ($2^{\nu - 1} < L \leq 2^\nu$). The first WHIR round folds $X_1, \ldots, X_{k_0^\text{whir}}$ (where $k_0^\text{whir} = 7$ is the initial folding factor), which splits the evaluations (on the boolean hypercube) of $S$ into $2^{k_0^\text{whir}} = 128$ contiguous blocks. Each block is Reed-Solomon encoded, and the $128$ encoded blocks become the columns of a matrix whose rows are the Merkle leaves.
 
-Because the folded variables are the \emph{most significant} bits, the zeros land in the last blocks: only the first $n_\text{eff} = \lceil L / 2^{\nu - f_0^\text{whir}} \rceil$ blocks are non-zero, so every leaf ends with the same $128 - n_\text{eff}$ zeros. Two optimizations follow:
+Because the folded variables are the \emph{most significant} bits, the zeros land in the last blocks: only the first $n_\text{eff} = \lceil L / 2^{\nu - k_0^\text{whir}} \rceil$ blocks are non-zero, so every leaf ends with the same $128 - n_\text{eff}$ zeros. Two optimizations follow:
 
 \begin{itemize}
     \item \textbf{FFT:} only the first $n_\text{eff}$ blocks are FFT encoded (trailing zero blocks encode to zero)
