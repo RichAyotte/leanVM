@@ -85,7 +85,7 @@ cargo run --release -- fancy-aggregation
 
 Currently, we use an [XMSS](crates/xmss/xmss.md) with hash digests of 2 goldilocks ≈ 128 bits. Tweaks and public parameters ensure domain separation. An analysis in the ROM (resp. QROM), inspired by the section 3.1 of [Tight adaptive reprogramming in the QROM](https://arxiv.org/pdf/2010.15103) would lead to ≈ 128 (resp. 64) bits of classical (resp. quantum) security, i.e. NIST level 1.
 
-It's important to mention that a security analysis in the ROM / QROM is not the most conservative. In particular, [eprint 2025/055](https://eprint.iacr.org/2025/055.pdf)'s security proof holds in the standard model (at the cost of bigger hash digests): the implementation is available in the [leanSig](https://github.com/leanEthereum/leanSig) repository. A compatible version of leanVM can be found in the [devnet4](https://github.com/leanEthereum/leanVM/tree/devnet4) branch.
+It's important to mention that a security analysis in the ROM / QROM is not the most conservative. In particular, [eprint 2025/055](https://eprint.iacr.org/2025/055.pdf)'s security proof holds in the standard model (at the cost of bigger hash digests): the implementation is available in the [leanSig](https://github.com/leanEthereum/leanSig) repository. A compatible version of leanVM can be found in the [devnet5](https://github.com/leanEthereum/leanVM/tree/devnet5) branch.
 
 ## Credits
 
