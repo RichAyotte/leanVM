@@ -1226,6 +1226,60 @@ $$c_0 = (L,\, 0, \dots, 0), \qquad (c_{i+1} \,\|\, r_{i+1}) = \texttt{POSEIDON}^
 
 In order to turn the interactive protocol described in \Cref{sec:e2e-protocol} into a non-interactive one, we apply the BCS transformation \cite{BCS}. In particular, we use the Fiat-Shamir transformation implemented via a duplex sponge \cite{fiat_shamir_duplex_sponge} (using the $\texttt{POSEIDON}^\pi$ permutation over a state of 16 KoalaBear field elements).
 
+\section{Zero-Knowledge (ideas only, not implemented, not proven)}\label{sec:zk}
+
+
+Target: statistical zero-knowledge with $\lambda$ bits of security (i.e. a simulator should be able to produce a transcript whose distribution is at statistical distance at most $2^{-\lambda}$ from the real (honest-prover) transcript distribution).
+
+
+\subsection{WHIR}
+
+
+Strategy:
+\begin{itemize}
+    \item reverse variable ordering at folding, i.e. for a polynomial $P(X_1, \dots, X_n)$, fold first $X_n$, then $X_{n-1}, \dots$ (as a side note, this disables the padding-free optimization of \Cref{sec:zero-suffix}, but enables the one from \Cref{sec:svo-whir}).
+    \item Store the stacked trace (i.e. the secret information) in $P(0, 0, .)$. The remaining 3/4th of the committed polynomial $P(0, 1, .), P(1, 0, .), P(1, 1, .)$ is filled with random values.
+    \item $P(0, 1, .)$ is used to protect the stir + OOD queries in the initial round.
+    \item $P(1, .)$ is used to add a full random mask at the end of the initial round.
+\end{itemize}
+
+
+\textit{No protocol changes.}
+
+\vspace{5mm}
+
+Intuition:
+
+\begin{itemize}
+    \item The first few OOD evaluations (at commitment) are protected by the randomness in $P(0, 1, .)$.
+    \item Denote by $f_0$ the initial folding factor ($f_0 = 7$ in practice). About the sumcheck polynomials in the intial round ($f_0$ degree-2 polynomials): as long as there is at least 1 OOD query, and except with negligible probability, (where the OOD points would be $(0, 0, \dots )$ or ($(1, 1, \dots)$)), the first sumcheck polynomial will contain a non trivial linear combination in the random coefficients of $P(0, 1, .)$. If we call $\alpha_1$ the first sumcheck challenge, the second sucmheck polynomial will contain a non trivial linear combination from the 'folded' random coefficients of $P(0, 1, ., \alpha_1)$, etc. 
+    \item The STIR querries will reveal at most $\approx 2 \cdot \lambda$ interleaved evaluations of the form $$(P(\omega, \omega^2, \omega^4, \dots, \omega^{2^{n - f_0}}, [i]_\text{bits}^{f_0}))_{i \in [0, 2^{f_0})}$$ where $\omega$ is a root-of-unity of order $\leq 2^{n-f_0}$. Important: the prover should reject the case $w = 1$ (restart the proof with another salt).
+    \item Sufficient requirement for $P(0, 1, .)$ to protect the sumcheck polynomials, the STIR queries and the OOD queries: the number of variables $n$ shpule be greater than $4 + \log_2 \lambda$. Trivial in practice.
+    \item At the end of the initial round, $P(1, .)$ plays the role of random mask (that has been protected untill then). The folded codeword becomes totally random: zero-knowledge follows for the rest of the protocol.
+\end{itemize}
+
+
+\subsection{Logup-GKR sumcheck}\label{sec:zk-logup-gkr}
+
+TODO
+
+\subsection{AIR sumcheck}\label{sec:zk-air-sumcheck}
+
+TODO
+
+\subsection{Column evaluations}
+
+In the two protocols above (\Cref{sec:zk-logup-gkr} and \Cref{sec:zk-air-sumcheck}), the prover sends a few evaluations (at random points) of the columns (interpreted as multilinear polynomial, storing data we want to hide). For some columns $c$, the prover sends the evaluation of $\mathsf{shift}(c)$ at a random point.
+
+Strategy:
+\begin{itemize}
+    \item For each table $T$, for each column $c$, that will be evaluated $t$ times, that can take values in $\Omega$ (in the sense that it's possible to fill the other columns, while respecting the AIR constraints), add $r = t \cdot \log_2(q / |\Omega|) + 2 \cdot \lambda$ rows where each of the $r$ value in the column $c$ is chosen independently, and uniformly at random from $\Omega$. The rest of the trace is adapted to 'make it pass' the constraints.
+    \item Using the conjecture bellow, these 'structured random' masks protect the column evaluations, i.e. it's statistically ZK at $\lambda$ bits.
+    \item Conjecture: Consider a multilinear polynomial in $n$ variables, where $r = t \cdot \log_2(q / |\Omega|) + 2 \cdot \lambda$ of its coefficients (in the Lagrange basis) are sampled at random (independently and uniformly) (and the $2^n - r$ remaining ones are set to zero), evaluted at $t$ random points (each point is in $\Fq^n$, sampled independently and uniformly), where some of the evaluations may concern $\mathsf{shift}(P)$ instead of $P$. Then the resulting $r$ evaluations are at statistical distance at most $2^{-\lambda}$ from the uniform distribution over $\Fq^t$.
+\end{itemize}
+
+\textit{No protocol changes.}
+
 \section{ISA programming}
 
 This section describes \emph{conventions} for writing programs using the ISA of \Cref{sec:isa}. None of it is hard-coded into the VM or enforced by the snark.
@@ -1674,7 +1728,7 @@ Because the folded variables are the \emph{most significant} bits, the zeros lan
     \item \textbf{Leaf hashing:} we hash each Merkle leaf via an overwrite-sponge, absorbing data right-to-left, so the shared zero suffix yields the same partial state, which we precompute once and reuse for every leaf.
 \end{itemize}
 
-\subsection{Small-Value Optimization (SVO) and Split-Eq}\label{sec:svo}
+\subsection{Small-Value Optimization (SVO) and Split-Eq}\label{sec:svo-whir}
 
 WHIR opening contains a sumcheck of the form $\sum_{b \in \{0,1\}^\nu} w(b)\, f(b)$, where $f$ is the committed (base-field) polynomial and the weight $w(b) = \sum_i \alpha^i\, \hat{eq}(b, w_i)$ batches the evaluation claims $f(w_i) = y_i$ (we omit 'shift' claims for simplicity, but this is generalizable). In our setting the claims are highly \emph{sparse}: stacking many table columns into a single WHIR instance produces, for each column, a claim $w_i$ whose high-order coordinates are the boolean prefix bits selecting that column, with only the remaining coordinates in $\Fq$.
 
