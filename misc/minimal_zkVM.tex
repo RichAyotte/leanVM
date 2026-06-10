@@ -1277,9 +1277,9 @@ TODO: Verify and (formally) prove soundness.
 
     \item \textbf{AIR.}
     \begin{enumerate}
-        \item The verifier samples $\mu \in \Fq$. Consecutive powers $1, \mu, \mu^2, \dots$ are used to take a random linear combination of \emph{all} verification constraints across the three tables.
-        \item Prover and verifier run the back-loaded batched zerocheck of \Cref{sec:air-eval}, merging the per-table constraint polynomials into a single sumcheck of $h_\textsc{max} := \max_T h_T$ rounds, \emph{crucially reusing the suffix of $\vec r_\textsc{gkr}$ of length $h_\textsc{max}$ from the logup step as the zerocheck random challenge (no fresh point is sampled)}. TODO explain why do this, and TODO explain why it's sound. Let $\vec r_\textsc{air} \in \Fq^{h_\textsc{max}}$ denote the sumcheck challenges.
-        \item For each table $T$, the prover sends the evaluations of all of $T$'s committed columns and shifted columns at the appropriate suffix of $\vec r_\textsc{air}$. The verifier evaluates $T$'s AIR-constraint polynomial at these column evaluations, which enables to conclude the batched-zerocheck.
+        \item The verifier samples $\mu \in \Fq$. The powers $1, \mu, \mu^2, \dots$ batch all the constraints of the three tables into a single one.
+        \item Prover and verifier run the batched zerocheck of \Cref{sec:air-eval}: one sumcheck of $h_\textsc{max} := \max_T h_T$ rounds for the three tables at once. \emph{No fresh random point is sampled}: the zerocheck challenge is the suffix of $\vec r_\textsc{gkr}$ of length $h_\textsc{max}$, from the logup step. TODO explain why do this, and TODO explain why it's sound. Let $\vec r_\textsc{air} \in \Fq^{h_\textsc{max}}$ denote the sumcheck challenges.
+        \item For each table $T$, the prover sends the evaluations of $T$'s committed columns, and of their shifts, at the suffix of $\vec r_\textsc{air}$ of length $h_T$. The verifier plugs these values into $T$'s constraints, which gives the last check of the sumcheck.
     \end{enumerate}
 
     \item \textbf{Public-memory consistency.} The verifier samples $\vec r_\textsc{pub} \in \Fq^{\log_2 \ell_\textsc{public}}$ and evaluates $\textsf{public\_input}$ as a multilinear polynomial at $\vec r_\textsc{pub}$, obtaining $v_\textsc{pub} \in \Fq$. The pair $(\vec r_\textsc{pub}, v_\textsc{pub})$ is queued as an opening claim on the initial $\ell_\textsc{public}$-cell prefix of the committed memory polynomial (handled by WHIR below).
@@ -1306,31 +1306,53 @@ In order to turn the interactive protocol described in \Cref{sec:e2e-protocol} i
 Target: statistical zero-knowledge with $\lambda$ bits of security (i.e. a simulator should be able to produce a transcript whose distribution is at statistical distance at most $2^{-\lambda}$ from the real (honest-prover) transcript distribution).
 
 
-\subsection{WHIR}
+\subsection{WHIR}\label{sec:zk-whir}
 
+The WHIR transcript (\Cref{sec:whir-protocol}) consists of: the out-of-domain answers; the sumcheck messages ($k_i$ degree-2 univariates per iteration, then $m_M$ final ones); the STIR openings; the final polynomial $\hat{f}_M$, sent in the clear. (TODO handle the Merkle roots and the opened authentication paths?)
 
-Strategy:
+The claimed values $c_j$ (inputs of the opening protocol) belong to the \emph{statement}: making them simulatable is the job of \Cref{sec:zk-logup-gkr,sec:zk-air-sumcheck,sec:zk-column-evals}.
+
+\subsubsection{What we change}
+
+\textbf{1. Folding order.} We use the folding ordering $(X_1, X_n, X_{n-1}, \dots, X_2)$: round 0 folds $X_1$ first, then $X_n, X_{n-1}, \dots, X_{n-k_0+2}$; the later rounds continue downward; the $m_M$ variables surviving to the final polynomial are $(X_2, \dots, X_{m_M + 1})$. (As a side note, folding the low variables early disables the padding-free optimization of \Cref{sec:zero-suffix}, but maybe (not sure?) it enables the one from \Cref{sec:svo-whir}.)
+
+\textbf{2. Layout.} Two uniformly random \emph{masks} are committed next to the data:
+\[
+P \;=\; \underbrace{\,\text{stacking} \;\Vert\; 0 \cdots 0 \;\Vert\; R_{\textsf{in}}\,}_{P(0,\, \cdot\,) \text{ : the data half}} \;\Big\Vert\; \underbrace{\,R_{\textsf{out}}\,}_{P(1,\, \cdot\,)}
+\]
 \begin{itemize}
-    \item reverse variable ordering at folding, i.e. for a polynomial $P(X_1, \dots, X_n)$, fold first $X_n$, then $X_{n-1}, \dots$ (as a side note, this disables the padding-free optimization of \Cref{sec:zero-suffix}, but enables the one from \Cref{sec:svo-whir}).
-    \item Store the stacked trace (i.e. the secret information) in $P(0, 0, .)$. The remaining 3/4th of the committed polynomial $P(0, 1, .), P(1, 0, .), P(1, 1, .)$ is filled with random values.
-    \item $P(0, 1, .)$ is used to protect the stir + OOD queries in the initial round.
-    \item $P(1, .)$ is used to add a full random mask at the end of the initial round.
+    \item The stacking (\Cref{sec:stacking}) part (containing secret data) is unchanged, we simply use a bigger polynomial, in order to fit $R_{\textsf{in}}$ and $R_{\textsf{out}}$.
+    \item $R_{\textsf{out}}$, the \emph{out-round mask}, fills the second half with i.i.d. uniform $\Fp$ cells. Since $X_1$ is folded in round 0, $R_{\textsf{out}}$ is mixed into the data from the start; its role is to protect everything revealed \emph{after} round 0.
+    \item $R_{\textsf{in}}$, the \emph{in-round mask}, is a uniformly random segment occupying the \emph{last} $2^{k_0 - 1 + a}$ cells of the first half of the polynomial, with $2^a \geq t_0 + \extdeg \cdot (s_0 + s_1)$ (negligible in practice). Its role is to protect the reveals of round 0 itself: the STIR openings and the out-of-domain answers.
 \end{itemize}
 
+\textbf{3. Restart rule.} After generating the proof, the prover checks the two conditions below; if either fails, it restarts with freshly sampled masks, which re-randomizes the entire transcript. Both conditions hold except with low probability (see the proof sketch), so restarts are rare.
+\begin{itemize}
+    \item \textsc{spread}: the $2^{k_0 - 1}$ weights $\{\hat{eq}(\vec{\alpha}_0, (1, s'))\}_{s' \in \{0,1\}^{k_0 - 1}}$ span $\Fq$ as an $\Fp$-vector space, where $\vec{\alpha}_0$ are the round-0 sumcheck challenges, in folding order;
+    \item \textsc{independence}: each value revealed during round 0 is a known $\Fp$-linear combination of the committed cells; these linear combinations, restricted to the mask cells, are linearly independent. The values in question: the opened STIR fibers (duplicate queries counted once), the out-of-domain answers, and the fresh coefficients of the $k_0$ round-0 sumcheck polynomials. An $\Fq$-value counts as $\extdeg$ linear combinations over $\Fp$.
+\end{itemize}
 
-\textit{No protocol changes.}
+\vspace{2mm}
 
-\vspace{5mm}
+\textbf{Overhead.} Roughly 2x.
 
-Intuition:
+\subsubsection{Why it is zero-knowledge (sketch)}
+
+We go through the transcript in order.
 
 \begin{itemize}
-    \item The first few OOD evaluations (at commitment) are protected by the randomness in $P(0, 1, .)$.
-    \item Denote by $k_0$ the initial folding factor ($k_0 = 7$ in practice). About the sumcheck polynomials in the intial round ($k_0$ degree-2 polynomials): as long as there is at least 1 OOD query, and except with negligible probability, (where the OOD points would be $(0, 0, \dots )$ or ($(1, 1, \dots)$)), the first sumcheck polynomial will contain a non trivial linear combination in the random coefficients of $P(0, 1, .)$. If we call $\alpha_1$ the first sumcheck challenge, the second sucmheck polynomial will contain a non trivial linear combination from the 'folded' random coefficients of $P(0, 1, ., \alpha_1)$, etc. 
-    \item The STIR querries will reveal at most $\approx 2 \cdot \lambda$ interleaved evaluations of the form $$(P(\omega, \omega^2, \omega^4, \dots, \omega^{2^{n - k_0}}, [i]_\text{bits}^{k_0}))_{i \in [0, 2^{k_0})}$$ where $\omega$ is a root-of-unity of order $\leq 2^{n-k_0}$. Important: the prover should reject the case $w = 1$ (restart the proof with another salt).
-    \item Sufficient requirement for $P(0, 1, .)$ to protect the sumcheck polynomials, the STIR queries and the OOD queries: the number of variables $n$ shpule be greater than $4 + \log_2 \lambda$. Trivial in practice.
-    \item At the end of the initial round, $P(1, .)$ plays the role of random mask (that has been protected untill then). The folded codeword becomes totally random: zero-knowledge follows for the rest of the protocol.
+    \item \emph{Round-0 STIR openings.} For $s \in \{0,1\}^{k_0}$, let $u_s \in \Fp^{2^{n - k_0}}$ be the vector of cells whose round-0 coordinates equal $s$. By locality, the $2^{k_0}$ values opened by a query at $z$ contain exactly the same information as the $2^{k_0}$ evaluations $\hat{u}_s(\pow(z, n - k_0))$. The $u_s$ with $X_1$-coordinate $1$ partition $R_{\textsf{out}}$: they are entirely random. (Their revealed evaluations do consume some of $R_{\textsf{out}}$'s randomness; the $\hat{f}_1$ item below accounts for this.) Each $u_s$ with $X_1$-coordinate $0$ contains data, but ends with $2^a$ i.i.d. random cells (its share of $R_{\textsf{in}}$), and is evaluated at most $t_0$ times (duplicates reveal nothing new). On these $2^a$ random cells, $\hat{u}_s(\pow(z, \cdot))$ is the evaluation at $z$ of a univariate of degree $< 2^a$ with free coefficients, times the nonzero factor $z^{2^{n-k_0}-2^a}$. Evaluations at distinct points are independent (Vandermonde): the fiber part of \textsc{independence} holds automatically. The random cells must sit at the \emph{end} of $u_s$: elsewhere the factor contains $(1 - z^{2^i})$ terms, which vanish on small-order $z$, a constant fraction of the queries.
+    \item \emph{Out-of-domain answers.} Restricted to one $u_s$, an out-of-domain answer at $z$ is a point evaluation of the same univariate, at the node $z^{2^{k_0}}$, times a factor depending on $s$, nonzero except with probability $O(\cdot)/q$. (For the $s_1$ samples on $\hat{f}_1$: node $z$, factor $\hat{eq}(\vec{\alpha}_0, s)$.) The out-of-domain points join the Vandermonde system as extra nodes; hence the size $2^a \geq t_0 + \extdeg(s_0 + s_1)$. An $\Fq$-node counts as $\extdeg$ independent linear combinations, because $\Fq$ has no proper intermediate subfield; the nodes are pairwise distinct and non-Frobenius-conjugate, except with probability $O(\cdot)/q$.
+    \item \emph{Round-0 sumcheck messages.} The $2k_0$ fresh $\Fq$-coefficients are the only values of \textsc{independence} that are not point evaluations (they are partial sums). Their independence from the rest fails with probability $O(\cdot)/q$ over the verifier randomness, by Schwartz--Zippel on a nonzero minor (it helps that $s_0 \geq 1$: the OOD weight has full support, while the lifted input-claim weights vanish on the masks). Under \textsc{independence}, all the round-0 reveals are jointly uniform.
+    \item \emph{The folded polynomial $\hat{f}_1$.} Each coefficient of $\hat{f}_1$ mixes data and mask:
+    \[
+    \hat{f}_1[c] \;=\; \big(\text{combination of data cells}\big) \;+ \sum_{s' \in \{0,1\}^{k_0 - 1}} \hat{eq}\big(\vec{\alpha}_0, (1, s')\big)\, R_{\textsf{out}}[(c, s')].
+    \]
+    The random cells on the right are disjoint across $c$, with weights independent of $c$. If these $2^{k_0 - 1}$ weights span $\Fq$ over $\Fp$, which is exactly the \textsc{spread} condition, then every coefficient is uniform, independently: $\hat{f}_1$ is a uniformly random polynomial. (\textsc{spread} fails with probability $O(k_0)/q$: Schwartz--Zippel, plus the absence of proper intermediate subfields in $\Fq$, $\extdeg$ being prime.) One subtlety: round 0 already revealed evaluations of $R_{\textsf{out}}$, so conditioned on the view, $\hat{f}_1$ is no longer fully uniform. The precise claim: it is uniform among the polynomials $g$ satisfying the constraints the protocol checks anyway, namely $g(\pow(z_j, n - k_0)) = \fold(f_0, \vec{\alpha}_0)(z_j)$ for each queried $z_j$, and $g(\pow(z, n - k_0)) = y$ for each of the $s_1$ out-of-domain pairs $(z, y)$. Reason: a combination of round-0 values can match the weight pattern of $\hat{f}_1$'s coefficients only by assembling a whole fiber with the weights $\hat{eq}(\vec{\alpha}_0, \cdot)$, which produces exactly the first constraint; except with probability $O(\cdot)/q$, nothing else matches.
+    \item \emph{Everything after round 0.} The oracles $f_1, \dots, f_{M-1}$, their fibers and out-of-domain answers, the remaining sumcheck messages, $\hat{f}_M$ and the final sumcheck are all deterministic functions of $\hat{f}_1$, the claims, and public challenges. The simulator samples $\hat{f}_1$ uniformly subject to the public constraints and runs the protocol honestly from there. Equivalently: the honest transcript is identically distributed for any two witnesses with the same claimed values.
 \end{itemize}
+
+Open questions: (i) prove the genericity lemmas: the \textsc{independence} condition holds except with low probability; (ii) interaction of the new folding order with the optimizations of \Cref{sec:zero-suffix} and \Cref{sec:svo-whir}; (iii) hiding of the Merkle roots and authentication paths.
 
 
 \subsection{Logup-GKR sumcheck}\label{sec:zk-logup-gkr}
@@ -1341,7 +1363,7 @@ TODO
 
 TODO
 
-\subsection{Column evaluations}
+\subsection{Column evaluations}\label{sec:zk-column-evals}
 
 In the two protocols above (\Cref{sec:zk-logup-gkr} and \Cref{sec:zk-air-sumcheck}), the prover sends a few evaluations (at random points) of the columns (interpreted as multilinear polynomial, storing data we want to hide). For some columns $c$, the prover sends the evaluation of $\mathsf{shift}(c)$ at a random point.
 
