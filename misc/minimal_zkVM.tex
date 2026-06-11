@@ -1311,7 +1311,7 @@ Target: statistical zero-knowledge with $\lambda$ bits of security (i.e. a simul
 
 The WHIR transcript (\Cref{sec:whir-protocol}) consists of: the out-of-domain answers; the sumcheck messages ($k_i$ degree-2 univariates per iteration, then $m_M$ final ones); the STIR openings; the final polynomial $\hat{f}_M$, sent in the clear. (TODO handle the Merkle roots and the opened authentication paths?)
 
-The claimed value $c$ (input of the opening) belongs to the \emph{statement}: making it simulatable is the job of \Cref{sec:zk-logup-gkr,sec:zk-air-sumcheck,sec:zk-column-evals}.
+Making the claimed value $c$ (input of the opening) ZK is the job of \Cref{sec:zk-logup-gkr,sec:zk-air-sumcheck,sec:zk-column-evals}.
 
 \subsubsection{What we change}
 
@@ -1322,12 +1322,12 @@ The claimed value $c$ (input of the opening) belongs to the \emph{statement}: ma
 P \;=\; \underbrace{\,\text{stacking} \;\Vert\; 0 \cdots 0 \;\Vert\; R_{\textsf{in}}\,}_{P(0,\, \cdot\,) \text{ : the data half}} \;\Big\Vert\; \underbrace{\,R_{\textsf{out}}\,}_{P(1,\, \cdot\,)}
 \]
 \begin{itemize}
-    \item The stacking (\Cref{sec:stacking}) part (containing secret data) is unchanged, we simply use a bigger polynomial, in order to fit $R_{\textsf{in}}$ and $R_{\textsf{out}}$.
-    \item $R_{\textsf{out}}$, the \emph{out-round mask}, fills the second half with i.i.d. uniform $\Fp$ cells. Since $X_1$ is folded in round 0, $R_{\textsf{out}}$ is mixed into the data from the start; its role is to protect everything revealed \emph{after} round 0.
-    \item $R_{\textsf{in}}$, the \emph{in-round mask}, is a uniformly random segment occupying the \emph{last} $2^{k_0 - 1 + a}$ cells of the first half of the polynomial, with $2^a \geq t_0 + \extdeg \cdot (s_0 + s_1)$ (negligible in practice). Its role is to protect the reveals of round 0 itself: the STIR openings and the out-of-domain answers.
+    \item The stacking (\Cref{sec:stacking}) part (containing secret data) is unchanged, we simply commit to a bigger polynomial, in order to fit $R_{\textsf{in}}$ and $R_{\textsf{out}}$.
+    \item The mask $R_{\textsf{out}}$ fills the second half with i.i.d. uniform $\Fp$ cells.
+    \item The mask $R_{\textsf{in}}$ is a uniformly random segment occupying the \emph{last} $2^{k_0 - 1 + a}$ cells of the first half of the polynomial, with $2^a \geq t_0 + \extdeg \cdot (s_0 + s_1)$ (negligible in practice).
 \end{itemize}
 
-\textbf{3. Restart rule.} After generating the proof, the prover checks the two conditions below; if either fails, it restarts with freshly sampled masks, which re-randomizes the entire transcript. Both conditions hold except with low probability (see the proof sketch), so restarts are rare.
+\textbf{3. Restart rule.} After generating the proof, the prover checks the two conditions below; if either fails, it restarts with freshly sampled masks, which re-randomizes the entire transcript. Both conditions hold except with low probability (TODO), so restarts are rare.
 \begin{itemize}
     \item \textsc{spread}: the $2^{k_0 - 1}$ weights $\{\hat{eq}(\vec{\alpha}_0, (1, s'))\}_{s' \in \{0,1\}^{k_0 - 1}}$ span $\Fq$ as an $\Fp$-vector space, where $\vec{\alpha}_0$ are the round-0 sumcheck challenges, in folding order;
     \item \textsc{independence}: each value revealed during round 0 is a known $\Fp$-linear combination of the committed cells; these linear combinations, restricted to the mask cells, are linearly independent. The values in question: the opened STIR fibers (duplicate queries counted once), the out-of-domain answers, and the fresh coefficients of the $k_0$ round-0 sumcheck polynomials. An $\Fq$-value counts as $\extdeg$ linear combinations over $\Fp$.
@@ -1335,16 +1335,16 @@ P \;=\; \underbrace{\,\text{stacking} \;\Vert\; 0 \cdots 0 \;\Vert\; R_{\textsf{
 
 \vspace{2mm}
 
-\textbf{Overhead.} Roughly 2x.
+\textbf{Prover overhead.} Roughly 2x.
 
-\subsubsection{Why it is zero-knowledge (sketch)}
+\subsubsection{Why it is (perfect) zero-knowledge (sketch)}
 
 We go through the transcript in order.
 
 \begin{itemize}
     \item \emph{Round-0 STIR openings.} For $s \in \{0,1\}^{k_0}$, let $u_s \in \Fp^{2^{n - k_0}}$ be the vector of cells whose round-0 coordinates equal $s$. By locality, the $2^{k_0}$ values opened by a query at $z$ contain exactly the same information as the $2^{k_0}$ evaluations $\hat{u}_s(\pow(z, n - k_0))$. The $u_s$ with $X_1$-coordinate $1$ partition $R_{\textsf{out}}$: they are entirely random. (Their revealed evaluations do consume some of $R_{\textsf{out}}$'s randomness; the $\hat{f}_1$ item below accounts for this.) Each $u_s$ with $X_1$-coordinate $0$ contains data, but ends with $2^a$ i.i.d. random cells (its share of $R_{\textsf{in}}$), and is evaluated at most $t_0$ times (duplicates reveal nothing new). On these $2^a$ random cells, $\hat{u}_s(\pow(z, \cdot))$ is the evaluation at $z$ of a univariate of degree $< 2^a$ with free coefficients, times the nonzero factor $z^{2^{n-k_0}-2^a}$. Evaluations at distinct points are independent (Vandermonde): the fiber part of \textsc{independence} holds automatically. The random cells must sit at the \emph{end} of $u_s$: elsewhere the factor contains $(1 - z^{2^i})$ terms, which vanish on small-order $z$, a constant fraction of the queries.
     \item \emph{Out-of-domain answers.} Restricted to one $u_s$, an out-of-domain answer at $z$ is a point evaluation of the same univariate, at the node $z^{2^{k_0}}$, times a factor depending on $s$, nonzero except with probability $O(\cdot)/q$. (For the $s_1$ samples on $\hat{f}_1$: node $z$, factor $\hat{eq}(\vec{\alpha}_0, s)$.) The out-of-domain points join the Vandermonde system as extra nodes; hence the size $2^a \geq t_0 + \extdeg(s_0 + s_1)$. An $\Fq$-node counts as $\extdeg$ independent linear combinations, because $\Fq$ has no proper intermediate subfield; the nodes are pairwise distinct and non-Frobenius-conjugate, except with probability $O(\cdot)/q$.
-    \item \emph{Round-0 sumcheck messages.} The $2k_0$ fresh $\Fq$-coefficients are the only values of \textsc{independence} that are not point evaluations (they are partial sums). Their independence from the rest fails with probability $O(\cdot)/q$ over the verifier randomness, by Schwartz--Zippel on a nonzero minor (it helps that $s_0 \geq 1$: the OOD weight has full support, while the lifted input-claim weight $\hat{w}$ vanishes on the masks). Under \textsc{independence}, all the round-0 reveals are jointly uniform.
+    \item \emph{Round-0 sumcheck messages.} On the mask cells, $\hat{W}_0$ reduces to its out-of-domain part: the lifted input weight $\hat{w}$ vanishes there (this is where $s_0 \geq 1$ is needed). A short computation then shows: restricted to one $u_s$, every fresh coefficient of $\hat{h}_1, \dots, \hat{h}_{k_0}$ is a scalar multiple of the evaluation of $\hat{u}_s$ at the out-of-domain nodes. So the sumcheck messages bring no new node: together with the out-of-domain answers, they are $2 k_0 + s_0$ public $\Fq$-linear combinations of the $2^{k_0} s_0$ values $\hat{u}_s(\pow(z^{2^{k_0}}, n - k_0))$, which the previous two items make jointly uniform. Masking holds as soon as this combination matrix has full rank, which fails with probability $O(\cdot)/q$ (Schwartz--Zippel). Under \textsc{independence}, all the round-0 reveals are jointly uniform.
     \item \emph{The folded polynomial $\hat{f}_1$.} Each coefficient of $\hat{f}_1$ mixes data and mask:
     \[
     \hat{f}_1[c] \;=\; \big(\text{combination of data cells}\big) \;+ \sum_{s' \in \{0,1\}^{k_0 - 1}} \hat{eq}\big(\vec{\alpha}_0, (1, s')\big)\, R_{\textsf{out}}[(c, s')].
@@ -1353,7 +1353,7 @@ We go through the transcript in order.
     \item \emph{Everything after round 0.} The oracles $f_1, \dots, f_{M-1}$, their fibers and out-of-domain answers, the remaining sumcheck messages, $\hat{f}_M$ and the final sumcheck are all deterministic functions of $\hat{f}_1$, the claims, and public challenges. The simulator samples $\hat{f}_1$ uniformly subject to the public constraints and runs the protocol honestly from there. Equivalently: the honest transcript is identically distributed for any two witnesses with the same claimed values.
 \end{itemize}
 
-Open questions: (i) prove the genericity lemmas: the \textsc{independence} condition holds except with low probability; (ii) interaction of the new folding order with the optimizations of \Cref{sec:zero-suffix} and \Cref{sec:svo-whir}; (iii) hiding of the Merkle roots and authentication paths.
+Open questions: (i) prove the genericity lemmas: the \textsc{independence} condition holds except with low probability; (ii) hiding of the Merkle roots and authentication paths.
 
 
 \subsection{Logup-GKR sumcheck}\label{sec:zk-logup-gkr}
