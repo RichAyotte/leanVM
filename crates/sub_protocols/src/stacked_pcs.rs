@@ -1,3 +1,4 @@
+use backend::ansi::Colorize;
 use backend::*;
 use lean_vm::{
     ALL_TABLES, ColIndex, CommittedStatements, EXEC_COL_PC, MIN_LOG_MEMORY_SIZE, MIN_LOG_N_ROWS_PER_TABLE,
@@ -6,8 +7,6 @@ use lean_vm::{
 use lean_vm::{EF, F, Table, TableT, TableTrace};
 use std::collections::BTreeMap;
 use tracing::instrument;
-use utils::VarCount;
-use utils::ansi::Colorize;
 
 /*
 Stacking of various (multilinear) polynomials into a single -big- (multilinear) polynomial, which is committed via WHIR.
@@ -119,7 +118,7 @@ pub fn stack_polynomials_and_commit(
         log2_strict_usize(bytecode_acc.len()),
         &tables_heights_sorted.iter().cloned().collect(),
     );
-    let mut global_polynomial = F::zero_vec(1 << stacked_n_vars); // TODO avoid cloning all witness data
+    let mut global_polynomial = unsafe { ArenaVec::<F>::zeroed(1 << stacked_n_vars) };
     global_polynomial[..memory.len()].copy_from_slice(memory);
     let mut offset = memory.len();
     global_polynomial[offset..][..memory_acc.len()].copy_from_slice(memory_acc);

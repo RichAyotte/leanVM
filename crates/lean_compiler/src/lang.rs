@@ -2,7 +2,6 @@ use backend::*;
 use lean_vm::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
-use utils::ToUsize;
 
 use crate::a_simplify_lang::VarOrConstMallocAccess;
 use crate::{F, parser::ConstArrayValue};
@@ -15,16 +14,6 @@ pub struct Program {
     pub function_locations: BTreeMap<SourceLocation, FunctionName>,
     pub source_code: BTreeMap<FileId, String>,
     pub filepaths: BTreeMap<FileId, String>,
-}
-
-impl Program {
-    pub fn inlined_function_names(&self) -> BTreeSet<FunctionName> {
-        self.functions
-            .iter()
-            .filter(|(_, func)| func.inlined)
-            .map(|(name, _)| name.clone())
-            .collect()
-    }
 }
 
 /// A function argument with its modifiers

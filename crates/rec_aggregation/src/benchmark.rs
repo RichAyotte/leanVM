@@ -1,15 +1,15 @@
+use backend::ansi as s;
 use backend::*;
 use lean_vm::*;
 use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
 use std::time::Instant;
-use utils::ansi as s;
 use xmss::signers_cache::{BENCHMARK_SLOT, get_benchmark_signatures, message_for_benchmark};
 use xmss::{XmssPublicKey, XmssSignature};
 
 use crate::compilation::{get_aggregation_bytecode, init_aggregation_bytecode};
 use crate::single_message_aggregation::{
-    SingleMessageAggregateSignature, aggregate_single_msg_signatures, verify_single_message_aggregate,
+    SingleMessageAggregateSignature, aggregate_single_message_signatures, verify_single_message_aggregate,
 };
 
 #[derive(Debug, Clone)]
@@ -387,7 +387,7 @@ fn build_aggregation(
     }
 
     if tracing && is_root {
-        utils::init_tracing();
+        init_tracing();
     }
 
     assert!(repeat > 0);
@@ -397,11 +397,8 @@ fn build_aggregation(
     let mut last_result: Option<SingleMessageAggregateSignature> = None;
     let own_display_index = display_index + count_nodes(topology) - 1;
     for _ in 0..repeat {
-        #[cfg(not(feature = "standard-alloc"))]
-        zk_alloc::begin_phase();
-
         let time = Instant::now();
-        let result = aggregate_single_msg_signatures(
+        let result = aggregate_single_message_signatures(
             &children,
             raw_xmss.clone(),
             message_for_benchmark(),
@@ -410,13 +407,6 @@ fn build_aggregation(
         )
         .unwrap();
         let elapsed = time.elapsed();
-
-        // Clone the outputs out of the arena before the next phase resets its slabs.
-        #[cfg(not(feature = "standard-alloc"))]
-        let result = {
-            zk_alloc::end_phase();
-            result.clone()
-        };
 
         times.push(elapsed.as_secs_f64());
         last_result = Some(result);
@@ -514,7 +504,7 @@ pub fn run_aggregation_benchmark(
     if !silent {
         println!(
             "Aggregation program: {} instructions\n",
-            pretty_integer(get_aggregation_bytecode().unpadded_size)
+            pretty_integer(get_aggregation_bytecode().unpadded_size())
         );
     }
 

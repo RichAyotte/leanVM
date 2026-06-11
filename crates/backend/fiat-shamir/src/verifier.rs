@@ -1,10 +1,6 @@
-use std::any::TypeId;
-use std::collections::VecDeque;
-use std::iter::repeat_n;
-
+use crate::challenger::Challenger;
 use crate::{
     MerkleOpening, MerklePaths, PrunedMerklePaths, RawProof,
-    challenger::{CAPACITY, Challenger, RATE, WIDTH},
     transcript::{DIGEST_LEN_FE, Proof},
     *,
 };
@@ -12,6 +8,12 @@ use field::PrimeCharacteristicRing;
 use field::{ExtensionField, PrimeField64};
 use koala_bear::symmetric::Permutation;
 use koala_bear::{KoalaBear, default_koalabear_poseidon1_16};
+use std::any::TypeId;
+use std::collections::VecDeque;
+use std::iter::repeat_n;
+use symetric::CAPACITY;
+use symetric::RATE;
+use symetric::WIDTH;
 
 pub struct VerifierState<EF: ExtensionField<PF<EF>>, P> {
     challenger: Challenger<PF<EF>, P>,
@@ -74,7 +76,12 @@ where
     }
 
     #[allow(clippy::missing_transmute_annotations)]
-    fn restore_merkle_paths(paths: PrunedMerklePaths<PF<EF>, PF<EF>>) -> Option<Vec<MerkleOpening<PF<EF>>>> {
+    fn restore_merkle_paths(
+        paths: PrunedMerklePaths<PF<EF>, PF<EF>>,
+        indices: &[usize],
+        merkle_height: usize,
+        leaf_len: usize,
+    ) -> Option<Vec<MerkleOpening<PF<EF>>>> {
         assert_eq!(TypeId::of::<PF<EF>>(), TypeId::of::<KoalaBear>());
         // SAFETY: We've confirmed PF<EF> == KoalaBear
         let paths: PrunedMerklePaths<KoalaBear, KoalaBear> = unsafe { std::mem::transmute(paths) };
@@ -83,7 +90,8 @@ where
         let combine_fn = |left: &[KoalaBear; DIGEST_LEN_FE], right: &[KoalaBear; DIGEST_LEN_FE]| {
             symetric::compress(&perm, [*left, *right])
         };
-        let restored: MerklePaths<KoalaBear, KoalaBear> = paths.restore(&hash_fn, &combine_fn)?;
+        let restored: MerklePaths<KoalaBear, KoalaBear> =
+            paths.restore(indices, merkle_height, leaf_len, &hash_fn, &combine_fn)?;
         let openings: Vec<MerkleOpening<KoalaBear>> = restored
             .0
             .into_iter()
@@ -141,7 +149,12 @@ where
         Ok(scalars)
     }
 
-    fn begin_merkle_opening_batch(&mut self, n: usize) -> Result<(), ProofError> {
+    fn begin_merkle_opening_batch(
+        &mut self,
+        indices: &[usize],
+        merkle_height: usize,
+        leaf_len: usize,
+    ) -> Result<(), ProofError> {
         if self.merkle_opening_index != self.merkle_openings.len() {
             return Err(ProofError::InvalidProof); // Previous batch must have been fully drained
         }
@@ -149,10 +162,8 @@ where
             .pending_merkle_paths
             .pop_front()
             .ok_or(ProofError::ExceededTranscript)?;
-        if paths.original_order.len() != n {
-            return Err(ProofError::InvalidProof);
-        }
-        let restored = Self::restore_merkle_paths(paths).ok_or(ProofError::InvalidProof)?;
+        let restored =
+            Self::restore_merkle_paths(paths, indices, merkle_height, leaf_len).ok_or(ProofError::InvalidProof)?;
         self.merkle_openings.extend(restored);
         Ok(())
     }

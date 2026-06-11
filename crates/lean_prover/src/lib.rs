@@ -2,17 +2,12 @@
 
 use std::fmt::Display;
 
-use backend::*;
-use lean_vm::{
-    Bytecode, EF, F, MAX_WHIR_LOG_INV_RATE, MIN_LOG_N_ROWS_PER_TABLE, MIN_WHIR_LOG_INV_RATE, RunnerError, Table, TableT,
-};
-use utils::*;
-
-mod trace_gen;
-
 pub mod prove_execution;
+mod trace_gen;
 pub mod verify_execution;
 
+use backend::*;
+use lean_vm::*;
 #[cfg(test)]
 mod test_zkvm;
 
@@ -32,7 +27,7 @@ pub const SNARK_DOMAIN_SEP: [F; 8] = F::new_array([
 ]);
 
 pub fn fiat_shamir_domain_sep(bytecode: &Bytecode) -> [F; 8] {
-    poseidon16_compress_pair(&bytecode.hash, &SNARK_DOMAIN_SEP)
+    poseidon16_compress_pair(bytecode.hash(), &SNARK_DOMAIN_SEP)
 }
 
 pub fn default_whir_config(starting_log_inv_rate: usize) -> WhirConfigBuilder {
@@ -95,15 +90,14 @@ impl Display for ProverError {
 
 #[cfg(test)]
 mod tests {
-    use backend::{PrimeCharacteristicRing, default_koalabear_poseidon1_16, hash_slice_rtl};
+    use backend::{PrimeCharacteristicRing, default_koalabear_poseidon1_16, hash_slice_rtl, poseidon16_compress_pair};
     use lean_vm::F;
     use rec_aggregation::{get_aggregation_bytecode, init_aggregation_bytecode};
-    use utils::poseidon16_compress_pair;
 
     #[test]
     fn compute_snark_domain_sep() {
         init_aggregation_bytecode();
-        let recursion_bytecode_hash = get_aggregation_bytecode().hash;
+        let recursion_bytecode_hash = get_aggregation_bytecode().hash();
         let name_fe = "leanVM-0.6.0"
             .as_bytes()
             .iter()
@@ -121,7 +115,7 @@ mod tests {
 
         // We incorporate the recursion program hash, containing all the verifier logic, into fiat shamir domain separator
         // (likely not necessary but why not, is there a cleaner approach?)
-        let domain_sep = poseidon16_compress_pair(&name_hash, &recursion_bytecode_hash);
+        let domain_sep = poseidon16_compress_pair(&name_hash, recursion_bytecode_hash);
 
         println!("Computed SNARK_DOMAIN_SEP: {:?}", domain_sep); // We dont assert equality here to avoid the pain of having to update the hardcoded SNARK_DOMAIN_SEP every time we change the recursion program
     }

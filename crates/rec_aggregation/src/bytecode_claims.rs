@@ -1,7 +1,6 @@
 use backend::*;
 use lean_prover::fiat_shamir_domain_sep;
 use lean_vm::*;
-use utils::get_poseidon16;
 
 use crate::compilation::BYTECODE_CLAIM_OFFSET;
 use crate::{InnerVerified, get_aggregation_bytecode};
@@ -27,9 +26,9 @@ pub(crate) fn compute_bytecode_value_at(point: &MultilinearPoint<EF>) -> EF {
     let bytecode = get_aggregation_bytecode();
     if point.iter().all(|x| x.is_zero()) {
         // fast path for multi-signatures coming from 100% raw XMSS (no recursion):
-        EF::from(bytecode.instructions_multilinear[0])
+        EF::from(bytecode.instructions_multilinear()[0])
     } else {
-        bytecode.instructions_multilinear.evaluate(point)
+        bytecode.instructions_multilinear().evaluate(point)
     }
 }
 
@@ -64,20 +63,16 @@ pub(crate) fn reduce_bytecode_claims(verified: &[InnerVerified]) -> ReducedBytec
     let alpha: EF = reduction_prover.sample();
     let alpha_powers: Vec<EF> = alpha.powers().take(n_claims).collect();
 
-    let weights_packed = claims
-        .par_iter()
-        .zip(&alpha_powers)
-        .map(|(eval, &alpha_i)| eval_eq_packed_scaled(&eval.point.0, alpha_i))
-        .reduce_with(|mut acc, eq_i| {
-            acc.par_iter_mut().zip(&eq_i).for_each(|(w, e)| *w += *e);
-            acc
-        })
-        .unwrap();
+    let n_vars = claims[0].point.0.len();
+    let mut weights_packed = EFPacking::<EF>::zero_vec(1 << (n_vars - packing_log_width::<EF>()));
+    for (claim, &alpha_pow) in claims.iter().zip(&alpha_powers) {
+        compute_eval_eq_packed::<EF, true>(&claim.point.0, &mut weights_packed, alpha_pow);
+    }
 
     let claimed_sum: EF = dot_product(claims.iter().map(|c| c.value), alpha_powers.iter().copied());
 
     let (reduced_point, _, bytecode_folded, _) = run_product_sumcheck(
-        &MleRef::BasePacked(FPacking::<F>::pack_slice(&bytecode.instructions_multilinear)),
+        &MleRef::BasePacked(FPacking::<F>::pack_slice(bytecode.instructions_multilinear())),
         &MleRef::ExtensionPacked(&weights_packed),
         &mut reduction_prover,
         claimed_sum,

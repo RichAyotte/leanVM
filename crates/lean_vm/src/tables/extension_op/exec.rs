@@ -6,7 +6,6 @@ use crate::RunnerError;
 use crate::TableTrace;
 use crate::tables::extension_op::{EXT_OP_FLAG_BE, EXT_OP_LEN_MULTIPLIER, ExtensionOp, air::*};
 use backend::*;
-use utils::ToUsize;
 
 fn compute_elem(v_a: EF, v_b: EF, op: ExtensionOp) -> EF {
     match op {
@@ -47,7 +46,7 @@ fn solve_unknowns(
     let c = memory.get_ef_element(addr_res);
 
     if op == ExtensionOp::DotProduct && !flag_be {
-        // detect "copy_5"
+        // detect "copy_ef" (single EF-element copy: dot_product_ee against EF::ONE)
         if b == Ok(EF::ONE) {
             memory.make_slices_equal_and_defined(ptr_a.to_usize(), ptr_res.to_usize(), DIMENSION)?;
             return Ok(());
@@ -68,11 +67,11 @@ fn solve_unknowns(
         (Err(_), Ok(b), Ok(c)) => {
             let a = match op {
                 ExtensionOp::Add => c - b,
-                ExtensionOp::DotProduct => c / b,
+                ExtensionOp::DotProduct => c * b.try_inverse().ok_or(RunnerError::DivByZero)?,
                 ExtensionOp::Eq => unreachable!(),
             };
             if flag_be {
-                memory.set(addr_a, a.as_base().expect("solved A not in base field"))?;
+                memory.set(addr_a, a.as_base().ok_or(RunnerError::InvalidExtensionOp)?)?;
             } else {
                 memory.set_ef_element(addr_a, a)?;
             }
@@ -80,7 +79,7 @@ fn solve_unknowns(
         (Ok(a), Err(_), Ok(c)) => {
             let b = match op {
                 ExtensionOp::Add => c - a,
-                ExtensionOp::DotProduct => c / a,
+                ExtensionOp::DotProduct => c * a.try_inverse().ok_or(RunnerError::DivByZero)?,
                 ExtensionOp::Eq => unreachable!(),
             };
             memory.set_ef_element(addr_b, b)?;
