@@ -11,6 +11,7 @@
 \newcommand{\Fq}{\mathbb{F}_q}
 \newcommand{\extdeg}{d}
 \newcommand{\pow}{\mathsf{pow}}
+\newcommand{\fold}{\mathsf{fold}}
 
 \newtheorem{lemma}{Lemma}
 \newtheorem{theorem}{Theorem}
@@ -27,7 +28,7 @@
 \begin{document}
 \maketitle
 
-This note supports the zero-knowledge section of \texttt{minimal\_zkVM.tex}. We analyse the linear algebra of the values revealed during round 0 of the masked WHIR opening, and we prove the lemmas behind the \textsc{independence} condition and the absorption argument. Two results. Negative: with a single commitment out-of-domain point ($s_0 = 1$), the round-0 values satisfy $k_0 + 1$ exact linear dependencies in their node components, for every choice of challenges; these dependencies are protocol identities (the sumcheck recursion and the terminal sumcheck claim), and no mask size can compensate them (\Cref{prop:rank}). Positive: with $s_0 = 2$, the values become jointly independent combinations of the node values, under explicit per-slot conditions (\Cref{thm:twopoint}). This is why the zero-knowledge design requires $s_0 \geq 2$.
+This note supports the zero-knowledge section of \texttt{minimal\_zkVM.tex}. We analyse the linear algebra of the values revealed during round 0 of the masked WHIR opening, and we prove the lemmas behind the \textsc{independence} condition and the absorption argument. Two results. Negative: with a single commitment out-of-domain point ($s_0 = 1$), the round-0 values satisfy $k_0 + 1$ exact linear dependencies in their node components, for every choice of challenges; these dependencies are protocol identities (the sumcheck recursion and the terminal sumcheck claim), and no mask size can compensate them (\Cref{prop:rank}). Positive: with $s_0 = 2$, the values become jointly independent combinations of the node values, under explicit per-slot conditions (\Cref{thm:twopoint}). This is why the zero-knowledge design requires $s_0 \geq 2$. We then close the analysis: the cross-terms of the input weight vanish identically on a block of every class (\Cref{lem:blocks}), which upgrades \Cref{thm:twopoint} to the joint uniformity of the full round-0 view (\Cref{prop:uniform}); and \Cref{sec:simulator} constructs the simulator, reducing perfect simulation to public conditions that the prover checks before releasing a proof.
 
 \section{Setting and notation}
 
@@ -181,9 +182,40 @@ Indeed: $\gamma = 0$ costs $1/q$; the per-point assumptions cost $(2^{k_0} + k_0
 At $k_0 = 7$ with random challenges in the KoalaBear field: the $16$ value rows have rank $16$ (full), and adding the extension rows does not increase the rank; with a single point, the $15$ value rows have rank $8 = k_0 + 1$, matching \Cref{prop:rank}. Both checks were run with $\zeta_i = z^{2^{i-1}}$ and with independent $\zeta_i$.
 \end{remark}
 
-\begin{remark}[cross-terms]
-The value rows, as forms on the actual mask cells, factor through the node values up to the cross-terms of $\hat{w}$, which are supported on $R_{\mathsf{out}}$ and carry the factor $\gamma^2$. They are not needed for the masking: \Cref{thm:twopoint} provides full rank through the node channel alone, and the node values are fresh by the fiber and out-of-domain analysis of the main document. The \textsc{independence} condition that the prover checks is stated over the cells, so it accounts for the cross-terms automatically; a fully explicit certificate including them is left to the formal write-up (the cross entries are constant in $z_1$ and $z_2$ while the node entries are not, so a leading-term argument applies).
-\end{remark}
+\section{Cross-free blocks and joint uniformity}\label{sec:uniform}
+
+For a class $s$, its \emph{block} $B_s$ is its last $2^a$ cells. The block of a data class is its share of $R_{\mathsf{in}}$; the block of a mask class lies inside $R_{\mathsf{out}}$. All blocks consist of i.i.d.\ uniform cells, and the input weight $\hat{w}$ vanishes on every cell whose position inside its class lies in the last $2^a$ range: on the data side these are $R_{\mathsf{in}}$ positions, on the mask side they are mask cells.
+
+\begin{lemma}[cross-free blocks]\label{lem:blocks}
+For every round $\ell$ and every cell $u$ of a block, the cross-term weight vanishes identically: $\hat{w}(\alpha_1, \dots, \alpha_{\ell-1}, X, u_{>\ell}) = 0$.
+\end{lemma}
+
+\begin{proof}
+The partial evaluation is the multilinear extension, in the folded coordinates, of the values of $\hat{w}$ at the boolean completions of $u$. A completion changes only round-0 coordinates, hence preserves the position of $u$ inside its class, which lies in the last $2^a$ range: $\hat{w}$ vanishes at every completion, and the multilinear extension of zeros is zero.
+\end{proof}
+
+\begin{lemma}[Chinese remaindering]\label{lem:crt}
+Let $x_1, \dots, x_{t} \in \Fp \setminus \{0\}$ be distinct and $\nu_1, \dots, \nu_e \in \Fq \setminus \Fp$ be pairwise distinct and pairwise non-conjugate under the Frobenius $y \mapsto y^p$, with $t + \extdeg\, e \leq 2^a$. For a uniform $g \in \Fp^{2^a}$, viewed as a univariate polynomial of degree $< 2^a$, the tuple
+\[
+\big(g(x_1), \dots, g(x_{t}),\; g(\nu_1), \dots, g(\nu_e)\big) \quad \text{is uniform on } \Fp^{t} \times \Fq^{e} .
+\]
+\end{lemma}
+
+\begin{proof}
+The tuple is the reduction of $g$ modulo $\prod_i (X - x_i) \cdot \prod_j m_j$, where $m_j$ is the minimal polynomial of $\nu_j$ over $\Fp$: indeed $\Fp[X]/(X - x_i) \cong \Fp$ by evaluation at $x_i$, and $\Fp[X]/(m_j) \cong \Fq$ by evaluation at $\nu_j$, with $\deg m_j = \extdeg$ ($\nu_j$ generates $\Fq$, since $\extdeg$ is prime and $\nu_j \notin \Fp$). The moduli are pairwise coprime: the $x_i$ are distinct, the $m_j$ are distinct irreducibles by non-conjugacy, and no $m_j$ has a root in $\Fp$. Their degree sum is $t + \extdeg\, e \leq 2^a$, so the reduction is surjective by Chinese remaindering. A surjective linear image of a uniform variable is uniform.
+\end{proof}
+
+\begin{proposition}[joint uniformity of the round-0 view]\label{prop:uniform}
+Take $s_0 = 2$ and assume: the conditions of \Cref{thm:twopoint}; and that the $s_0 + s_1$ nodes (the commitment nodes $z_j^{2^{k_0}}$ and the out-of-domain points of $\hat{f}_1$) lie outside $\Fp$, are pairwise distinct and pairwise non-conjugate. Let $x_1, \dots, x_{t}$ be the distinct queried points (they lie in $\Fp \setminus \{0\}$, hence are automatically distinct from the nodes). Then the round-0 revealed values, namely the per-class evaluations $\hat{u}_s(\pow(x_t, n - k_0))$, the two commitment out-of-domain answers, the $2k_0$ fresh sumcheck coefficients, and the $s_1$ out-of-domain answers on $\hat{f}_1$, are jointly uniform, each on its natural space. In particular their joint law does not depend on the data.
+\end{proposition}
+
+\begin{proof}
+Restrict every value, as an $\Fp$-linear form on the cells, to the union of the blocks. By \Cref{lem:blocks} the cross-terms vanish there, so each restricted form factors through the blockwise evaluations: the fiber value of class $s$ at $x_t$ reads the evaluation of the block univariate of $s$ at $x_t$, times the nonzero prefactor $x_t^{2^{n - k_0} - 2^a}$ (the blocks sit at the end of their classes), and the out-of-domain and sumcheck values apply the node matrix to the block evaluations at the nodes, by the computation of \Cref{sec:slot}. The blockwise evaluation map is $\Fp$-surjective: per class by \Cref{lem:crt}, with the budget $t_0 + \extdeg(s_0 + s_1) \leq 2^a$, and jointly because the blocks are disjoint. The assembling map is $\Fq$-linear and surjective: the fiber coordinates pass through unchanged; the commitment out-of-domain and sumcheck values are the node matrix, of full row rank by \Cref{thm:twopoint}; and each $\hat{f}_1$ out-of-domain answer adds one row supported on the columns of its own node, where it is the nonzero vector $(\hat{eq}(\vec{\alpha}_0, s))_s$, so the extended matrix keeps full row rank. The values equal this composition applied to the uniform block cells, plus a contribution of the remaining cells (data and non-block mask cells): conditionally on the latter, they are a shifted surjective image of a uniform variable, hence uniform; so they are uniform unconditionally, with a law independent of the shift, hence of the data.
+\end{proof}
+
+\begin{corollary}\label{cor:uniformprob}
+For uniform challenges, the conditions of \Cref{prop:uniform} fail with probability at most: $(4 \cdot 2^{k_0} + 2 k_0)/q$ for \Cref{thm:twopoint} (\Cref{cor:twopointprob}); $2^{k_0} p/q$ per commitment node and $p/q$ per $\hat{f}_1$ node for a node landing in $\Fp$ (the dominant terms); $\extdeg\, 2^{k_0}/q$ per pair of nodes for a collision or a Frobenius conjugation. Total: about $2 \cdot 2^{k_0}\, p/q$, that is $\approx 2^{-116}$ for KoalaBear.
+\end{corollary}
 
 \section{The absorption lemma}
 
@@ -218,10 +250,52 @@ Let $U_1, \dots, U_t$ be independent uniform elements of $V$, and let $\lambda_1
 $V \otimes_{\Fp} \Fq$ is strictly smaller than the set of $\Fq$-vectors $g$ with $\hat{g}(\nu) = 0$ for all $\nu \in N$ (codimension $\extdeg |N|$ versus $|N|$). The masked directions are correspondingly larger than the naive count: a single node removes $\extdeg$ $\Fq$-dimensions of masking, not one. This is harmless for the budget of $R_{\mathsf{in}}$ and $R_{\mathsf{out}}$ (the codimensions stay microscopic), but the annihilator description of item 3 is the correct one to use when listing the unmasked directions.
 \end{remark}
 
-\section{Assembling the failure probability}
+\section{The simulator}\label{sec:simulator}
 
-\begin{corollary}
-For $s_0 = 2$, the \textsc{independence} condition restricted to the out-of-domain and sumcheck values holds whenever: the assumptions of \Cref{thm:twopoint} hold (failure at most $(4 \cdot 2^{k_0} + 2k_0)/q$, \Cref{cor:twopointprob}); and the two nodes lie outside $\Fp$, pairwise distinct, non-Frobenius-conjugate, and distinct from the fiber nodes (failure at most $2^{k_0} p/q$ per node plus $\extdeg\, 2^{k_0}/q$ per pair, by the counting bounds of the main document; the dominant term). The fiber values are independent unconditionally, by the Vandermonde argument of the main document, and separated from the node directions whenever the queried points are distinct from the nodes. The evaluations of $\hat{f}_1$ at the commitment nodes are \emph{not} independent from the rest: by \Cref{thm:twopoint} they lie in the span of the revealed values, and they join the pinned directions of the $\hat{f}_1$ analysis (\Cref{lem:absorb}, items 2 and 3). Total failure probability: about $2 \cdot 2^{k_0}\, p / q$, that is $\approx 2^{-116}$ for KoalaBear.
-\end{corollary}
+We consider the interactive protocol; the Fiat--Shamir and Merkle layers are out of scope. Fix the statement (public parameters, public input, claimed value) and the verifier challenges. A \emph{data assignment} is a content of the data cells consistent with the statement; the difference $\delta$ of two data assignments satisfies $\langle \delta, w \rangle = 0$ and vanishes on the public positions. Write $\mathrm{cells} = \mathrm{data} \oplus \mathrm{masks}$, and let $L := (L_{\mathrm{view}}, L_{\mathrm{fold}})$ be the $\Fp$-linear map sending the cells to the pair (round-0 view, $\hat{f}_1$), where $L_{\mathrm{view}}$ collects the values of \Cref{prop:uniform} and $L_{\mathrm{fold}}$ is the round-0 fold.
+
+\begin{lemma}[reduction to round 0]\label{lem:reduction}
+The whole transcript is a deterministic function of $L(\mathrm{cells})$, the statement, and the challenges.
+\end{lemma}
+
+\begin{proof}
+The round-0 messages are the view together with deterministic completions (duplicate query answers, and the $X^0$ sumcheck coefficients, fixed by the running target). Every later message is computed by the honest prover from $\hat{f}_1$ and the challenges: the oracles $f_1, \dots, f_{M-1}$ are the encodings of the successive folds of $\hat{f}_1$, the later sumcheck messages, out-of-domain answers and openings are derived from these, and the final polynomial is the last fold.
+\end{proof}
+
+\begin{lemma}[exactness criterion]\label{lem:criterion}
+Assume the conditions of \Cref{prop:uniform} and let $W' := L_{\mathrm{fold}}\big(\ker(L_{\mathrm{view}}) \cap \mathrm{masks}\big)$. The transcripts produced with two data assignments differing by $\delta$ are identically distributed if and only if
+\[
+\varphi\big(L_{\mathrm{fold}}(\delta)\big) \;=\; \varphi\big(L_{\mathrm{fold}}(\varrho(L_{\mathrm{view}}(\delta)))\big) \qquad \text{for every } \varphi \in \mathrm{ann}(W') ,
+\]
+where $\varrho$ is any $\Fp$-linear section of $L_{\mathrm{view}}|_{\mathrm{masks}}$ (which is surjective by \Cref{prop:uniform}), and $\mathrm{ann}(W')$ is the space of $\Fp$-linear forms on the $\hat{f}_1$-space vanishing on $W'$.
+\end{lemma}
+
+\begin{proof}
+By \Cref{lem:reduction} it suffices to compare the laws of $L(\mathrm{cells})$. With uniform masks, $L(\mathrm{cells})$ is uniform on a coset of the subspace $\mathcal{I} := L(\mathrm{masks})$, shifted by $L$ of the data; the two laws coincide if and only if $L(\delta) \in \mathcal{I}$. Since $L_{\mathrm{view}}|_{\mathrm{masks}}$ is surjective, $\mathcal{I} = \{(v, f) : f - L_{\mathrm{fold}}(\varrho(v)) \in W'\}$: for $(v,f) = L(m)$, the mask $m - \varrho(v)$ lies in $\ker(L_{\mathrm{view}}) \cap \mathrm{masks}$, and conversely. So $L(\delta) \in \mathcal{I}$ if and only if $L_{\mathrm{fold}}(\delta) - L_{\mathrm{fold}}(\varrho(L_{\mathrm{view}}(\delta))) \in W'$, which is the stated condition.
+\end{proof}
+
+\begin{lemma}[protocol directions]\label{lem:protocoldirs}
+The following $\Fq$-forms on the $\hat{f}_1$-space (each counting as $\extdeg$ $\Fp$-forms) lie in $\mathrm{ann}(W')$ and satisfy the exactness criterion for \emph{every} $\delta$: (i) $f \mapsto \hat{f}(\pow(x_t, n - k_0))$ for each queried point $x_t$; (ii) $f \mapsto \hat{f}(\pow(y, n - k_0))$ for each out-of-domain point $y$ of $\hat{f}_1$; (iii) $f \mapsto \sum_b \hat{f}(b)\, \hat{W}_0(\vec{\alpha}_0, b)$.
+\end{lemma}
+
+\begin{proof}
+Each of these forms, composed with $L_{\mathrm{fold}}$, equals a fixed linear combination of the view coordinates \emph{as an identity of linear forms on the cells}: (i) is the fold consistency $\hat{f}_1(\pow(x_t, \cdot)) = \fold(f_0, \vec{\alpha}_0)(x_t)$, where the right side is a public combination of the opened fiber of $x_t$; (ii) is the definition of the out-of-domain answer; (iii) is the terminal sumcheck identity $\sum_b \hat{f}_1(b)\, \hat{W}_0(\vec{\alpha}_0, b) = \hat{h}_{k_0}(\alpha_{k_0})$, whose right side is a public combination of the sumcheck values. A form $\varphi$ with $\varphi \circ L_{\mathrm{fold}} = (\text{combination of view forms})$ vanishes on $\ker(L_{\mathrm{view}})$, in particular $\varphi \in \mathrm{ann}(W')$; and both sides of its criterion equal the same combination applied to $L_{\mathrm{view}}(\delta)$.
+\end{proof}
+
+\begin{condition}[no accidental pinning]\label{cond:pinning}
+$\mathrm{ann}(W')$ is spanned by the forms of \Cref{lem:protocoldirs}.
+\end{condition}
+
+\begin{theorem}[perfect honest-verifier zero-knowledge, interactive]\label{thm:simulator}
+Fix challenges satisfying the conditions of \Cref{prop:uniform} and \Cref{cond:pinning}. Let $D^*$ be any data assignment consistent with the statement (one is computable from the statement alone: fix the public positions, then meet the claimed value by adjusting one position carrying a nonzero weight). Then for every data assignment $D$, the honest transcript with data $D$ is distributed identically to the honest transcript with data $D^*$: the simulator runs the honest prover on $D^*$. Moreover all the conditions are determined by the challenges and the statement, so the restart rule preserves this identity of distributions.
+\end{theorem}
+
+\begin{proof}
+By \Cref{lem:criterion} it suffices to verify the criterion for $\delta := D - D^*$ and every $\varphi \in \mathrm{ann}(W')$; by \Cref{cond:pinning} it suffices for the forms of \Cref{lem:protocoldirs}, which satisfy it for every $\delta$. The restart event is a deterministic function of the challenges and the statement, identical for $D$ and $D^*$, so conditioning on it preserves the equality.
+\end{proof}
+
+\begin{remark}[what remains]
+\Cref{cond:pinning} is public and prover-checkable, so zero-knowledge never fails: a violation only triggers a restart. What is not yet quantified is the probability of that restart. The candidate space is small: more conditioning means less freedom, so $W'$ contains the subspace $W$ of the absorption analysis (\Cref{lem:absorb}, applied with the per-class node evaluations and the cross-term combinations as the conditioned forms), hence $\mathrm{ann}(W') \subseteq \mathrm{ann}(W)$, an explicit space of dimension at most $\extdeg\,(t_0 + s_0 + s_1) + e\,\extdeg$ by items 2 and 3. Bounding the probability that this small space contains anything beyond the protocol directions is the remaining quantitative step; the Schwartz--Zippel methodology of \Cref{sec:twopoint} applies.
+\end{remark}
 
 \end{document}
