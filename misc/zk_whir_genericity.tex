@@ -20,6 +20,8 @@
 \theoremstyle{definition}
 \newtheorem{remark}{Remark}
 \newtheorem{condition}{Condition}
+\crefname{condition}{condition}{conditions}
+\Crefname{condition}{Condition}{Conditions}
 
 \title{Genericity lemmas for the zero-knowledge WHIR masking}
 \author{}
@@ -294,8 +296,118 @@ Fix challenges satisfying the conditions of \Cref{prop:uniform} and \Cref{cond:p
 By \Cref{lem:criterion} it suffices to verify the criterion for $\delta := D - D^*$ and every $\varphi \in \mathrm{ann}(W')$; by \Cref{cond:pinning} it suffices for the forms of \Cref{lem:protocoldirs}, which satisfy it for every $\delta$. The restart event is a deterministic function of the challenges and the statement, identical for $D$ and $D^*$, so conditioning on it preserves the equality.
 \end{proof}
 
-\begin{remark}[what remains]
-\Cref{cond:pinning} is public and prover-checkable, so zero-knowledge never fails: a violation only triggers a restart. What is not yet quantified is the probability of that restart. The candidate space is small: more conditioning means less freedom, so $W'$ contains the subspace $W$ of the absorption analysis (\Cref{lem:absorb}, applied with the per-class node evaluations and the cross-term combinations as the conditioned forms), hence $\mathrm{ann}(W') \subseteq \mathrm{ann}(W)$, an explicit space of dimension at most $\extdeg\,(t_0 + s_0 + s_1) + e\,\extdeg$ by items 2 and 3. Bounding the probability that this small space contains anything beyond the protocol directions is the remaining quantitative step; the Schwartz--Zippel methodology of \Cref{sec:twopoint} applies.
+\begin{remark}[numerical verification]
+We checked \Cref{cond:pinning} numerically at toy parameters ($p = 103$, $\extdeg = 3$, $n = 8$, $k_0 = 3$, $2^a = 16$, $t_0 = 2$, $s_0 = 2$, $s_1 = 1$), with the full machinery (fibers, out-of-domain answers, sumcheck coefficients including the cross-terms of a generic input weight $\hat{w}$, and the fold map), validated by passing the sumcheck recursion, the terminal identity, and \Cref{lem:blocks} as runtime assertions. Result, stable across seeds: $\dim \mathrm{ann}(W') = \extdeg\,(t_0 + s_1 + 1) = 12$, equal to the span of the protocol directions, which annihilate $W'$ exactly. Control experiment: with $\hat{w} = 0$, the dimension jumps to $15$, matching the prediction of \Cref{rem:identities} (the evaluations of $\hat{f}_1$ at the commitment nodes become pinned; the terminal direction already accounts for one of their combinations, leaving one new $\Fq$-direction).
+\end{remark}
+
+\section{Bounding the pinned directions}\label{sec:pinbound}
+
+We now bound $\mathrm{ann}(W')$ from above, to control the probability that \Cref{cond:pinning} fails. Throughout, fix challenges satisfying \textsc{spread}, $\alpha_1 \notin \{0, 1\}$, and the conditions of \Cref{prop:uniform}. Notation: by trace duality, an $\Fp$-form $\varphi$ on the $\hat{f}_1$-space $\Fq^{2^m}$ ($m := n - k_0$) has a unique representative $\phi \in \Fq^{2^m}$ with $\varphi(g) = \mathrm{tr}\,\langle \phi, g \rangle$, where $\langle \cdot, \cdot \rangle$ is the coordinatewise $\Fq$-pairing and $\mathrm{tr} = \mathrm{tr}_{\Fq/\Fp}$. Write $w^{(t)} \in \Fp^{2^m}$ for the weight vector of the evaluation at the queried point $x_t$, and $u^{(\nu)} \in \Fq^{2^m}$ for the weight vector of the evaluation at a node $\nu$ (commitment nodes $\nu_1, \nu_2$ and $\hat{f}_1$ points $y_1, \dots, y_{s_1}$).
+
+\begin{lemma}[confinement]\label{lem:confine}
+Let $\varphi \in \mathrm{ann}(W')$ with representative $\phi$. Then, restricted to the block coordinates (the last $2^a$ positions),
+\[
+\phi\big|_{\mathrm{blk}} \;\in\; \mathrm{span}_{\Fq}\Big\{ w^{(t)}\big|_{\mathrm{blk}},\;\; \mathrm{slice}_r\big(u^{(\nu)}\big)\big|_{\mathrm{blk}} \;:\; t \leq t_0,\ \nu \text{ a node},\ r \leq \extdeg \Big\} ,
+\]
+where $\mathrm{slice}_r(u) := (\mathrm{tr}(\beta_r u_c))_c \in \Fp^{2^m}$ for a fixed $\Fp$-basis $(\beta_r)$ of $\Fq$.
+\end{lemma}
+
+\begin{proof}
+Let $K \subseteq \Fp^{2^a}$ be the common kernel, inside the block coordinates, of the evaluation forms at the queried points and the nodes; by \Cref{lem:crt}, $\dim_{\Fp} K = 2^a - t_0 - \extdeg(s_0 + s_1)$. For any class $s$ and any $v \in K$, the perturbation placing $v$ on the block of class $s$ (and zero elsewhere) is invisible to the view: its fiber, out-of-domain, and $\hat{f}_1$-answer contributions vanish because all its point and node evaluations do, and its cross-term contributions vanish by \Cref{lem:blocks}. Its image under the fold is $\lambda_s v$ (placed at the block coordinates), with $\lambda_s := \hat{eq}(\vec{\alpha}_0, s)$, so $\lambda_s v \in W'$ and $\mathrm{tr}(\lambda_s \langle \phi, v \rangle) = 0$. The multipliers $\lambda_s$ span $\Fq$ over $\Fp$: for the mask classes this is \textsc{spread}, and it transfers to all classes since $\hat{eq}(\vec{\alpha}_0, (0, s')) = \frac{1 - \alpha_1}{\alpha_1}\, \hat{eq}(\vec{\alpha}_0, (1, s'))$ with $\alpha_1 \notin \{0, 1\}$. By nondegeneracy of the trace, $\langle \phi, v \rangle = 0$ for every $v \in K$. The vectors of an $\Fp$-basis of $K$ stay independent over $\Fq$, so the $\Fq$-orthogonal of $K$ in $\Fq^{2^a}$ has $\Fq$-dimension $t_0 + \extdeg(s_0 + s_1)$; it contains the stated span, whose generators are exactly an independent family of that size ($\Fp$-forms cutting $K$ out). The two spaces coincide, and $\phi|_{\mathrm{blk}}$ lies in them.
+\end{proof}
+
+\begin{lemma}[node channel]\label{lem:nodechannel}
+Let $\varphi \in \mathrm{ann}(W')$ and write, by \Cref{lem:confine}, $\phi|_{\mathrm{blk}} = (\text{queried and } \hat{f}_1 \text{ parts}) + \sum_{j \leq s_0,\, r} b_{j,r}\, \mathrm{slice}_r(u^{(\nu_j)})|_{\mathrm{blk}}$ with $b_{j,r} \in \Fq$. Define $B_{s, j} := \sum_r \mathrm{tr}(\lambda_s\, b_{j,r})\, \beta_r \in \Fq$. Then the vector $(B_{s,j})_{s,j}$ lies in the $\Fq$-row space of the node matrix of \Cref{sec:twopoint}.
+\end{lemma}
+
+\begin{proof}
+For any assignment $V = (V_{s,j})$ in the $\Fq$-kernel of the node matrix, build the perturbation that realizes, on the block of each class $s$, the node values $(V_{s,1}, V_{s,2})$ and zero evaluations at the queried points and the $\hat{f}_1$ points: possible within the blocks by \Cref{lem:crt}. It is invisible to the view: fibers and $\hat{f}_1$ answers vanish by construction, cross-terms vanish on blocks, and the out-of-domain and sumcheck values vanish because $V$ kills their node combinations. Its fold image lies in $W'$, and pairing with $\varphi$ gives, using $\langle \mathrm{slice}_r(u^{(\nu_j)}), \delta_s \rangle = \mathrm{tr}(\beta_r V_{s,j})$ and $\mathrm{tr}(x\, \mathrm{tr}(y)) = \mathrm{tr}(x)\mathrm{tr}(y)$:
+\[
+0 \;=\; \varphi\Big(\sum_s \lambda_s \delta_s\Big) \;=\; \sum_{s, j, r} \mathrm{tr}(\lambda_s b_{j,r})\; \mathrm{tr}(\beta_r V_{s,j}) \;=\; \mathrm{tr}\Big( \sum_{s,j} B_{s,j} V_{s,j} \Big) .
+\]
+The kernel of the node matrix is an $\Fq$-subspace: replacing $V$ by $\theta V$ and varying $\theta \in \Fq$, nondegeneracy of the trace gives $\sum_{s,j} B_{s,j} V_{s,j} = 0$ for every kernel element $V$, that is, $B$ lies in the row space.
+\end{proof}
+
+The row space is spanned by the tensors $\{\omega_j, \tau_{\ell, j}\}$ (\Cref{thm:twopoint}), while $B$ ranges, as the $b_{j,r}$ vary, over the \emph{trace twists} of the extension rows: $B_{s,j} = T_{b_j}(\lambda_s)$ with $T_b(x) := \sum_r \mathrm{tr}(x\, b_r) \beta_r$, an arbitrary $\Fp$-linear map of $\Fq$. The untwisted case $T_b = (\text{multiplication by } \theta)$ corresponds to $\sum_j \theta_j \eta_j$, which does lie in the row space. The next two lemmas show that, generically, nothing else does, and that the non-terminal part of the untwisted case is in turn not pinned.
+
+\begin{lemma}[twist rigidity]\label{cond:twist}
+Every $\Fp$-linear map of $\Fq$ is a linearized polynomial $T(x) = \sum_{r=0}^{\extdeg-1} t_r\, x^{p^r}$, and correspondingly $(T(\lambda_s))_s = \sum_r t_r\, \eta^{[r]}$, where $\eta^{[r]} := \bigotimes_i \big(1 - \alpha_i^{p^r},\; \alpha_i^{p^r}\big)$ is the extension row at the Frobenius-conjugated challenges (so $\eta^{[0]} = \eta$). Assume $\alpha_1 \notin \Fp$ and that, for each point $j$, the $(k_0 - 1) \times (\extdeg - 1)$ matrix
+\[
+M^{(j)} := \Big( \alpha_m^{p^r} - \zeta^{(j)}_m \Big)_{m = 2..k_0,\; r = 1..\extdeg - 1}
+\]
+has rank $\extdeg - 1$. Then the only maps $T_{b_1}, T_{b_2}$ with $(T_{b_j}(\lambda_s))_{s,j}$ in the row space of the node matrix are the multiplications $T_{b_j} = \theta_j \cdot$, $\theta_j \in \Fq$.
+\end{lemma}
+
+\begin{proof}
+The first claim: linearized polynomials are $\Fp$-linear, and they form a space of dimension $\extdeg^2$ over $\Fp$, equal to the dimension of all $\Fp$-linear maps, with no nonzero map represented twice (a nonzero linearized polynomial of degree $\leq p^{\extdeg - 1}$ has at most $p^{\extdeg-1} < q$ roots). For the tensor form: $\lambda_s^{p^r} = \prod_i \hat{eq}(\alpha_i, s_i)^{p^r} = \prod_i \hat{eq}(\alpha_i^{p^r}, s_i)$, since the Frobenius fixes the boolean values.
+
+The row-space condition splits per point (the families $\{\omega_j, \tau_{\ell,j}\}$ are supported on their own blocks): for each $j$, $\sum_{r \geq 1} t_r\, \eta^{[r]} \in \mathrm{span}\{\omega, \tau_1, \dots, \tau_{k_0}\}$ at the point-$j$ slot values (the $r = 0$ term is absorbed by $\eta \in \mathrm{span}$, \Cref{prop:rank}). Fix $j$ and drop it. Expand all tensors in the per-slot basis $\{c_i, d\}$ (\cref{eq:cd}), with monomials indexed by the set $S$ of slots carrying $d$: writing $A^{[r]}_i := \alpha_i^{p^r} - \zeta_i$, the coefficient of $\eta^{[r]}$ on $S$ is $\prod_{i \in S} A^{[r]}_i$ (\cref{eq:acd}); the coefficient of $\tau_m$ on $S$ is $\prod_{i \in S \setminus \{m\}} A^{[0]}_i$ if $m = \max S$, else $0$; the coefficient of $\omega$ is $1$ on $S = \emptyset$, else $0$. Suppose $\sum_{r \geq 1} y_r \eta^{[r]} = x_\omega \omega + \sum_m x_m \tau_m$. The singleton sets give $x_m = \sum_r y_r A^{[r]}_m$. The pairs $S = \{1, m\}$, $m \geq 2$, give $x_m A^{[0]}_1 = \sum_r y_r A^{[r]}_1 A^{[r]}_m$; substituting,
+\[
+\sum_{r \geq 1} \big( y_r\, D_r \big)\, A^{[r]}_m \;=\; 0 \qquad \text{for } m = 2, \dots, k_0 , \qquad D_r := A^{[r]}_1 - A^{[0]}_1 = \alpha_1^{p^r} - \alpha_1 .
+\]
+This says the vector $(y_r D_r)_r$ is in the kernel of $M^{(j)}$, which is trivial by the rank assumption. Since $\alpha_1 \notin \Fp$ and $\extdeg$ is prime, $D_r \neq 0$ for $1 \leq r \leq \extdeg - 1$ (the fixed field of the $r$-th Frobenius power inside $\Fq$ is $\Fp$). So $y_r = 0$ for all $r \geq 1$, and $T_{b_j}$ is the multiplication by its $t_0$-coefficient.
+\end{proof}
+
+\begin{corollary}\label{cor:twistprob}
+For uniform challenges, the assumptions of \Cref{cond:twist} fail with probability at most
+\[
+\frac{p}{q} \;+\; 2 \binom{k_0 - 1}{\,k_0 - \extdeg + 1\,} \Big( \frac{p^{\extdeg - 2}}{q} \Big)^{k_0 - \extdeg + 1}
+\qquad (\approx 2^{-124} \text{ for KoalaBear}) .
+\]
+\end{corollary}
+
+\begin{proof}
+$\Pr[\alpha_1 \in \Fp] = p/q$. For the rank, fix $j$ and process the rows of $M^{(j)}$ (one per $m$, each depending on its own $\alpha_m$) in order, tracking the span of the rows seen so far. Rank $< \extdeg - 1$ after $k_0 - 1$ rows requires at least $(k_0 - 1) - (\extdeg - 2) = k_0 - \extdeg + 1$ rows to fall into the span of their predecessors. A proper subspace of $\Fq^{\extdeg - 1}$ lies in a hyperplane $\{x : \sum_r v_r x_r = 0\}$ with $v \neq 0$, and the row of $\alpha_m$ falls in it only if $L_v(\alpha_m) = \sum_r v_r \zeta_m$, where $L_v(x) := \sum_{r=1}^{\extdeg-1} v_r x^{p^r}$. Writing $L_v = \mathrm{Frob} \circ M_v$ with $M_v(x) = \sum_r v_r^{1/p} x^{p^{r-1}}$, a nonzero linearized polynomial of degree $\leq p^{\extdeg - 2}$, the solution set is empty or a coset of $\ker M_v$, of size at most $p^{\extdeg - 2}$. The rows are independent across $m$, so each fall costs at most $p^{\extdeg-2}/q$; a union bound over the choice of falling rows and over the two points gives the second term.
+\end{proof}
+
+\begin{lemma}[kernel surjectivity]\label{lem:kersurj}
+Under the conditions of \Cref{prop:uniform}, every assignment $\delta_{\mathrm{out}}$ on the non-block mask cells extends to a perturbation in $\ker(L_{\mathrm{view}}) \cap \mathrm{masks}$.
+\end{lemma}
+
+\begin{proof}
+The blocks must compensate the contributions of $\delta_{\mathrm{out}}$: its per-class fiber evaluations at the queried points, and its contributions to the $2k_0 + 2 + s_1$ out-of-domain, sumcheck, and $\hat{f}_1$-answer values, the latter through both node weights and cross weights. By \Cref{lem:crt}, the blocks realize any prescribed tuple of fiber and node evaluations, per class and jointly; and the assembled map from block node values to the $2k_0 + 2 + s_1$ values is surjective (full row rank, proof of \Cref{prop:uniform}). Choose block evaluations cancelling the fiber values classwise and the assembled values globally; blocks contribute no cross-terms (\Cref{lem:blocks}).
+\end{proof}
+
+\begin{lemma}[cross coupling]\label{cond:cross2}
+Assume the conditions of \Cref{prop:uniform} and that $\hat{w}$ is nonzero at some data cell outside the blocks. Write $\eta_j = \sum_v c^{(j)}_v N_v$ for the unique representation of the extension rows in the value rows (\Cref{thm:twopoint}), and $F_\theta := \sum_v \big(\theta_1 c^{(1)}_v + \theta_2 c^{(2)}_v\big) C_v$ for the matching combination of the cross vectors, restricted to the non-block mask cells. Then, except with probability at most $2^{k_0 + 6}/q$ over the challenges: $F_\theta = 0$ exactly for $\theta$ on the line of the terminal direction, and consequently, for every $\theta$ off that line, the form $f \mapsto \theta_1 \hat{f}(\nu_1\text{-point}) + \theta_2 \hat{f}(\nu_2\text{-point})$ does not lie in $\mathrm{ann}(W')$.
+\end{lemma}
+
+\begin{proof}
+First the consequence. For $\delta \in \ker(L_{\mathrm{view}}) \cap \mathrm{masks}$ with node values $V$ and non-block restriction $\delta_{\mathrm{out}}$, the vanishing of the value forms gives $N_v(V) = -C_v(\delta_{\mathrm{out}})$, hence
+\[
+\theta_1 \hat{f}(\nu_1) + \theta_2 \hat{f}(\nu_2) \Big|_{f = \mathrm{fold}(\delta)} \;=\; \sum_j \theta_j\, \eta_j(V) \;=\; \sum_{j, v} \theta_j c^{(j)}_v N_v(V) \;=\; - F_\theta(\delta_{\mathrm{out}}) ,
+\]
+and $\delta_{\mathrm{out}}$ is arbitrary by \Cref{lem:kersurj}: the form annihilates $W'$ if and only if $F_\theta = 0$. The terminal direction satisfies $F = 0$ identically (its defining identity holds cell by cell, cross-terms included), so the kernel of $\theta \mapsto F_\theta$ contains the terminal line; it suffices to show $F_{(1,0)} \neq 0$, since the terminal line has a nonzero second coordinate ($\gamma \neq 0$ and the per-point factors $P^{(j)}_{k_0+1} \neq 0$).
+
+$F_{(1,0)} \neq 0$ holds except with probability $2^{k_0+6}/q$: after clearing the denominators of the $c^{(1)}_v$ (Cramer over the value-row system, determinant nonzero under the standing conditions), each entry of $F_{(1,0)}$ is a polynomial in the challenges of total degree at most $2^{k_0 + 6}$ (entries of the system have degree at most $2^{k_0}$ in each $z_j$, $k_0 + 1$ in the $\alpha$'s, $2$ in $\gamma$; a $16 \times 16$ determinant multiplies these by $16$). It is not the zero polynomial: specialize $\alpha_i := \zeta^{(1)}_i$ for $i \geq 2$. Then $\rho^{(1)}_\ell = \omega^{(1)} + (\alpha_1 - z_1)\tau^{(1)}_1$ for every $\ell \geq 2$, and the system for $\eta_1$ solves explicitly: the block-1 equations for $\tau^{(1)}_m$, $m \geq 2$, give $\nu_{m,2} = -g(\zeta^{(1)}_m)\, \nu_{m,1}$; substituting into the block-2 equations for $\tau^{(2)}_m$ gives an upper-triangular system with diagonal $P^{(2)}_m (2\zeta^{(2)}_m - 1)\, d_m \neq 0$, so $\nu_{m,1} = \nu_{m,2} = 0$ for all $m \geq 2$ by descent; the two remaining equations give
+\[
+\nu_{1,1} = \frac{\alpha_1 - z_1}{(2 z_1 - 1)\, d_1} , \qquad \nu_{1,2} = -\, g(z_2)\, \nu_{1,1} .
+\]
+The round-1 cross weights at a non-block mask cell $(1, v)$ are $[X^r]\big(X (1-X)\big)\, \gamma^2\, \hat{w}(0, v)$, that is $+\gamma^2 \hat{w}_0(v)$ for $r = 1$ and $-\gamma^2 \hat{w}_0(v)$ for $r = 2$, where $\hat{w}_0 := \hat{w}(0, \cdot)$. Hence, at the specialization,
+\[
+F_{(1,0)}(1, v) \;=\; \gamma^2\, \nu_{1,1} \big(1 + g(z_2)\big)\, \hat{w}_0(v) \;=\; \gamma^2\, \frac{(\alpha_1 - z_1)\; 2 z_2 (1 - z_2)}{(2z_1 - 1)\; d_1\; (2 z_2 - 1)}\; \hat{w}_0(v) ,
+\]
+nonzero at the assumed cell for generic $\alpha_1, z_1, z_2, \gamma$. Schwartz--Zippel on that entry concludes.
+\end{proof}
+
+\begin{proposition}\label{prop:pinbound}
+Under \textsc{spread}, $\alpha_1 \notin \Fp$, the conditions of \Cref{prop:uniform}, and the assumptions of \Cref{cond:twist,cond:cross2}, the conclusion of \Cref{cond:pinning} holds: $\mathrm{ann}(W')$ is spanned by the protocol directions.
+\end{proposition}
+
+\begin{proof}
+Let $\varphi \in \mathrm{ann}(W')$. By \Cref{lem:confine,lem:nodechannel,cond:twist}, the commitment-node part of $\phi|_{\mathrm{blk}}$ is the trace dual of $\sum_j \theta_j \eta_j$ for scalars $\theta_j$, and the queried-point and $\hat{f}_1$-node parts are $\Fq$-combinations of protocol directions outright. Subtract from $\varphi$ that combination of protocol directions, accounting for the terminal component of $(\theta_1, \theta_2)$ with the terminal direction: the residue $\varphi'$ lies in $\mathrm{ann}(W')$, its block representative is the dual of $\sum_j \theta'_j \eta_j$ with $\theta'$ off the terminal line, and \Cref{lem:confine}'s orthogonality argument (whose mask-class perturbations range over the entire class, so the conclusion also constrains the non-block coordinates) leaves no other component. If $\theta' \neq 0$, \Cref{cond:cross2} is contradicted; so $\varphi' = 0$ and $\varphi$ is a combination of protocol directions.
+\end{proof}
+
+\begin{corollary}[restart probability]\label{cor:restart}
+The prover restarts only if one of the following fails: \textsc{spread} (at most $2/q$, main document); the conditions of \Cref{prop:uniform} (at most $(4 \cdot 2^{k_0} + 2k_0)/q$ for \Cref{thm:twopoint}, plus $(2 \cdot 2^{k_0} + s_1)\, p/q$ for a node landing in $\Fp$, plus $\binom{s_0 + s_1}{2} \extdeg\, 2^{k_0}/q$ for collisions and conjugations); $\alpha_1 \in \Fp$ and the rank of \Cref{cor:twistprob} (at most $p/q$ plus a negligible term); the cross coupling (at most $2^{k_0+6}/q$). Total, for KoalaBear with $s_0 = 2$:
+\[
+\Pr[\mathrm{restart}] \;\leq\; \big(2 \cdot 2^{k_0} + s_1 + 1\big)\, \frac{p}{q} \;+\; O\big(2^{k_0 + 6}\big)\frac{1}{q} \;\approx\; 2^{-116} ,
+\]
+dominated by a commitment out-of-domain node landing in the base field.
+\end{corollary}
+
+\begin{remark}
+The numerical verification of \Cref{cond:pinning} reported above doubles as an end-to-end test of \Cref{prop:pinbound}: at the toy parameters, $\dim \mathrm{ann}(W')$ equals the protocol count for generic $\hat{w}$ across seeds, and the control $\hat{w} = 0$, which violates the hypothesis of \Cref{cond:cross2}, produces exactly one extra pinned direction, as the analysis predicts. The explicit solution in the proof of \Cref{cond:cross2} was additionally verified at production shape ($k_0 = 7$, sixteen rows over the $512$ node values, toy field): at the specialization, the solved representation of $\eta_1$ matches the stated $\nu_{1,1}$, $\nu_{1,2}$, $\mu_1$, $\mu_2$ exactly, with all other coefficients zero, and the closed-form factor agrees.
 \end{remark}
 
 \end{document}
