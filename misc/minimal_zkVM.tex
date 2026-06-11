@@ -1301,11 +1301,6 @@ $$c_0 = (L,\, 0, \dots, 0), \qquad (c_{i+1} \,\|\, r_{i+1}) = \texttt{POSEIDON}^
 
 In order to turn the interactive protocol described in \Cref{sec:e2e-protocol} into a non-interactive one, we apply the BCS transformation \cite{BCS}. In particular, we use the Fiat-Shamir transformation implemented via a duplex sponge \cite{fiat_shamir_duplex_sponge} (using the $\texttt{POSEIDON}^\pi$ permutation over a state of 16 KoalaBear field elements).
 
-\section{Zero-Knowledge}\label{sec:zk}
-
-The protocol described so far is not zero-knowledge. A zero-knowledge variant is developed in the companion document \texttt{zk\_leanVM.tex}: a masked WHIR (two committed random masks folded into the data during the initial round, $s_0 \geq 2$ out-of-domain samples, and a prover-side restart rule), proven perfectly zero-knowledge against the honest verifier for the interactive opening, with all restart conditions bounded ($\Pr[\text{restart}] \approx 2^{-116}$); together with the masking strategies for the Logup-GKR and AIR sumchecks and for the column evaluations. The committed size roughly doubles; the verifier is unchanged. The Fiat--Shamir and Merkle layers remain open.
-
-
 \section{ISA programming}
 
 This section describes \emph{conventions} for writing programs using the ISA of \Cref{sec:isa}. None of it is hard-coded into the VM or enforced by the snark.
