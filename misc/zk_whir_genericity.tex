@@ -1,0 +1,227 @@
+\documentclass{article}
+
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage[noabbrev]{cleveref}
+
+\newcommand{\Fp}{\mathbb{F}_p}
+\newcommand{\Fq}{\mathbb{F}_q}
+\newcommand{\extdeg}{d}
+\newcommand{\pow}{\mathsf{pow}}
+
+\newtheorem{lemma}{Lemma}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\theoremstyle{definition}
+\newtheorem{remark}{Remark}
+\newtheorem{condition}{Condition}
+
+\title{Genericity lemmas for the zero-knowledge WHIR masking}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+This note supports the zero-knowledge section of \texttt{minimal\_zkVM.tex}. We analyse the linear algebra of the values revealed during round 0 of the masked WHIR opening, and we prove the lemmas behind the \textsc{independence} condition and the absorption argument. Two results. Negative: with a single commitment out-of-domain point ($s_0 = 1$), the round-0 values satisfy $k_0 + 1$ exact linear dependencies in their node components, for every choice of challenges; these dependencies are protocol identities (the sumcheck recursion and the terminal sumcheck claim), and no mask size can compensate them (\Cref{prop:rank}). Positive: with $s_0 = 2$, the values become jointly independent combinations of the node values, under explicit per-slot conditions (\Cref{thm:twopoint}). This is why the zero-knowledge design requires $s_0 \geq 2$.
+
+\section{Setting and notation}
+
+$\Fp$ is the base field, $\Fq = \mathbb{F}_{p^{\extdeg}}$ with $\extdeg$ prime ($\extdeg = 5$ in practice). $\hat{eq}$ is the multilinear equality polynomial and $\pow(x, m) = (x, x^2, x^4, \dots, x^{2^{m-1}})$. The prover commits to $P \in \Fp^{2^n}$; round 0 folds $k_0$ variables ($k_0 = 7$) with sumcheck challenges $\vec{\alpha}_0 = (\alpha_1, \dots, \alpha_{k_0})$. For $s \in \{0,1\}^{k_0}$, the class $u_s \in \Fp^{2^{n-k_0}}$ is the vector of cells whose round-0 coordinates equal $s$. The masks are as in the main document: $R_{\mathsf{out}}$ is the union of the classes with $X_1$-coordinate $1$, entirely random; $R_{\mathsf{in}}$ places $2^a$ random cells at the end of every other class.
+
+\Cref{sec:slot,sec:rank} work with a single commitment out-of-domain point $z$; \Cref{sec:twopoint} treats two points. For a point $z$, write $\zeta_i := z^{2^{i-1}}$, so that $\pow(z, n) = (\zeta_1, \dots, \zeta_{k_0}, \pow(z^{2^{k_0}}, n - k_0))$. The \emph{node} is the point $\nu := \pow(z^{2^{k_0}}, n - k_0)$, and the \emph{node values} are
+\[
+V_s \;:=\; \hat{u}_s(\nu) \;\in\; \Fq , \qquad s \in \{0,1\}^{k_0} .
+\]
+The batched weight is $\hat{W}_0 = \hat{eq}(\pow(z, n), \cdot) + \gamma\, \hat{w}$ (for $s_0 = 1$), where the input weight $\hat{w}$ vanishes on every mask cell. The round-0 sumcheck messages are
+\[
+\hat{h}_\ell(X) \;=\; \sum_{b \in \{0,1\}^{n - \ell}} \hat{f}_0(\alpha_1, \dots, \alpha_{\ell - 1}, X, b)\; \hat{W}_0(\alpha_1, \dots, \alpha_{\ell - 1}, X, b) , \qquad \ell = 1, \dots, k_0 ,
+\]
+each of degree $2$ in $X$, with two fresh coefficients (the third is fixed by $\hat{h}_\ell(0) + \hat{h}_\ell(1) = \sigma$).
+
+\paragraph{Row computation.} Expanding $\hat{f}_0 = \sum_u P[u] \prod_i \hat{eq}(\cdot, u_i)$, the coefficient of the cell $u \in \{0,1\}^n$ in $\hat{h}_\ell(X)$ is
+\[
+\Big[\prod_{i < \ell} \hat{eq}(\alpha_i, u_i)\Big] \cdot \hat{eq}(X, u_\ell) \cdot \hat{W}_0(\alpha_1, \dots, \alpha_{\ell-1}, X, u_{> \ell}) .
+\]
+For the out-of-domain term of $\hat{W}_0$, the last factor factorizes coordinate by coordinate, and summing over the cells of a class $s$ reproduces the node value $V_s$: the out-of-domain component of $\hat{h}_\ell(X)$ is $\sum_s \Lambda_\ell(X; s)\, V_s$ with
+\begin{equation}\label{eq:lambda}
+\Lambda_\ell(X; s) \;=\; \Big[\prod_{i < \ell} \hat{eq}(\alpha_i, s_i)\, \hat{eq}(\alpha_i, \zeta_i)\Big] \cdot \hat{eq}(X, s_\ell)\, \hat{eq}(X, \zeta_\ell) \cdot \prod_{i = \ell + 1}^{k_0} \hat{eq}(s_i, \zeta_i) .
+\end{equation}
+For the $\hat{w}$ term, the partial evaluation $\hat{w}(\alpha_1, \dots, \alpha_{\ell-1}, X, u_{>\ell})$ does \emph{not} vanish for a cell $u$ of $R_{\mathsf{out}}$, because it averages $w$ over a slice of cells that contains data cells (at a cell of $R_{\mathsf{in}}$ it vanishes: the slice crosses only unclaimed positions). These \emph{cross-terms} are extra additive contributions on $R_{\mathsf{out}}$; the analysis below does not rely on them.
+
+We study the following $2 k_0 + 2$ linear forms in the variables $(V_s)_s$, called the \emph{node matrix}:
+\begin{itemize}
+    \item the out-of-domain answer: $\omega$-row, with coefficient $\prod_{i \le k_0} \hat{eq}(\zeta_i, s_i)$ at column $s$;
+    \item the fresh sumcheck coefficients: rows $(\ell, r)$ for $\ell \le k_0$, $r \in \{1, 2\}$, with coefficient $[X^r]\, \Lambda_\ell(X; s)$ at column $s$;
+    \item the evaluation of the folded polynomial at the node: $\eta$-row, with coefficient $\hat{eq}(\vec{\alpha}_0, s)$ at column $s$ (indeed $\hat{f}_1(\nu) = \sum_s \hat{eq}(\vec{\alpha}_0, s)\, V_s$).
+\end{itemize}
+
+\section{Slot decomposition}\label{sec:slot}
+
+A linear form in $(V_s)_s$ that factorizes per coordinate of $s$ is a tensor $v_1 \otimes \cdots \otimes v_{k_0}$ of \emph{slot vectors} $v_i \in \Fq^2$, where $v_i = (v_i[0], v_i[1])$ collects the two weights of the coordinate $s_i$. Define
+\[
+c_i := (1 - \zeta_i,\; \zeta_i), \qquad \tilde{a}_i := (1 - \alpha_i,\; \alpha_i), \qquad d := (-1,\; 1) .
+\]
+Then $\omega = c_1 \otimes \cdots \otimes c_{k_0}$ and $\eta = \tilde{a}_1 \otimes \cdots \otimes \tilde{a}_{k_0}$. For the sumcheck rows, write $\hat{eq}(X, \zeta) = (1 - \zeta) + X(2\zeta - 1)$ and expand the slot-$\ell$ pair $\big((1-X)\hat{eq}(X, \zeta_\ell),\; X \hat{eq}(X, \zeta_\ell)\big)$:
+\[
+b^{(1)}_\ell := \big(3\zeta_\ell - 2,\; 1 - \zeta_\ell\big) \quad (X^1 \text{ coefficients}), \qquad
+b^{(2)}_\ell := (2\zeta_\ell - 1) \cdot (-1, 1) \quad (X^2 \text{ coefficients}),
+\]
+so that, with the scalar $P_\ell := \prod_{i < \ell} \hat{eq}(\alpha_i, \zeta_i)$,
+\[
+\text{row}(\ell, r) \;=\; P_\ell \cdot \tilde{a}_1 \otimes \cdots \otimes \tilde{a}_{\ell - 1} \otimes b^{(r)}_\ell \otimes c_{\ell + 1} \otimes \cdots \otimes c_{k_0} .
+\]
+Three identities, each a direct computation:
+\begin{align}
+\det(c_i, d) &= 1 \qquad \text{(so $\{c_i, d\}$ is always a basis of the slot plane)}, \label{eq:cd}\\
+\tilde{a}_i &= c_i + (\alpha_i - \zeta_i)\, d , \label{eq:acd}\\
+b^{(1)}_\ell = (2\zeta_\ell - 1)\, c_\ell + (1 - 2\zeta_\ell^2)\, d , &\qquad b^{(2)}_\ell = (2\zeta_\ell - 1)\, d , \qquad \det\big(b^{(1)}_\ell, b^{(2)}_\ell\big) = (2\zeta_\ell - 1)^2 . \label{eq:bcd}
+\end{align}
+Define, for $\ell = 1, \dots, k_0 + 1$ and $m = 1, \dots, k_0$:
+\[
+\rho_\ell := \tilde{a}_1 \otimes \cdots \otimes \tilde{a}_{\ell-1} \otimes c_\ell \otimes \cdots \otimes c_{k_0}, \qquad
+\tau_m := \tilde{a}_1 \otimes \cdots \otimes \tilde{a}_{m-1} \otimes d \otimes c_{m+1} \otimes \cdots \otimes c_{k_0},
+\]
+with the conventions $\rho_1 = \omega$ and $\rho_{k_0 + 1} = \eta$. By \cref{eq:bcd},
+\begin{equation}\label{eq:rows}
+\text{row}(\ell, 1) = P_\ell \big[(2\zeta_\ell - 1)\rho_\ell + (1 - 2\zeta_\ell^2)\tau_\ell\big], \qquad \text{row}(\ell, 2) = P_\ell (2\zeta_\ell - 1)\, \tau_\ell .
+\end{equation}
+By \cref{eq:acd}, replacing $\tilde{a}_\ell$ by $c_\ell + (\alpha_\ell - \zeta_\ell)d$ in slot $\ell$ of $\rho_{\ell + 1}$ gives the \emph{telescoping identity}
+\begin{equation}\label{eq:telescope}
+\rho_{\ell + 1} \;=\; \rho_\ell + (\alpha_\ell - \zeta_\ell)\, \tau_\ell , \qquad \ell = 1, \dots, k_0 .
+\end{equation}
+
+\section{One point: the rank of the node matrix}\label{sec:rank}
+
+\begin{lemma}\label{lem:tau}
+The $k_0 + 1$ tensors $\omega, \tau_1, \dots, \tau_{k_0}$ are linearly independent, for all values of the variables.
+\end{lemma}
+
+\begin{proof}
+Induction on $k_0$. For $k_0 = 1$: $\omega = c_1$ and $\tau_1 = d$ are independent by \cref{eq:cd}. For $k_0 \ge 2$, let $\omega', \tau'_1, \dots, \tau'_{k_0 - 1}$ be the corresponding tensors on the slots $2, \dots, k_0$. Then
+\[
+\omega = c_1 \otimes \omega', \qquad \tau_1 = d \otimes \omega', \qquad \tau_m = \tilde{a}_1 \otimes \tau'_{m - 1} \ (m \ge 2) .
+\]
+Suppose $\lambda_\omega \omega + \sum_m \lambda_m \tau_m = 0$. Using \cref{eq:acd} to express $\tilde{a}_1$ in the basis $\{c_1, d\}$ and collecting the two basis components, with $Y := \sum_{m \ge 2} \lambda_m \tau'_{m-1}$:
+\[
+\lambda_\omega\, \omega' + Y = 0 \qquad \text{and} \qquad \lambda_1\, \omega' + (\alpha_1 - \zeta_1)\, Y = 0 .
+\]
+By the induction hypothesis, $\omega', \tau'_1, \dots, \tau'_{k_0-1}$ are independent; since $Y$ has no $\omega'$ component, the first equation forces $\lambda_\omega = 0$ and $\lambda_m = 0$ for $m \ge 2$, and then the second forces $\lambda_1 = 0$.
+\end{proof}
+
+\begin{proposition}\label{prop:rank}
+Assume $\zeta_\ell \neq 1/2$ for $\ell \le k_0$ and $\hat{eq}(\alpha_i, \zeta_i) \neq 0$ for $i \le k_0 - 1$. Then the node matrix has rank exactly $k_0 + 1$: its row space equals $\mathrm{span}\{\omega, \tau_1, \dots, \tau_{k_0}\}$, and a basis of it is given by the rows $\omega, \mathrm{row}(1,2), \dots, \mathrm{row}(k_0, 2)$. The $k_0 + 1$ remaining rows satisfy the explicit dependencies obtained from \cref{eq:rows,eq:telescope}: for each $\ell$, $\mathrm{row}(\ell, 1)$ lies in the span of $\omega$ and $\mathrm{row}(1,2), \dots, \mathrm{row}(\ell, 2)$, and $\eta = \omega + \sum_{\ell \le k_0} (\alpha_\ell - \zeta_\ell)\, \tau_\ell$.
+\end{proposition}
+
+\begin{proof}
+By \cref{eq:rows}, $\mathrm{row}(\ell, 2) = P_\ell (2\zeta_\ell - 1) \tau_\ell$ with $P_\ell(2\zeta_\ell - 1) \neq 0$ under the assumptions, so $\{\omega, \mathrm{row}(\ell,2)_\ell\}$ spans $\mathrm{span}\{\omega, \tau_1, \dots, \tau_{k_0}\}$, which has dimension $k_0 + 1$ by \Cref{lem:tau}. Iterating \cref{eq:telescope} from $\rho_1 = \omega$ gives $\rho_\ell = \omega + \sum_{i < \ell}(\alpha_i - \zeta_i)\tau_i$ for every $\ell \le k_0 + 1$; in particular every $\rho_\ell$, hence every $\mathrm{row}(\ell, 1)$ by \cref{eq:rows}, and $\eta = \rho_{k_0+1}$, lie in that same span.
+\end{proof}
+
+\begin{corollary}[failure probability]\label{cor:rankprob}
+For uniform $z \in \Fq$ and uniform challenges, the assumptions of \Cref{prop:rank} fail with probability at most $2^{k_0}/q + (k_0 - 1)/q$. Indeed $\zeta_\ell = 1/2$ means $z^{2^{\ell - 1}} = 1/2$, which has at most $2^{\ell-1}$ solutions, for a total of at most $2^{k_0} - 1$; and for fixed $\zeta_i \neq 1/2$, the equation $\hat{eq}(\alpha_i, \zeta_i) = 0$ is affine non-degenerate in $\alpha_i$, with exactly one solution.
+\end{corollary}
+
+\begin{remark}[the dependencies are protocol identities]\label{rem:identities}
+The two families of dependencies in \Cref{prop:rank} are not accidents. The telescoping identity \cref{eq:telescope} is the sumcheck recursion: evaluating $\hat{h}_\ell$ at $\alpha_\ell$ and passing to round $\ell + 1$ relates the node component of $\hat{h}_{\ell+1}$ to that of $\hat{h}_\ell$. The identity $\eta = \rho_{k_0 + 1}$ is the terminal sumcheck claim $\sum_b \hat{f}_1(b)\, \hat{W}_0(\vec{\alpha}_0, b) = \hat{h}_{k_0}(\alpha_{k_0})$, restricted to node components. In particular, for $\ell = 1$ the identity $\rho_1 = \omega$ states that the out-of-domain answer is determined by $\hat{h}_1$ up to cross-terms: the sumcheck message of a batched evaluation claim contains that claim. Consequently, with a single out-of-domain point, \emph{no} choice of challenges makes the $2k_0 + 2$ node rows independent, and no mask size compensates a rank deficit. This is why the zero-knowledge design requires $s_0 \geq 2$.
+\end{remark}
+
+\section{Two points: full rank}\label{sec:twopoint}
+
+Now take $s_0 = 2$ points $z_1, z_2$, with $\zeta^{(j)}_i := z_j^{2^{i-1}}$, nodes $\nu_j$, and node values $V_{s,j} := \hat{u}_s(\nu_j)$, treated as $2 \cdot 2^{k_0}$ independent variables (columns indexed by pairs $(s, j)$). The batched weight is $\hat{W}_0 = \hat{eq}(\pow(z_1, n), \cdot) + \gamma\, \hat{eq}(\pow(z_2, n), \cdot) + \gamma^2 \hat{w}$. The transcript values, as linear forms in the $V_{s,j}$, are the \emph{value rows}:
+\begin{itemize}
+    \item the two out-of-domain answers $\omega_1, \omega_2$: answer $j$ is supported on the columns $(\cdot, j)$, where it equals the one-point row $\omega^{(j)}$ of \Cref{sec:slot} with $\zeta = \zeta^{(j)}$;
+    \item the $2k_0$ fresh sumcheck coefficients: the value row $(\ell, r)$ has block-$j$ component $\gamma^{j-1}\, \mathrm{row}(\ell, r)^{(j)}$, on both blocks simultaneously.
+\end{itemize}
+
+\begin{theorem}\label{thm:twopoint}
+Let $g(x) := \dfrac{1 - 2x^2}{2x - 1}$. Assume $\gamma \neq 0$, the assumptions of \Cref{prop:rank} for each point, and, for each slot $\ell \leq k_0$:
+\[
+\zeta^{(1)}_\ell \neq \zeta^{(2)}_\ell \qquad \text{and} \qquad \big(2\zeta^{(1)}_\ell - 1\big)\big(2\zeta^{(2)}_\ell - 1\big) \neq -1 .
+\]
+Then the $2k_0 + 2$ value rows are linearly independent. Moreover, their span contains the two extension rows $\eta_j$ (coefficient $\hat{eq}(\vec{\alpha}_0, s)$ at column $(s,j)$): the node combinations giving the evaluations of $\hat{f}_1$ at the two nodes are determined by the revealed values. In the $\hat{f}_1$ analysis of the main document, these evaluations accordingly join the directions pinned by the view; this is harmless, since pinned values are functions of the view, which the simulator generates itself.
+\end{theorem}
+
+\begin{proof}
+Suppose $\mu_1 \omega_1 + \mu_2 \omega_2 + \sum_{\ell, r} \nu_{\ell,r}\, (\text{value row } (\ell,r)) = 0$. Restricting to the columns of block $j$:
+\[
+\mu_j\, \omega^{(j)} + \gamma^{j-1} \sum_{\ell, r} \nu_{\ell,r}\, \mathrm{row}(\ell, r)^{(j)} \;=\; 0 .
+\]
+Consider the left kernel $K^{(j)}$ of the $(2k_0+1)$-row one-point matrix $\big[\omega^{(j)}; \mathrm{row}(\ell,r)^{(j)}\big]$. By \Cref{prop:rank} its rank is $k_0 + 1$, so $\dim K^{(j)} = k_0$, and \cref{eq:rows,eq:telescope} give an explicit basis $\{k^{(j)}_\ell\}_{\ell \leq k_0}$: writing $\tau^{(j)}_\ell = \mathrm{row}(\ell,2)^{(j)} / (P^{(j)}_\ell (2\zeta^{(j)}_\ell - 1))$ and substituting the telescoped $\rho^{(j)}_\ell$ into $\mathrm{row}(\ell,1)^{(j)}$,
+\[
+k^{(j)}_\ell : \quad 1 \ \text{on } (\ell,1), \qquad -\,g\big(\zeta^{(j)}_\ell\big) \ \text{on } (\ell,2), \qquad -\,\frac{P^{(j)}_\ell (2\zeta^{(j)}_\ell - 1)(\alpha_i - \zeta^{(j)}_i)}{P^{(j)}_i (2\zeta^{(j)}_i - 1)} \ \text{on } (i,2),\ i < \ell, \qquad -\,P^{(j)}_\ell (2\zeta^{(j)}_\ell - 1) \ \text{on } \omega .
+\]
+The projection $\pi$ dropping the $\omega$-coordinate is injective on $K^{(j)}$: an element with all $(\ell,r)$-coordinates zero has $\mu\, \omega^{(j)} = 0$, and $\omega^{(j)} \neq 0$. The two block restrictions say $(\mu_1, \nu) \in K^{(1)}$ and $(\mu_2, \gamma \nu) \in K^{(2)}$; since $\gamma \neq 0$ and $\pi(K^{(2)})$ is a subspace, $\nu \in \pi(K^{(1)}) \cap \pi(K^{(2)})$.
+
+Write $\nu = \sum_\ell \lambda_\ell\, \pi(k^{(1)}_\ell) = \sum_\ell \lambda'_\ell\, \pi(k^{(2)}_\ell)$. The $(\ell, 1)$-coordinates give $\lambda_\ell = \lambda'_\ell$ for every $\ell$. The $(i, 2)$-coordinates then give, for each $i$,
+\[
+\lambda_i \, \big( g(\zeta^{(1)}_i) - g(\zeta^{(2)}_i) \big) \;=\; \sum_{\ell > i} \lambda_\ell \, \Big( c^{(2)}_{\ell, i} - c^{(1)}_{\ell, i} \Big) ,
+\]
+with $c^{(j)}_{\ell,i}$ the $(i,2)$-coefficients above: an upper-triangular homogeneous system with diagonal $d_i := g(\zeta^{(1)}_i) - g(\zeta^{(2)}_i)$. A direct computation gives
+\[
+g(x) - g(y) \;=\; \frac{(y - x)\,\big[(2x-1)(2y-1) + 1\big]}{(2x-1)(2y-1)} ,
+\]
+so the assumptions say exactly $d_i \neq 0$ for all $i$. Back-substitution from $i = k_0$ downward gives $\lambda = 0$, hence $\nu = 0$, hence $\mu_j\, \omega^{(j)} = 0$ and $\mu_j = 0$.
+
+For the extension rows: by \Cref{lem:tau} applied per block, the forms $\{\omega^{(j)}, \tau^{(j)}_1, \dots, \tau^{(j)}_{k_0}\}_{j = 1,2}$ span a space of dimension exactly $2(k_0+1)$, which contains all value rows. The $2k_0 + 2$ independent value rows therefore span it entirely; and $\eta_j = \rho^{(j)}_{k_0+1}$ lies in it by \Cref{prop:rank}.
+\end{proof}
+
+\begin{corollary}\label{cor:twopointprob}
+For uniform independent $z_1, z_2, \gamma$ and challenges, the assumptions of \Cref{thm:twopoint} fail with probability at most
+\[
+\frac{1}{q} \;+\; \frac{2\,(2^{k_0} + k_0 - 1)}{q} \;+\; \frac{2\,(2^{k_0} - 1)}{q} \;\leq\; \frac{4 \cdot 2^{k_0} + 2 k_0}{q} .
+\]
+Indeed: $\gamma = 0$ costs $1/q$; the per-point assumptions cost $(2^{k_0} + k_0 - 1)/q$ each (\Cref{cor:rankprob}); for each slot, $\zeta^{(1)}_\ell = \zeta^{(2)}_\ell$ has at most $2^{\ell-1}$ solutions in $z_2$ for fixed $z_1$, and $(2\zeta^{(1)}_\ell - 1)(2\zeta^{(2)}_\ell - 1) = -1$ determines $\zeta^{(2)}_\ell$, leaving at most $2^{\ell - 1}$ preimages; both sum to $2(2^{k_0} - 1)/q$ over the slots.
+\end{corollary}
+
+\begin{remark}[numerical verification]
+At $k_0 = 7$ with random challenges in the KoalaBear field: the $16$ value rows have rank $16$ (full), and adding the extension rows does not increase the rank; with a single point, the $15$ value rows have rank $8 = k_0 + 1$, matching \Cref{prop:rank}. Both checks were run with $\zeta_i = z^{2^{i-1}}$ and with independent $\zeta_i$.
+\end{remark}
+
+\begin{remark}[cross-terms]
+The value rows, as forms on the actual mask cells, factor through the node values up to the cross-terms of $\hat{w}$, which are supported on $R_{\mathsf{out}}$ and carry the factor $\gamma^2$. They are not needed for the masking: \Cref{thm:twopoint} provides full rank through the node channel alone, and the node values are fresh by the fiber and out-of-domain analysis of the main document. The \textsc{independence} condition that the prover checks is stated over the cells, so it accounts for the cross-terms automatically; a fully explicit certificate including them is left to the formal write-up (the cross entries are constant in $z_1$ and $z_2$ while the node entries are not, so a leading-term argument applies).
+\end{remark}
+
+\section{The absorption lemma}
+
+For a finite set $N \subseteq \Fq^{m}$ of nodes, let
+\[
+V \;:=\; \{ w \in \Fp^{2^{m}} \;:\; \hat{w}(\nu) = 0 \ \forall \nu \in N \} ,
+\]
+an $\Fp$-subspace of codimension at most $\extdeg\,|N|$. Fix an $\Fp$-basis $(\beta_1, \dots, \beta_{\extdeg})$ of $\Fq$ and write every $g \in \Fq^{2^m}$ as $g = \sum_r \beta_r\, g_r$ with \emph{slices} $g_r \in \Fp^{2^m}$. Define
+\[
+V \otimes_{\Fp} \Fq \;:=\; \{ g \in \Fq^{2^m} \;:\; g_r \in V \text{ for all } r \} ,
+\]
+the $\Fq$-span of $V$: an $\Fq$-subspace, independent of the chosen basis.
+
+\begin{lemma}[absorption]\label{lem:absorb}
+Let $U_1, \dots, U_t$ be independent uniform elements of $V$, and let $\lambda_1, \dots, \lambda_t \in \Fq$ span $\Fq$ as an $\Fp$-vector space. Then:
+\begin{enumerate}
+    \item $\sum_i \lambda_i U_i$ is uniform on $V \otimes_{\Fp} \Fq$.
+    \item If, in addition, $e$ $\Fq$-linear forms $L_1, \dots, L_e$ of the tuple $(U_1, \dots, U_t)$ are conditioned on, the conditional law of $\sum_i \lambda_i U_i$ is uniform on a coset of an $\Fp$-subspace $W \subseteq V \otimes_{\Fp} \Fq$ of $\Fp$-codimension at most $e\,\extdeg$ in it.
+    \item The $\Fq$-linear forms on $\Fq^{2^m}$ that are constant on the cosets of $V \otimes_{\Fp} \Fq$ are exactly those whose $\extdeg$ slices lie in the $\Fp$-span of the $\extdeg |N|$ slice forms of the node evaluations $g \mapsto \hat{g}(\nu)$, $\nu \in N$. The conditioning of item 2 enlarges the set of pinned $\Fp$-forms by at most $e\, \extdeg$ explicit ones.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+(1) The map $\Phi : V^t \to V \otimes_{\Fp} \Fq$, $(u_i)_i \mapsto \sum_i \lambda_i u_i$, is $\Fp$-linear with image inside $V \otimes \Fq$ (each slice of $\sum_i \lambda_i u_i$ is an $\Fp$-combination of the $u_i$, hence in $V$). It is surjective: choose an $\Fp$-basis of $V$ and work coordinate-wise; in each coordinate the map becomes $\Fp^t \to \Fq$, $(x_i) \mapsto \sum_i \lambda_i x_i$, which is surjective because the $\lambda_i$ span $\Fq$ over $\Fp$, and the coordinates are independent. A surjective linear image of a uniform variable is uniform.
+
+(2) Conditioning a uniform variable on affine constraints yields the uniform law on the affine solution set $A \subseteq V^t$; the image of this law under the $\Fp$-linear $\Phi$ is uniform on $\Phi(A)$, a coset of $W := \Phi(\ker)$, where $\ker$ is the solution set of the homogeneous constraints. Each $\Fq$-form amounts to $\extdeg$ $\Fp$-forms, so $\ker$ has $\Fp$-codimension at most $e\, \extdeg$ in $V^t$, and a linear image loses no more codimension than its source.
+
+(3) An $\Fq$-form $\varphi$ is constant on the cosets of $V \otimes \Fq$ if and only if it vanishes on $V \otimes \Fq$; since $V \otimes \Fq$ is the $\Fq$-span of $V$ and $\varphi$ is $\Fq$-linear, this holds if and only if $\varphi(v) = 0$ for every $v \in V$. Writing $\varphi(v) = \sum_r \beta_r \langle \varphi_r, v \rangle$ with slices $\varphi_r$: equivalent to every slice annihilating $V$. The annihilator of $V$ is the $\Fp$-span of the slice forms of the node evaluations, since $V$ is defined as their common kernel. The last sentence is item 2 read on annihilators.
+\end{proof}
+
+\begin{remark}
+$V \otimes_{\Fp} \Fq$ is strictly smaller than the set of $\Fq$-vectors $g$ with $\hat{g}(\nu) = 0$ for all $\nu \in N$ (codimension $\extdeg |N|$ versus $|N|$). The masked directions are correspondingly larger than the naive count: a single node removes $\extdeg$ $\Fq$-dimensions of masking, not one. This is harmless for the budget of $R_{\mathsf{in}}$ and $R_{\mathsf{out}}$ (the codimensions stay microscopic), but the annihilator description of item 3 is the correct one to use when listing the unmasked directions.
+\end{remark}
+
+\section{Assembling the failure probability}
+
+\begin{corollary}
+For $s_0 = 2$, the \textsc{independence} condition restricted to the out-of-domain and sumcheck values holds whenever: the assumptions of \Cref{thm:twopoint} hold (failure at most $(4 \cdot 2^{k_0} + 2k_0)/q$, \Cref{cor:twopointprob}); and the two nodes lie outside $\Fp$, pairwise distinct, non-Frobenius-conjugate, and distinct from the fiber nodes (failure at most $2^{k_0} p/q$ per node plus $\extdeg\, 2^{k_0}/q$ per pair, by the counting bounds of the main document; the dominant term). The fiber values are independent unconditionally, by the Vandermonde argument of the main document, and separated from the node directions whenever the queried points are distinct from the nodes. The evaluations of $\hat{f}_1$ at the commitment nodes are \emph{not} independent from the rest: by \Cref{thm:twopoint} they lie in the span of the revealed values, and they join the pinned directions of the $\hat{f}_1$ analysis (\Cref{lem:absorb}, items 2 and 3). Total failure probability: about $2 \cdot 2^{k_0}\, p / q$, that is $\approx 2^{-116}$ for KoalaBear.
+\end{corollary}
+
+\end{document}
