@@ -1301,105 +1301,10 @@ $$c_0 = (L,\, 0, \dots, 0), \qquad (c_{i+1} \,\|\, r_{i+1}) = \texttt{POSEIDON}^
 
 In order to turn the interactive protocol described in \Cref{sec:e2e-protocol} into a non-interactive one, we apply the BCS transformation \cite{BCS}. In particular, we use the Fiat-Shamir transformation implemented via a duplex sponge \cite{fiat_shamir_duplex_sponge} (using the $\texttt{POSEIDON}^\pi$ permutation over a state of 16 KoalaBear field elements).
 
-\section{Zero-Knowledge (work in progress, not implemented)}\label{sec:zk}
+\section{Zero-Knowledge}\label{sec:zk}
 
+The protocol described so far is not zero-knowledge. A zero-knowledge variant is developed in the companion document \texttt{zk\_leanVM.tex}: a masked WHIR (two committed random masks folded into the data during the initial round, $s_0 \geq 2$ out-of-domain samples, and a prover-side restart rule), proven perfectly zero-knowledge against the honest verifier for the interactive opening, with all restart conditions bounded ($\Pr[\text{restart}] \approx 2^{-116}$); together with the masking strategies for the Logup-GKR and AIR sumchecks and for the column evaluations. The committed size roughly doubles; the verifier is unchanged. The Fiat--Shamir and Merkle layers remain open.
 
-Target: statistical zero-knowledge with $\lambda$ bits of security (i.e. a simulator should be able to produce a transcript whose distribution is at statistical distance at most $2^{-\lambda}$ from the real (honest-prover) transcript distribution).
-
-
-\subsection{WHIR}\label{sec:zk-whir}
-
-The WHIR transcript (\Cref{sec:whir-protocol}) consists of: the out-of-domain answers; the sumcheck messages ($k_i$ degree-2 univariates per iteration, then $m_M$ final ones); the STIR openings; the final polynomial $\hat{f}_M$, sent in the clear. (TODO handle the Merkle roots and the opened authentication paths?)
-
-Making the claimed value $c$ (input of the opening) ZK is the job of \Cref{sec:zk-logup-gkr,sec:zk-air-sumcheck,sec:zk-column-evals}.
-
-\subsubsection{What we change}
-
-\textbf{1. Folding order.} We use the folding ordering $(X_1, X_n, X_{n-1}, \dots, X_2)$: round 0 folds $X_1$ first, then $X_n, X_{n-1}, \dots, X_{n-k_0+2}$; the later rounds continue downward; the $m_M$ variables surviving to the final polynomial are $(X_2, \dots, X_{m_M + 1})$. (As a side note, folding the low variables early disables the padding-free optimization of \Cref{sec:zero-suffix}, but maybe (not sure?) it enables the one from \Cref{sec:svo-whir}.)
-
-\textbf{2. Layout.} Two uniformly random \emph{masks} are committed next to the data:
-\[
-P \;=\; \underbrace{\,\text{stacking} \;\Vert\; 0 \cdots 0 \;\Vert\; R_{\textsf{in}}\,}_{P(0,\, \cdot\,) \text{ : the data half}} \;\Big\Vert\; \underbrace{\,R_{\textsf{out}}\,}_{P(1,\, \cdot\,)}
-\]
-\begin{itemize}
-    \item The stacking (\Cref{sec:stacking}) part (containing secret data) is unchanged, we simply commit to a bigger polynomial, in order to fit $R_{\textsf{in}}$ and $R_{\textsf{out}}$.
-    \item The mask $R_{\textsf{out}}$ fills the second half with i.i.d. uniform $\Fp$ cells.
-    \item The mask $R_{\textsf{in}}$ is a uniformly random segment occupying the \emph{last} $2^{k_0 - 1 + a}$ cells of the first half of the polynomial, with $2^a \geq t_0 + \extdeg \cdot (s_0 + s_1)$ (negligible in practice).
-\end{itemize}
-
-\textbf{3. Out-of-domain count.} We require $s_0 \geq 2$ out-of-domain points at commitment. This is a zero-knowledge requirement, not a soundness one: with $s_0 = 1$, the round-0 sumcheck messages can never be masked, whatever the size of the masks (see the proof sketch). Cost: one extra $\Fq$ answer in the proof.
-
-\textbf{4. Restart rule.} After generating the proof, the prover checks the two conditions below; if either fails, it restarts with freshly sampled masks, which re-randomizes the entire transcript.
-\begin{itemize}
-    \item \textsc{spread}: the $2^{k_0 - 1}$ weights $\{\hat{eq}(\vec{\alpha}_0, (1, s'))\}_{s' \in \{0,1\}^{k_0 - 1}}$ span $\Fq$ as an $\Fp$-vector space, where $\vec{\alpha}_0$ are the round-0 sumcheck challenges, in folding order;
-    \item \textsc{independence}: each value revealed during round 0 is a known $\Fp$-linear combination of the committed cells; these linear combinations, restricted to the mask cells, are linearly independent. The values in question: the opened STIR fibers (duplicate queries counted once), the out-of-domain answers, and the fresh coefficients of the $k_0$ round-0 sumcheck polynomials. An $\Fq$-value counts as $\extdeg$ linear combinations over $\Fp$.
-\end{itemize}
-The simulator theorem of the companion note adds two further checks of the same character (twist rigidity and cross coupling), public and prover-checkable. All checks are bounded analytically: $\leq 2/q$ for \textsc{spread} (\Cref{lem:spread}); $\leq (4 \cdot 2^{k_0} + 2k_0)/q$ for the two-point rank conditions; $\leq (2 \cdot 2^{k_0} + s_1)\, p/q$ for a node landing in $\Fp$ (the dominant term); $\leq \binom{s_0 + s_1}{2} \extdeg\, 2^{k_0}/q$ for node collisions or conjugations; $\leq p/q$ plus negligible for twist rigidity; $\leq 2^{k_0+6}/q$ for cross coupling (companion note). Total:
-\[
-\Pr[\text{restart}] \;\leq\; \big(2 \cdot 2^{k_0} + s_1 + 1\big)\, \frac{p}{q} \;+\; O\big(2^{k_0+6}\big)\frac{1}{q} \;\approx\; 2^{-116} \quad \text{for KoalaBear.}
-\]
-
-\vspace{2mm}
-
-\textbf{Prover overhead.} Roughly 2x.
-
-\subsubsection{Why it is (perfect) zero-knowledge (sketch)}
-
-We go through the transcript in order.
-
-\begin{itemize}
-    \item \emph{Round-0 STIR openings.} For $s \in \{0,1\}^{k_0}$, let $u_s \in \Fp^{2^{n - k_0}}$ be the vector of cells whose round-0 coordinates equal $s$. By locality, a query at $z$ reveals exactly the $2^{k_0}$ evaluations $\hat{u}_s(\pow(z, n - k_0))$. The $u_s$ with $X_1$-coordinate $1$ partition $R_{\textsf{out}}$: they are entirely random. (Their revealed evaluations do consume some of $R_{\textsf{out}}$'s randomness; the $\hat{f}_1$ item below accounts for this.) Each $u_s$ with $X_1$-coordinate $0$ contains data, but ends with $2^a$ i.i.d. random cells (its share of $R_{\textsf{in}}$), and is evaluated at most $t_0$ times (duplicates reveal nothing new). The contribution of these $2^a$ random cells to $\hat{u}_s(\pow(z, \cdot))$ is $z^{2^{n-k_0} - 2^a}\, g(z)$, where $g$ ranges uniformly over all univariate polynomials of degree $< 2^a$ as the random cells vary. A polynomial of degree $< 2^a$ can take any values at up to $2^a$ distinct points (Vandermonde), and the prefactor never vanishes: the fiber part of \textsc{independence} holds automatically. The random cells must sit at the \emph{end} of $u_s$. There, the fixed coordinates of the evaluation point all carry the bit $1$, contributing the prefactor $z^{2^a} z^{2^{a+1}} \cdots z^{2^{n-k_0-1}} = z^{2^{n-k_0} - 2^a}$. Elsewhere, a fixed coordinate carrying the bit $0$ would contribute a factor $(1 - z^{2^i})$, which vanishes on small-order $z$, a constant fraction of the queries.
-    \item \emph{Out-of-domain answers.} Restricted to one $u_s$, an out-of-domain answer at $z$ is a point evaluation of the same univariate, at the node $z^{2^{k_0}}$, times a factor depending on $s$, nonzero unless $z = 0$ or $z^{2^{k_0 - 1}} = 1$: probability at most $2^{k_0}/q$. (For the $s_1$ samples on $\hat{f}_1$: node $z$, factor $\hat{eq}(\vec{\alpha}_0, s)$, nonzero unless a challenge lies in $\{0, 1\}$: at most $2 k_0/q$.) The out-of-domain points join the Vandermonde system as extra nodes; hence the size $2^a \geq t_0 + \extdeg(s_0 + s_1)$. An $\Fq$-node counts as $\extdeg$ independent linear combinations, because $\Fq$ has no proper intermediate subfield, provided the node lies outside $\Fp$: this fails with probability at most $2^{k_0} p/q$ per commitment node (each element of $\Fp$ has at most $\gcd(2^{k_0}, q-1) \leq 2^{k_0}$ preimages under $z \mapsto z^{2^{k_0}}$), the dominant bad event, and $p/q$ per $\hat{f}_1$ node. Finally, the nodes must be pairwise distinct and non-Frobenius-conjugate: at most $\extdeg \, 2^{k_0}/q$ per pair (an orbit has $\extdeg$ elements, each with at most $2^{k_0}$ preimages).
-    \item \emph{Round-0 sumcheck messages.} Restricted to the mask cells, each fresh coefficient is a linear combination of the per-class node values, with explicit public weights coming from the out-of-domain part of $\hat{W}_0$ (the input weight $\hat{w}$ also contributes cross-terms, but they vanish identically on the last $2^a$ cells of \emph{every} class, because the slice of $\hat{w}$ through such a cell crosses only unclaimed and mask positions; the masking flows entirely through these cross-free cells). With a single out-of-domain point, these node weights satisfy $k_0 + 1$ exact linear dependencies, valid for \emph{every} choice of challenges: the sumcheck recursion and the terminal claim, restricted to node components. The node channel can then never mask all the values: this is why we require $s_0 \geq 2$. With two points, the two recursions have different coefficients, and the $2 k_0 + 2$ values (two answers, $2k_0$ fresh coefficients) become jointly independent combinations of the node values: proved in the companion note \texttt{zk\_whir\_genericity.tex}, under explicit per-slot conditions failing with probability $O(k_0 2^{k_0})/q$ (and verified numerically: rank $16/16$ at $k_0 = 7$, against $8/15$ for $s_0 = 1$). Every class, data or mask, ends with $2^a$ random cross-free cells, through which all its evaluations at the queried points and the nodes are jointly fresh (Chinese remaindering, companion note). Under \textsc{independence}, all the round-0 reveals are jointly uniform.
-    \item \emph{The folded polynomial $\hat{f}_1$.} Each coefficient of $\hat{f}_1$ mixes data and mask:
-    \[
-    \hat{f}_1[c] \;=\; \big(\text{combination of data cells}\big) \;+ \sum_{s' \in \{0,1\}^{k_0 - 1}} \hat{eq}\big(\vec{\alpha}_0, (1, s')\big)\, R_{\textsf{out}}[(c, s')].
-    \]
-    The random cells on the right are disjoint across $c$, with weights independent of $c$. If these $2^{k_0 - 1}$ weights span $\Fq$ over $\Fp$, which is exactly the \textsc{spread} condition, then every coefficient is uniform, independently: $\hat{f}_1$ is a uniformly random polynomial. (\textsc{spread} fails with probability at most $2/q$: \Cref{lem:spread} below.) One subtlety: round 0 already revealed information about $R_{\textsf{out}}$, so conditioned on the view, $\hat{f}_1$ is no longer fully uniform. The leak has a narrow structure. Fibers and out-of-domain answers touch a mask class only through its evaluations at the \emph{nodes} (the queried points and the out-of-domain nodes), and the sumcheck messages add at most $2k_0$ further combinations: condition on all of them. Each mask class then remains uniform on the subspace $V \subseteq \Fp^{2^{n - k_0}}$ of vectors vanishing at every node, the \emph{same} subspace for every class, cut by the few sumcheck combinations. Under \textsc{spread}, the mix of these $2^{k_0 - 1}$ independent residuals in the display above is uniform on a subspace $W$ of small explicit codimension ($W = V \otimes_{\Fp} \Fq$, ignoring the sumcheck cut). So, given the view, $\hat{f}_1$ is uniform on an explicit coset of $W$: every direction outside the annihilator of $W$ (the combinations vanishing on $W$) is perfectly masked. The annihilator is spanned by the evaluations at the nodes and the few inherited sumcheck directions, and on each of its directions the conditional value of $\hat{f}_1$ is a function of the view, which the simulator generates itself. Among these pinned directions sit the constraints the protocol checks anyway: $\hat{f}_1(\pow(z_t, n - k_0)) = \fold(f_0, \vec{\alpha}_0)(z_t)$ for each queried $z_t$; the $s_1$ out-of-domain answers; and the running sumcheck claim $\sum_b \hat{f}_1(b)\, \hat{W}_0(\vec{\alpha}_0, b) = \sigma$, with $\sigma$ the target at the end of the round-0 sumcheck. (The list is not exhaustive: the evaluations of $\hat{f}_1$ at the commitment nodes are also pinned, their node combinations lying in the span of the revealed values by the companion note. Pinned directions are harmless: their values are computable from the view.)
-    \item \emph{Everything after round 0.} The oracles $f_1, \dots, f_{M-1}$, their fibers and out-of-domain answers, the remaining sumcheck messages, $\hat{f}_M$ and the final sumcheck are all deterministic functions of $\hat{f}_1$, the claims, and public challenges. The simulator samples $\hat{f}_1$ from the conditional law of the previous item and runs the protocol honestly from there. Equivalently: the honest transcript is identically distributed for any two witnesses with the same claimed values. The companion note turns this sketch into a theorem for the interactive protocol: the simulator simply runs the honest prover on substitute data computed from the statement.
-\end{itemize}
-
-\begin{lemma}\label{lem:spread}
-Let $\vec{\alpha}_0 = (\alpha_1, \dots, \alpha_{k_0})$ be independent uniform elements of $\Fq = \mathbb{F}_{p^{\extdeg}}$, with $\extdeg$ prime and $k_0 \geq \extdeg$. Then the \textsc{spread} condition, i.e. that $\{\hat{eq}(\vec{\alpha}_0, (1, s'))\}_{s' \in \{0,1\}^{k_0 - 1}}$ spans $\Fq$ as an $\Fp$-vector space, fails with probability at most
-\[
-\frac{1}{q} \;+\; \binom{k_0 - 1}{k_0 - \extdeg + 1} \Big(\frac{p}{q}\Big)^{k_0 - \extdeg + 1} ,
-\]
-which is at most $2/q$ for the practical parameters ($k_0 = 7$, $\extdeg = 5$: the second term is $20\, p^{-12} \leq p^{-5} = 1/q$).
-\end{lemma}
-
-\begin{proof}
-Since $\hat{eq}(\alpha, 0) = 1 - \alpha$ and $\hat{eq}(\alpha, 1) = \alpha$, expanding the products shows that the family $\{\hat{eq}(\vec{\alpha}_0, (1, s'))\}_{s'}$ and the family $\{\alpha_1 \prod_{i \in S} \alpha_i : S \subseteq \{2, \dots, k_0\}\}$ are related by an invertible $\Fp$-linear transform (unitriangular with respect to the subset order): they have the same $\Fp$-span. If $\alpha_1 = 0$ (probability $1/q$) the span is $\{0\}$; otherwise multiplication by $\alpha_1$ preserves spanning, so it suffices to study $V_{k_0}$, where
-\[
-V_j \;:=\; \mathrm{span}_{\Fp}\Big\{ \prod_{i \in S} \alpha_i \;:\; S \subseteq \{2, \dots, j\} \Big\} , \qquad \text{so that } V_1 = \Fp \text{ and } V_j = V_{j-1} + \alpha_j V_{j-1} .
-\]
-We claim: if an $\Fp$-subspace $V$ satisfies $1 \in V$ and $V \neq \Fq$, then $T := \{x \in \Fq : xV \subseteq V\}$ equals $\Fp$. Indeed $T$ contains $\Fp$ and is closed under addition and multiplication; for $x \in T \setminus \{0\}$, multiplication by $x$ is injective on the finite set $T$, hence surjective, so $x^{-1} \in T$: $T$ is a subfield of $\Fq$ containing $\Fp$. Since $\extdeg$ is prime, $T = \Fp$ or $T = \Fq$, and the latter would give $V \supseteq \Fq \cdot 1 = \Fq$. So $T = \Fp$.
-
-Consequently, whenever $V_{j-1} \neq \Fq$ and $\alpha_j \notin \Fp$, we have $\alpha_j V_{j-1} \not\subseteq V_{j-1}$, hence $\dim_{\Fp} V_j \geq \dim_{\Fp} V_{j-1} + 1$. Starting from $\dim_{\Fp} V_1 = 1$, if at least $\extdeg - 1$ of $\alpha_2, \dots, \alpha_{k_0}$ lie outside $\Fp$, then $V_{k_0} = \Fq$. Failure therefore requires at least $(k_0 - 1) - (\extdeg - 2) = k_0 - \extdeg + 1$ of them to lie in $\Fp$; each does so independently with probability $p/q$, and a union bound over the $\binom{k_0 - 1}{k_0 - \extdeg + 1}$ choices concludes.
-\end{proof}
-
-Open question: the Fiat--Shamir and Merkle layers. The companion note \texttt{zk\_whir\_genericity.tex} proves the \emph{interactive} protocol perfectly zero-knowledge against the honest verifier, with all restart conditions bounded ($\Pr[\text{restart}] \approx 2^{-116}$).
-
-
-\subsection{Logup-GKR sumcheck}\label{sec:zk-logup-gkr}
-
-TODO
-
-\subsection{AIR sumcheck}\label{sec:zk-air-sumcheck}
-
-TODO
-
-\subsection{Column evaluations}\label{sec:zk-column-evals}
-
-In the two protocols above (\Cref{sec:zk-logup-gkr} and \Cref{sec:zk-air-sumcheck}), the prover sends a few evaluations (at random points) of the columns (interpreted as multilinear polynomial, storing data we want to hide). For some columns $c$, the prover sends the evaluation of $\mathsf{shift}(c)$ at a random point.
-
-Strategy:
-\begin{itemize}
-    \item For each table $T$, for each column $c$, that will be evaluated $t$ times, that can take values in $\Omega$ (in the sense that it's possible to fill the other columns, while respecting the AIR constraints), add $r = t \cdot \log_2(q / |\Omega|) + 2 \cdot \lambda$ rows where each of the $r$ value in the column $c$ is chosen independently, and uniformly at random from $\Omega$. The rest of the trace is adapted to 'make it pass' the constraints.
-    \item Using the conjecture bellow, these 'structured random' masks protect the column evaluations, i.e. it's statistically ZK at $\lambda$ bits.
-    \item Conjecture: Consider a multilinear polynomial in $n$ variables, where $r = t \cdot \log_2(q / |\Omega|) + 2 \cdot \lambda$ of its coefficients (in the Lagrange basis) are sampled at random (independently and uniformly) (and the $2^n - r$ remaining ones are set to zero), evaluted at $t$ random points (each point is in $\Fq^n$, sampled independently and uniformly), where some of the evaluations may concern $\mathsf{shift}(P)$ instead of $P$. Then the resulting $r$ evaluations are at statistical distance at most $2^{-\lambda}$ from the uniform distribution over $\Fq^t$.
-\end{itemize}
-
-\textit{No protocol changes.}
 
 \section{ISA programming}
 
