@@ -75,7 +75,12 @@ where
     }
 
     #[allow(clippy::missing_transmute_annotations)]
-    fn restore_merkle_paths(paths: PrunedMerklePaths<PF<EF>, PF<EF>>) -> Option<Vec<MerkleOpening<PF<EF>>>> {
+    fn restore_merkle_paths(
+        paths: PrunedMerklePaths<PF<EF>, PF<EF>>,
+        indices: &[usize],
+        merkle_height: usize,
+        leaf_len: usize,
+    ) -> Option<Vec<MerkleOpening<PF<EF>>>> {
         assert_eq!(TypeId::of::<PF<EF>>(), TypeId::of::<Goldilocks>());
         // SAFETY: We've confirmed PF<EF> == Goldilocks
         let paths: PrunedMerklePaths<Goldilocks, Goldilocks> = unsafe { std::mem::transmute(paths) };
@@ -84,7 +89,8 @@ where
         let combine_fn = |left: &[Goldilocks; DIGEST_LEN_FE], right: &[Goldilocks; DIGEST_LEN_FE]| {
             symetric::compress(&perm, [*left, *right])
         };
-        let restored: MerklePaths<Goldilocks, Goldilocks> = paths.restore(&hash_fn, &combine_fn)?;
+        let restored: MerklePaths<Goldilocks, Goldilocks> =
+            paths.restore(indices, merkle_height, leaf_len, &hash_fn, &combine_fn)?;
         let openings: Vec<MerkleOpening<Goldilocks>> = restored
             .0
             .into_iter()
@@ -142,7 +148,12 @@ where
         Ok(scalars)
     }
 
-    fn begin_merkle_opening_batch(&mut self, n: usize) -> Result<(), ProofError> {
+    fn begin_merkle_opening_batch(
+        &mut self,
+        indices: &[usize],
+        merkle_height: usize,
+        leaf_len: usize,
+    ) -> Result<(), ProofError> {
         if self.merkle_opening_index != self.merkle_openings.len() {
             return Err(ProofError::InvalidProof); // Previous batch must have been fully drained
         }
@@ -150,10 +161,8 @@ where
             .pending_merkle_paths
             .pop_front()
             .ok_or(ProofError::ExceededTranscript)?;
-        if paths.original_order.len() != n {
-            return Err(ProofError::InvalidProof);
-        }
-        let restored = Self::restore_merkle_paths(paths).ok_or(ProofError::InvalidProof)?;
+        let restored =
+            Self::restore_merkle_paths(paths, indices, merkle_height, leaf_len).ok_or(ProofError::InvalidProof)?;
         self.merkle_openings.extend(restored);
         Ok(())
     }
