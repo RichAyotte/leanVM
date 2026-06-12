@@ -1,0 +1,509 @@
+\documentclass{article}
+
+\usepackage[english]{babel}
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsthm}
+\usepackage{booktabs}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage[noabbrev]{cleveref}
+
+\newcommand{\Fp}{\mathbb{F}_p}
+\newcommand{\Fq}{\mathbb{F}_q}
+\newcommand{\extdeg}{d}
+\newcommand{\num}{\mathsf{num}}
+\newcommand{\den}{\mathsf{den}}
+\newcommand{\acc}{\mathsf{acc}}
+\newcommand{\dat}{\mathrm{dat}}
+\newcommand{\pad}{\mathrm{pad}}
+\newcommand{\SD}{\Delta}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{construction}[theorem]{Construction}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{condition}[theorem]{Condition}
+\crefname{condition}{condition}{conditions}
+\Crefname{condition}{Condition}{Conditions}
+\crefname{construction}{construction}{constructions}
+\Crefname{construction}{Construction}{Constructions}
+\crefname{conjecture}{conjecture}{conjectures}
+\Crefname{conjecture}{Conjecture}{Conjectures}
+
+\title{LeanVM: Zero-Knowledge from Structured Random Padding}
+\author{draft (Work In Progress, attempt --- not implemented)}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+This document is a companion to \texttt{minimal\_zkVM.tex} and \texttt{zk\_leanVM.tex}; notation, the end-to-end protocol, and the constants are as defined there. \texttt{zk\_leanVM.tex} makes the WHIR opening zero-knowledge and leaves three sections open: the Logup-GKR step, the AIR sumcheck, and the column evaluations, the last of which it resolves by a conjecture on \emph{structured random padding}: extra trace rows carrying fresh randomness, invisible to the verifier. The present document develops that idea into a complete (conjectural) treatment of the two remaining sections.
+
+\paragraph{Design constraint.} \emph{The verification algorithm is not modified}: not its messages, not its checks, not its parameters. The only degrees of freedom are the two inputs the verifier never inspects beyond their public interface --- the \emph{program} (the bytecode is part of the statement, and may be augmented with code whose only purpose is to inject randomness into the trace) and the prover's \emph{nondeterministic hints} (which may include fresh random values). In particular, masking-polynomial techniques in the style of Libra~\cite{libra} or of the zero-knowledge sumcheck of Chiesa--Forbes--Spooner~\cite{zk_sumcheck_cfs} are out of scope: they add commitments, challenges and checks. Everything below is a statement about the \emph{witness distribution} of an honest prover running the protocol of \texttt{minimal\_zkVM.tex} unchanged.
+
+\paragraph{Why this is harder than the WHIR opening.} In the masked WHIR, every revealed value is \emph{linear} in the committed cells, and zero-knowledge reduces to the rank of an explicit matrix (the node matrix) applied to uniform masks. Here the revealed values are the messages of sumchecks over \emph{compositions}: the AIR constraint polynomial has degree up to $9$ in the columns, and the GKR layers are \emph{products} of the committed fractions. The contribution of a random padded row to a sumcheck message is a polynomial, not a linear, function of its cells, and it arrives entangled with the secret rows folded into the same partial sums. None of the linear machinery (kernel computations, the telescoping identities, the Chinese-remainder surjectivity of the blocks) survives this. Accordingly, the results of this document are of three kinds:
+\begin{itemize}
+    \item \emph{Unconditional}: a concrete construction (the \emph{randomness gadget}, \Cref{con:gadget}), the proof that it is invisible to the verifier and free for soundness (\Cref{lem:invisible}), an exact inventory of the leakage (\Cref{sec:leakage}), structural lemmas locating the randomness inside every revealed value (\Cref{lem:rank-eval,lem:comb,lem:reach,lem:fresh}), and an explicit \emph{canonical distribution} that a simulator can sample without a witness (\Cref{def:canonical}).
+    \item \emph{Conjectural}: two smoothing conjectures (\Cref{conj:gkr,conj:air}), nonlinear analogues of the column-evaluation conjecture, asserting that the padded transcript is statistically close to the canonical distribution. A third, linear, conjecture (\Cref{conj:linear}) strengthens the column-evaluation conjecture to the joint, multi-column setting actually needed; it is the special case of the other two on the evaluation coordinates, and the only one for which we can sketch a route to a proof (\Cref{rem:lhl}).
+    \item \emph{Conditional}: assuming the conjectures, statistical honest-verifier zero-knowledge of the full protocol at $\lambda$ bits, with the simulator and error accounting spelled out (\Cref{thm:zk}).
+\end{itemize}
+
+\paragraph{Status.} Largely reduced to explicit conditions; the smoothing conjectures survive only in residual roles. \emph{Proven}: the full-range linear channel, outright and exactly (\Cref{thm:fullrange}, via the spray-rank \Cref{lem:spray}); the small-range linear channel at a capped budget (\Cref{thm:smallomega}); the zerocheck \emph{prefix} under an explicit covering condition (\Cref{thm:prefix}, via separability of every linear test and the Weil bound); its extension to \emph{block} granularity under same-column placement (\Cref{thm:blocks}); the reduction of the zerocheck's \emph{last rounds} to the linear/separable machinery (\Cref{prop:suffix}: the suffix transcript is a public function of the folded table, simulatable with automatic consistency); and the GKR's \emph{top levels} as a public pushforward of per-node Haar$\times$uniform pairs, via multiplicative-character and Kloosterman bounds (\Cref{lem:mult,prop:gkr-top}) --- which also upgrades the $\chi$-leak from a measured anomaly to a located theorem (all-even multiplicity patterns, excluded by the gadget schedule). \emph{Residual}: the small-range budget gap (\Cref{rem:gap}, which now also gates the rigid-column folds in \Cref{prop:suffix}); the \textsc{cover}/\textsc{spread}-type genericity conditions (numerically verified, Schwartz--Zippel-certifiable in parts, like the pinning condition of the parent document); the Weil--Katz constants for incomplete character sums along $\Fp$-lines in $\Fq$; and the GKR middle levels. The numerical program (\Cref{sec:numerics}) validated every mechanism before it was written down, and \emph{discovered} four necessary hypotheses now part of the construction or the lemmas: boolean-slice coverage (\Cref{lem:slices}), residue coverage (\Cref{sec:gkr}), public wrap rows (\Cref{lem:forced}), and odd read multiplicities (\Cref{lem:mult}).
+
+\section{Leakage inventory}\label{sec:leakage}
+
+Fix the end-to-end protocol (\texttt{minimal\_zkVM.tex}, \S\,End-to-end protocol). The verifier's challenges are public coins; the leakage is the list of \emph{prover} messages. Step 7 (the WHIR opening) is zero-knowledge by the masked WHIR, \emph{given} that its input claims are; steps 5--6 concern public data. What remains is steps 3 and 4. Write $n := h_\textsc{gkr}$, $h_{\max} := \max_T h_T$, and $d_T$ for the degree of table $T$'s constraints ($d_{\max} = 9$).
+
+\paragraph{Step 3 (Logup-GKR).} The GKR recursion runs through levels $j = 1, \dots, n$, from the root to the leaves; level $j$ consists of a sumcheck of $j - 1$ rounds whose summand has degree $3$ in each variable, followed by the four values $\num_j(0, \vec\eta_j)$, $\num_j(1, \vec\eta_j)$, $\den_j(0, \vec\eta_j)$, $\den_j(1, \vec\eta_j)$, evaluations of the level-$j$ numerator and denominator multilinears at the sumcheck point. At the leaf level the prover sends the evaluations of $\textsf{memory\_acc}$, $\hat{\textbf{m}}$, $\textsf{bytecode\_acc}$, and of the per-table bus columns, at suffixes of $\vec r_\textsc{gkr}$.
+
+\paragraph{Step 4 (AIR).} One batched zerocheck of $h_{\max}$ rounds; the round messages have degree $\leq d_{\max} + 1$ in $X$. At the end, for each table, the evaluations of all committed columns and of their shifts at the suffix of $\vec r_\textsc{air}$.
+
+\paragraph{Channels.} We sort the revealed values by their functional dependence on the committed data:
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+Channel & Contents & Dependence on the cells & Count (in $\Fq$)\\
+\midrule
+(E) & terminal evaluations (steps 3c, 4c) & linear & $\approx 300$\\
+(L) & GKR level claims ($4$ per level) & products of up to $2^{n-1}$ cells & $4n \approx 112$ \\
+(M) & sumcheck round messages & degree $\leq d_{\max} + 1$ per round & $\approx 3\binom{n}{2} + (d_{\max}{+}1) h_{\max} \approx 1400$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Per round, one coefficient of each message is pinned by the chaining identity $h_\ell(0) + h_\ell(1) = h_{\ell-1}(\alpha_{\ell-1})$ and carries no fresh information; the counts above are the \emph{fresh} coefficients. In total the two steps reveal at most $N_{\mathrm{leak}} \approx 1{,}800$ elements of $\Fq$, i.e.
+\[
+B_{\mathrm{leak}} \;:=\; N_{\mathrm{leak}} \cdot \log_2 q \;\approx\; 1{,}800 \cdot 155 \;\approx\; 2.8 \cdot 10^5 \ \text{bits} ,
+\]
+for the production parameters ($n \leq 28$, $h_{\max} \leq 24$). Two remarks on what is secret. First, the \emph{bytecode} is public but $\textsf{bytecode\_acc}$ is not: instruction execution counts reveal the control flow taken on the private input. Second, the $12$ instruction columns of the execution table are not secret \emph{per row of the bytecode}, but their per-\emph{cycle} values --- hence their evaluations --- again encode the control flow. Both must be masked.
+
+\section{The randomness gadget}\label{sec:gadget}
+
+\begin{construction}[randomness gadget]\label{con:gadget}
+The program is augmented with a subroutine, the \emph{gadget}, executed once at the start and once at the end of the run (two \emph{bursts}). It is parameterized by $(r_{\mathsf{cell}}, r_{\mathsf{loop}}, k, c, r_{\mathsf{pos}}, r_{\mathsf{ext}})$ and consists of:
+\begin{itemize}
+    \item[(G1)] \emph{Random tape.} The prover hints $r_{\mathsf{cell}}$ i.i.d.\ uniform cells of $\Fp$ into a dedicated segment of private memory (write-once; never used by the original program).
+    \item[(G2)] \emph{Dummy reads with random multiplicities.} $r_{\mathsf{loop}}$ independent micro-loops; loop $i$ has a hinted trip count $\kappa_i$ uniform in $[1, 2^k)$, verified by one range check, and its body reads (by \textsc{DEREF}/\textsc{ADD}) a window of the tape. Effects: $\textsf{memory\_acc}$ takes the value $\kappa_i$ (plus a known offset) at the window's addresses; $\textsf{bytecode\_acc}$ takes the value $\kappa_i$ at the body's $\textbf{pc}$'s; the execution table gains $O(\kappa_i)$ rows whose value columns carry tape cells; and the logup sum gains, for each tape cell $a$ read $\kappa$ times, the \emph{push} fraction $\kappa / (\gamma - \pi_{\vec\beta}(a, \textbf{m}[a], 0_{13}, \textsf{memory\_sep}))$ in the memory section and the $\kappa$ matching \emph{pull} fractions $-1/(\gamma - \pi_{\vec\beta}(\cdot))$ in the execution table's memory-interaction blocks.
+    \item[(G3)] \emph{Control-flow diversification.} Each loop body dispatches, on a hinted uniform selector, into one of $2^c$ functionally equivalent arms with distinct instruction encodings (distinct operand offsets, distinct \textsc{ADD}/\textsc{DEREF} mixes). This puts $c$ bits of entropy per iteration into the per-cycle instruction columns, $\textbf{pc}$, and $\textsf{bytecode\_acc}$.
+    \item[(G4)] \emph{Frame randomization.} Gadget calls use hinted frame pointers at uniform admissible addresses: the $\textbf{fp}$ and address columns of the gadget rows are randomized.
+    \item[(G5)] \emph{Dummy precompiles.} $r_{\mathsf{pos}}$ \textsc{POSEIDON} calls and $r_{\mathsf{ext}}$ \textsc{EXTENSION} calls on uniform tape inputs, at hinted uniform admissible pointers, covering all modes: random rows in the two precompile tables (all input columns uniform; outputs, intermediate-round columns, and accumulators are determined but inherit the input entropy), and random tuples in their bus blocks.
+\end{itemize}
+The original program is unchanged; the gadget touches only its own memory. The two-burst schedule is not cosmetic: a prologue and an epilogue burst (each of $\geq 2$ rows) realize both values of \emph{every} index bit of the execution table --- the leading bits across the two bursts, the low bits within each --- which is exactly the slice coverage that \Cref{lem:slices} shows is necessary. Two further placement disciplines, suggested by the proofs: the free cells of one padding population should lie in a \emph{single designated column}, with populations for different columns at disjoint residues (\Cref{thm:blocks}); and the read multiplicities should include odd values per comb (\Cref{lem:mult}: all-even multiplicity patterns leak the quadratic character).
+\end{construction}
+
+\begin{lemma}[invisibility]\label{lem:invisible}
+The padded run is an honest execution of the augmented program. Consequently: the verifier's algorithm, checks and parameters are unchanged; completeness is unchanged; soundness is unchanged (the statement proved is the augmented program's correctness, whose input/output semantics coincide with the original's); and all table-size and multiplicity bounds of \texttt{minimal\_zkVM.tex} continue to hold provided the gadget's $O\big(2^k r_{\mathsf{loop}} + r_{\mathsf{cell}} + r_{\mathsf{pos}} + r_{\mathsf{ext}}\big)$ extra rows and memory cells fit the existing limits.
+\end{lemma}
+
+\begin{proof}
+Every component is ordinary bytecode plus hints: hinted values are written to fresh write-once cells, trip counts are range-checked, and every read/precompile is a genuine instruction whose trace rows satisfy the AIR and balance the bus by construction. Nothing in the proof system distinguishes gadget rows from useful ones.
+\end{proof}
+
+\paragraph{Entropy budget.} The gadget's min-entropy, conditioned on the statement, is at least
+\[
+B_{\mathsf{pad}} \;\geq\; r_{\mathsf{cell}} \log_2 p \;+\; r_{\mathsf{loop}} \,(k - 1) \;+\; c \cdot \#\{\text{iterations}\} \;+\; (\text{pointer hints}) .
+\]
+All conjectures below require, for $\lambda$ bits of zero-knowledge, the global condition
+\begin{equation}\label{eq:budget}
+B_{\mathsf{pad}} \;\geq\; B_{\mathrm{leak}} + 2\lambda ,
+\end{equation}
+together with per-channel refinements in the style of the column-evaluation strategy (each masked vector needs its own padding positions, with the budget $r = t \cdot \log_2(q/|\Omega|) + 2\lambda$ counted per vector). For production: $r_{\mathsf{cell}} = 12{,}000$ tape cells alone give $\approx 3.7 \cdot 10^5$ bits $> B_{\mathrm{leak}} + 200$, at a cost of $\sim 2^{15}$ extra execution rows and $\sim 2^{14}$ memory cells --- about $1.5\%$ of a $2^{21}$-row trace. The masking is essentially free.
+
+\begin{remark}[relation to the column-evaluation strategy]
+The gadget is the concrete instantiation of ``the rest of the trace is adapted to satisfy the constraints'' in the column-evaluation section of \texttt{zk\_leanVM.tex}: its rows are the $r$ random rows of that strategy, with $\Omega = \Fp$ for value columns, $\Omega = [0, 2^k)$ for the two access-count vectors, and $\Omega = \{2^c \text{ encodings}\}$ for the instruction columns. The same rows are then reused, beyond evaluations, to mask the channels (L) and (M).
+\end{remark}
+
+\section{The simulator and the canonical distribution}\label{sec:simulator}
+
+\begin{remark}[no substitute witness]\label{rem:no-substitute}
+The masked-WHIR simulator runs the honest prover on \emph{substitute data} computed from the statement; this is possible because the WHIR statement is a small list of linear claims, and some assignment meeting them is always computable. No analogue exists here: a full transcript of steps 3--4 is anchored to a \emph{valid execution trace}, and computing any valid trace amounts to knowing a witness (for the aggregation program: valid signatures). A simulator for steps 3--4 must therefore synthesize the transcript \emph{directly}, without ever holding a trace. This dictates the form of the conjectures: not indistinguishability between two witnesses (which would only give witness indistinguishability), but closeness to an explicitly samplable, witness-free distribution.
+\end{remark}
+
+\begin{definition}[canonical distribution $\mathcal{U}^*$]\label{def:canonical}
+$\mathcal{U}^*$ is the distribution on transcripts of steps 3--4 sampled by the following procedure, in transcript order, given only the statement and the challenges. \emph{Every fresh coordinate is uniform; every verifier check pins one designated coordinate, solved affinely.}
+\begin{enumerate}
+    \item \emph{GKR, level $j = 1, \dots, n$:} the $j - 1$ round messages are uniform polynomials of degree $3$ subject to the chaining identity (the running target starts at the public sum $\kappa = 0$). The four level claims are sampled as: $\den_j(0, \vec\eta_j)$, $\den_j(1, \vec\eta_j)$, $\num_j(1, \vec\eta_j)$ uniform; $\num_j(0, \vec\eta_j)$ solved from the final sumcheck check
+    \[
+    \hat{eq}(\vec\alpha_j, \vec\eta_j)\big[\num_j(0,\vec\eta_j)\den_j(1,\vec\eta_j) + \num_j(1,\vec\eta_j)\den_j(0,\vec\eta_j) + \gamma_j\, \den_j(0,\vec\eta_j)\den_j(1,\vec\eta_j)\big] = h^{(j)}_{j-1}(\alpha_{j-1}) ,
+    \]
+    which is affine in $\num_j(0, \vec\eta_j)$ with coefficient $\hat{eq}(\vec\alpha_j, \vec\eta_j) \den_j(1, \vec\eta_j)$, nonzero except with probability $\leq (j + 1)/q$ over the sampled values and challenges (resample on failure).
+    \item \emph{GKR, leaf level:} the channel-(E) evaluations are uniform, except two designated coordinates --- the evaluations of $\hat{\textbf{m}}$ and of $\textsf{memory\_acc}$ --- solved affinely from the two recombination checks against $(e_{\mathrm{num}}, e_{\mathrm{den}})$: by linearity of $\pi_{\vec\beta}$, each block's contribution to the leaf numerator and denominator evaluations is affine in that block's column evaluations, with the $\hat{\textbf{m}}$-coefficient $-\hat{eq}(\cdot)\,\hat{eq}(\vec\beta, [1]^{\ell}_{\mathrm{bits}}) \neq 0$ generically.
+    \item \emph{AIR zerocheck:} the initial target is the $\mu$-combination of the (already sampled) attached claims; the $h_{\max}$ round messages are uniform of degree $d + 1$ subject to chaining; the terminal column and shift evaluations are uniform except one designated coordinate, solved from the last sumcheck check --- an equation affine in any column appearing only multiplied by \emph{other} columns' (already sampled) evaluations, e.g.\ a \textsc{POSEIDON} output column; its coefficient is a polynomial in the sampled values, nonzero except with probability $O(d_{\max})/q$.
+\end{enumerate}
+\end{definition}
+
+One caveat, discovered numerically and then proved (\Cref{lem:forced}): ``uniform subject to the verifier's checks'' is not enough. The honest prover's messages satisfy further \emph{publicly-forced} identities that the verifier never checks --- each zerocheck message is divisible by the public factor $\hat{eq}(X, r_\ell)$, and shift-coupled evaluation triples satisfy the wrap identity --- and a simulator ignoring any of them is trivially distinguishable. In $\mathcal{U}^*$, ``every fresh coordinate is uniform'' is therefore to be read as: uniform \emph{subject to all publicly-forced relations of the honest prover}, whose list for the zerocheck is exactly determined in \Cref{lem:forced} and verified complete at toy size in \Cref{rem:numD}.
+
+The procedure is well-defined and efficiently samplable; resampling failures contribute $O(n^2 + d_{\max})/q$ to the simulation error. The conjectures of \Cref{sec:gkr,sec:air} assert that the honest padded transcript is statistically close to $\mathcal{U}^*$; \Cref{thm:zk} assembles them.
+
+\section{The linear channel}\label{sec:linear}
+
+Channel (E) is linear: the evaluation of a committed vector $v \in \Fp^{2^h}$ at $\vec z$ is $\sum_u \hat{eq}(\vec z, u)\, v[u]$, so the padding enters through the matrix of eq-weights at the padding positions. Two facts are needed: that this matrix is generically surjective (provable), and that surjectivity over $\Fq$ upgrades, for $\Fp$-valued cells with restricted range $\Omega$, to statistical smoothing (the conjecture).
+
+\begin{lemma}[generic full rank]\label{lem:rank-eval}
+Let $u_1, \dots, u_r \in \{0,1\}^h$ be distinct positions and let $t \leq r$ evaluation requests be made at points $\vec z_1, \dots, \vec z_t$, each uniform in $\Fq^h$ conditionally on the transcript so far (sumcheck challenges and suffixes of such qualify), some requests taken on $\mathsf{shift}(\cdot)$. Then the $t \times r$ matrix $A$ with $A_{j,i} = \hat{eq}(\vec z_j, u_i)$ (resp.\ $\widehat{\mathsf{next}}(\vec z_j, u_i)$ for shift requests, $u_i \neq 1^h$) has rank $t$ except with probability at most $t\,h \cdot t / q$.
+\end{lemma}
+
+\begin{proof}
+Pick $t$ of the positions and consider the $t \times t$ minor $\det\big(A_{j,i}\big)$, a polynomial of degree $\leq h$ in each $\vec z_j$, total degree $\leq th$. It is not identically zero: specialize $\vec z_j := u_j$ (boolean) for plain requests, and $\vec z_j := u_j - 1$ in binary for shift requests (so that $\widehat{\mathsf{next}}(\vec z_j, u_i) = [u_i = u_j]$ on the chosen positions, choosing the minor's positions pairwise non-adjacent); the matrix specializes to the identity. Schwartz--Zippel applied point-by-point (each $\vec z_j$ uniform given the previous ones) bounds the vanishing probability by $t \cdot th/q$.
+\end{proof}
+
+\begin{conjecture}[joint evaluation smoothing; strengthens the column-evaluation conjecture]\label{conj:linear}
+For each committed vector $v_i$ ($i = 1, \dots, m$), let $r_i$ designated cells be i.i.d.\ uniform on $\Omega_i \subseteq \Fp$, all other cells \emph{arbitrary and fixed}, and let $t_i$ evaluation requests be made on $v_i$ (or $\mathsf{shift}(v_i)$) at points as in \Cref{lem:rank-eval}, the point families of different vectors possibly shared. If $r_i \geq t_i \log_2(q / |\Omega_i|) + 2\lambda$ for every $i$, then the joint vector of the $\sum_i t_i$ evaluations, \emph{minus its value at all-zero masks}, is at statistical distance at most $2^{-\lambda}$ from uniform on $\Fq^{\sum t_i}$.
+\end{conjecture}
+
+By linearity, the subtraction makes the statement data-free, and closeness to uniform of the mask contribution is exactly what makes the channel simulatable: the column-evaluation conjecture of \texttt{zk\_leanVM.tex} is the case $m = 1$ with independent points and zero data. The generalizations actually needed by the protocol, and covered above, are: several vectors evaluated at a \emph{shared} point (step 3c evaluates all of a table's bus columns at the same suffix of $\vec r_\textsc{gkr}$); the same vector at two dependent points (a suffix of $\vec r_\textsc{gkr}$ and a suffix of $\vec r_\textsc{air}$, the latter sampled after the former); and small ranges $\Omega$ (access counts, instruction encodings). \emph{Most of this conjecture is now proven}: the full-range case outright (\Cref{thm:fullrange}), the small-range case with a budget capped at the spray size (\Cref{thm:smallomega}); only the full budget for small ranges remains conjectural (\Cref{rem:gap}).
+
+\begin{remark}[a route to a proof]\label{rem:lhl}
+\Cref{conj:linear} is a leftover-hash claim for the hash family $\{ \mathsf{mask} \mapsto A \cdot \mathsf{mask} \}$ keyed by the points. The family is not universal: for a fixed nonzero difference $\delta$, $\Pr_{\vec z}[\hat{eq}(\vec z, \cdot) \cdot \delta = 0]$ is the vanishing probability of the multilinear extension of $\delta$, bounded by $h/q$ but not by $1/q$, and the worst-case slack $h^t$ defeats the leftover hash lemma. The collision-probability \emph{average} over the source is what matters, however; the next subsection carries this out.
+\end{remark}
+
+\subsection{Provable cases}\label{sec:linear-thms}
+
+\begin{lemma}[leftover hash, collision form]\label{lem:lhl}
+Let $(h_z)_z$ be any family of maps $X \to R$ indexed by a random key $z$, and let $x, x'$ be i.i.d.\ on $X$, independent of $z$. Then
+\[
+\mathbb{E}_z\, \mathrm{SD}\big(h_z(x),\, U_R\big) \;\leq\; \tfrac{1}{2}\sqrt{\,|R| \cdot \Pr\big[h_z(x) = h_z(x')\big] \;-\; 1\,} .
+\]
+\end{lemma}
+
+\begin{proof}
+For fixed $z$, with $P_z$ the law of $h_z(x)$: by Cauchy--Schwarz, $\mathrm{SD}^2 = \tfrac14 (\sum_y |P_z(y) - \tfrac{1}{|R|}|)^2 \leq \tfrac14 |R| \sum_y (P_z(y) - \tfrac1{|R|})^2 = \tfrac14 (|R|\, \mathrm{CP}_z - 1)$, where $\mathrm{CP}_z = \sum_y P_z(y)^2 = \Pr[h_z(x) = h_z(x') \mid z]$. Take $\mathbb{E}_z$ and use Jensen on $\sqrt{\cdot}\,$.
+\end{proof}
+
+\begin{lemma}[spray rank]\label{lem:spray}
+Let $z_1, \dots, z_t$ be i.i.d.\ uniform in $\Fq^h$ and let the padded positions contain a \emph{spray}: a base cell $u^{(0)}$ together with $u^{(k)} = u^{(0)} \oplus e_{j_k}$, $1 \leq k \leq m$, for distinct coordinates $j_1, \dots, j_m$. Let $A : \Fp^{m+1} \to \Fq^t$ be the evaluation map $x \mapsto \big(\sum_k \hat{eq}(z_j, u^{(k)})\, x_k\big)_j$ restricted to the spray. If $m + 1 \geq \extdeg t$, then with $s := m + 2 - \extdeg t$,
+\[
+\Pr\big[\operatorname{rank}_{\Fp} A < \extdeg t\big] \;\leq\; \binom{m+1}{s} \Big(\frac{2}{p}\Big)^{s} \;+\; \frac{2ht}{q} .
+\]
+\end{lemma}
+
+\begin{proof}
+Discard the event that some coordinate of some point lies in $\{0,1\}$ (probability $\leq 2ht/q$); off it, every factor $\hat{eq}(z_{j,l}, b)$ is nonzero. The $\Fp$-rank of the columns $c^{(k)} := (\hat{eq}(z_j, u^{(k)}))_j \in \Fq^t$ is unchanged by multiplying the $j$-th coordinate of every column by the nonzero scalar $\hat{eq}(z_j, u^{(0)})^{-1}$ (a coordinatewise $\Fp$-automorphism of $\Fq^t$). The normalized columns are $\hat c^{(0)} = (1, \dots, 1)$ and $\hat c^{(k)} = (\rho_{j,k})_j$, where $\rho_{j,k}$ is the M\"obius image $\hat{eq}(x, 1 - u^{(0)}_{j_k})/\hat{eq}(x, u^{(0)}_{j_k})$ of the coordinate $x = z_{j, j_k}$: as $x$ ranges over $\Fq \setminus \{0,1\}$, $\rho$ takes $q - 2$ distinct values, each once. The $tm$ variables $z_{j, j_k}$ are mutually independent and independent of the conditioning. Process the columns in order: given that the span $V$ of the columns so far has $\Fp$-dimension $\nu \leq \extdeg t - 1$, the next column has $t$ independent coordinates, each uniform on $q - 2$ values, so it lands in $V$ with probability at most $p^{\nu}/(q-2)^t \leq 2\, p^{\nu - \extdeg t} \leq 2/p$. Failing to reach full rank requires at least $s$ such events among the $m+1$ columns; a union bound over their positions gives the binomial factor.
+\end{proof}
+
+\begin{theorem}[full-range evaluations: exact uniformity]\label{thm:fullrange}
+Let a committed column carry padded cells with values i.i.d.\ uniform on $\Fp$ (full range), the cells containing a spray of size $\extdeg t + s - 1$, and let $t$ evaluation requests be made at i.i.d.\ uniform points. Then, except with probability $\binom{\extdeg t + s - 1}{s}(2/p)^s + 2ht/q$ over the points, the joint vector of the $t$ evaluations is \emph{exactly} uniform on $\Fq^t$ after subtracting the (fixed, arbitrary) data contribution: the masked evaluations are perfectly simulatable. Moreover:
+\begin{enumerate}
+    \item \emph{Several columns, shared points:} the joint map is block-diagonal (each column has its own cells), so joint exact uniformity holds by a union bound over columns.
+    \item \emph{Shift requests:} choose the spray inside cells with last bit $1$ and flips $j_k \neq h$; then $u - 1 = u \oplus e_h$ for every spray cell, the shift-weights $\hat{eq}(\vec z, u_i - 1)$ form a spray based at $u^{(0)} \oplus e_h$ with the same flips, and the proof of \Cref{lem:spray} applies verbatim.
+    \item \emph{Dependent points:} \Cref{lem:spray} needs only that the coordinates $z_{j, j_k}$ at the flip positions be independent across $j$; suffix-nested points are admissible whenever the flips avoid the shared suffix.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+By \Cref{lem:spray} the restriction of the evaluation map to the spray cells is a surjective $\Fp$-linear map onto $\Fq^t$; a surjective linear image of a uniform variable is uniform, the remaining padded cells and the data only shift it, and the mask is independent of the data.
+\end{proof}
+
+\begin{remark}[scope]\label{rem:fullrange-scope}
+The spray needs $\extdeg t + s - 1 \leq h + 1$ distinct flip coordinates: ample for the tall columns (memory $h \leq 26$, execution $h \leq 24$, bytecode $h \geq 16$) at $t \leq 3$ requests, but tight for minimum-height tables ($h = 8$, $t = 2$: $\extdeg t = 10 > 9$). For those, either raise the minimum height of tables carrying secrets, or fall back on \Cref{conj:linear}. \Cref{thm:fullrange} also proves the column-evaluation conjecture of \texttt{zk\_leanVM.tex} in its $\Omega = \Fp$ case.
+\end{remark}
+
+\begin{theorem}[small ranges, capped budget]\label{thm:smallomega}
+In the setting of \Cref{lem:spray}, let the spray cells instead be i.i.d.\ uniform on $\Omega \subseteq \Fp$, $|\Omega| \geq 2$. Then
+\[
+\mathbb{E}_{\vec z}\ \mathrm{SD}\big((\text{evaluations} - \text{data}),\ U_{\Fq^t}\big) \;\leq\; \tfrac12 \sqrt{ q^t\, |\Omega|^{-m} (1 + \varepsilon)^m } \;+\; \frac{2ht}{q} , \qquad \varepsilon = O(1/p) ,
+\]
+i.e.\ $\lambda$ bits of masking once $m \log_2 |\Omega| \geq t \log_2 q + 2\lambda + O(m/p)$.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+\Cref{lem:lhl} with $x$ the mask: the collision probability is $\Pr[A\delta = 0]$ with $\delta$ i.i.d.\ differences on the spray cells. Expanding over additive characters, $\Pr[A\delta = 0] = q^{-t} \sum_{\theta \in \Fq^t} \prod_k \hat{D}(a_k(\theta))$, where $a_k(\theta) = \mathrm{tr}\big(\sum_j \theta_j\, \hat{eq}(z_j, u^{(k)})\big) \in \Fp$ and $\hat{D}(a) = |\,\mathbb{E}_{x \in \Omega} \psi_p(ax)|^2 \in [0,1]$. The $\theta = 0$ term gives $q^{-t}$. For $\theta \neq 0$, off the degenerate event: with $\eta_j := \theta_j \hat{eq}(z_j, u^{(0)})$, the normalization of \Cref{lem:spray} gives $a_k = \mathrm{tr}(\sum_j \eta_j \rho_{j,k})$, and conditioned on the non-flip coordinates the $a_k$ are \emph{independent across $k$} (disjoint fresh coordinates); fixing $j^*$ with $\eta_{j^*} \neq 0$ and averaging over $\rho_{j^*,k}$, the value $a_k$ is within $O(1/q)$ of uniform on $\Fp$, and $\mathbb{E}_{a \sim U(\Fp)}[\hat{D}(a)] = 1/|\Omega|$ by Parseval. Hence $\mathbb{E}\prod_k \hat{D}(a_k) \leq (1/|\Omega| + O(1/q))^m$, and the sum over $\theta \neq 0$ contributes $q^t |\Omega|^{-m}(1+\varepsilon)^m$ to $q^t \mathrm{CP} - 1$.
+\end{proof}
+
+\begin{remark}[the budget gap: reformulation and production arithmetic]\label{rem:gap}
+The proof counts only the spray, so the provable budget caps at $\sim h \log_2 |\Omega|$ bits per column, while the experiments (\Cref{rem:numA}) show the \emph{full} cell count $r$ obeys the conjectured $|\Omega|^{-r/2}$ scaling well past $r = h + 1$. The gap admits an exact reformulation: by \Cref{lem:lhl},
+\[
+q^t\, \mathrm{CP} - 1 \;=\; q^t\Big[\, |\Omega_\Delta|^{-r}\text{-type mass at } \delta = 0 \;+\; \mathbb{E}_{\delta \neq 0}\big[\rho(\delta)^t\big] \Big] - 1 , \qquad \rho(\delta) := \Pr_{\vec z}[\hat\delta(\vec z) = 0] ,
+\]
+so the full conjectured budget is \emph{equivalent} to the $t$-th moment bound $\mathbb{E}_{\delta \neq 0}[\rho(\delta)^t] \leq q^{-t}(1 + 2^{-2\lambda})$ for random differences $\delta$ supported on the padded cells: a root-counting moment problem for random supported multilinears (the program of \Cref{rem:lhl}, now exactly delimited). The first moment is $q^{-1}(1 + \eta)$ with $\eta$ measured at $3\%$ at a toy size deliberately past the spray cap, and the second moment matches $q^{-2}$ to the same precision (\Cref{rem:numF}); the Poisson-type heuristic puts the true correction at $O(q^{1-h})$.
+
+Meanwhile the \emph{proven} spray budget already covers part of production: $\textsf{memory\_acc}$ lives at $h = h_\textsc{memory} \leq 26$ with $t = 1$, so $k = 14$-bit read multiplicities give $26 \cdot 14 = 364 \geq \log_2 q + 2\lambda \approx 355$ bits at $\lambda = 100$ --- at the cost of $\sum \kappa_i \approx 2^{17}$ extra execution rows, a few percent of a $2^{21}$-row trace. What does \emph{not} clear the proven budget: $\textsf{bytecode\_acc}$ ($h \approx 16$--$19$: would need $k > 20$, i.e.\ $2^{20}$-iteration dummy loops) and the instruction columns (branch entropy $c$ bits per row, $c \geq 21$ infeasible); for those, \Cref{conj:linear} (equivalently, the moment bound) remains the operative assumption --- or a protocol-adjacent mitigation (e.g.\ accepting a lower $\lambda$ for the control-flow channel alone).
+\end{remark}
+
+\section{Logup-GKR}\label{sec:gkr}
+
+\subsection{The geometry of the fraction tree}
+
+Index the $2^n$ leaves by $u = (u_1, \dots, u_n)$, $u_1$ the most significant bit; the recursion strips the leading coordinate: $\den_{j}(c) = \den_{j+1}(0, c)\, \den_{j+1}(1, c)$ and $\num_j(c) = \num_{j+1}(0,c) \den_{j+1}(1,c) + \num_{j+1}(1,c) \den_{j+1}(0,c)$ for $c \in \{0,1\}^{j}$.
+
+\begin{lemma}[combs]\label{lem:comb}
+For every level $0 \leq j \leq n$ and node $c \in \{0,1\}^j$,
+\[
+\den_j(c) \;=\; \prod_{s \in \{0,1\}^{n-j}} \den_n(s, c) , \qquad \frac{\num_j(c)}{\den_j(c)} \;=\; \sum_{s \in \{0,1\}^{n-j}} \frac{\num_n(s, c)}{\den_n(s, c)} :
+\]
+the subtree of a level-$j$ node is the \emph{comb} of leaves congruent to $c$ modulo $2^j$. Two leaves meet at level $j$ if and only if $2^j$ divides the difference of their indices; in particular they share no node below the root if and only if their indices have different parities.
+\end{lemma}
+
+\begin{proof}
+Induction on $n - j$ via the one-step rule; the leaves $(s, c)$ are exactly the indices with low $j$ bits $c$.
+\end{proof}
+
+This inverts the intuition imported from the masked WHIR, where the masked classes are the two \emph{halves} (high bit). Here the memory section and the table blocks --- the two halves of the leaf index space --- are merged at the \emph{first} level of the tree, and what governs how long a push survives separated from its pulls is the \emph{low} bits of their positions. The gadget gets the right geometry for free: a tape cell's push sits at leaf index $=$ its memory address, its pulls sit at indices $=$ block offset $+$ cycle number, and consecutive gadget cycles realize all low-bit residues, so for every level $j \geq 1$, some gadget fractions lie in nodes that do not contain their cancelling partners. (If desired the prover can enforce this deterministically by parity: tape cells at even addresses, an odd number of body instructions per iteration.)
+
+\begin{lemma}[reach]\label{lem:reach}
+Fix a level $j \geq 1$ and a node $c$ whose comb contains at least one gadget leaf. As a function of the gadget randomness, with all other leaves fixed:
+\begin{enumerate}
+    \item $\den_j(c)$ is a nonconstant polynomial in the tape values, provided $\hat{eq}(\vec\beta, [1]^{\ell}_{\mathrm{bits}}) \neq 0$ (probability of failure $\leq \ell / q$): the product of \Cref{lem:comb} contains the factor $\gamma - \pi_{\vec\beta}(a, v_a, \dots)$, affine in the tape cell $v_a$ with that coefficient.
+    \item If moreover the comb does not contain a complete push-pull group, $\num_j(c)$ is nonconstant in the multiplicities: specializing every non-gadget leaf to the padding fraction $(0, 1)$ reduces $\num_j(c)$ to $\sum_{\ell \in \mathrm{comb}} m_\ell \prod_{\ell' \neq \ell} D_{\ell'}$ over the comb's gadget leaves, in which the (unbalanced) multiplicities appear linearly with generically nonzero coefficients.
+\end{enumerate}
+Consequently each level claim --- an $\hat{eq}$-weighted combination of node values with generically nonzero weights --- depends nontrivially on the gadget randomness, at every level.
+\end{lemma}
+
+\subsection{The conjecture}
+
+\begin{conjecture}[GKR transcript smoothing]\label{conj:gkr}
+Consider the honest prover on any valid padded witness, with gadget parameters satisfying \cref{eq:budget} restricted to the GKR leakage ($B^{\textsc{gkr}}_{\mathrm{leak}} + 2\lambda$, with the per-vector refinements of \Cref{conj:linear} for the leaf evaluations), and assume:
+\begin{enumerate}
+    \item \emph{completeness conditioning}: $\gamma$ avoids every pole of the witness's fractions (the protocol's own completeness event, error $K/q$) --- a single data pole makes whole den-products vanish identically and destroys the masking (observed in \Cref{rem:numB});
+    \item \emph{residue coverage}: at every level $j$, every node's comb containing secret leaves also contains gadget leaves with surviving (un-cancelled) fractions; for the low levels this means the gadget leaf positions realize both parities (and enough low-bit residues), which consecutive gadget cycles provide.
+\end{enumerate}
+Then, except on a set of challenges of probability $O(n^2 + \ell)/q$, the transcript of step 3 (all level sumcheck messages, all level claims, all leaf evaluations) is at statistical distance at most $2^{-\lambda}$ from $\mathcal{U}^*$ restricted to step 3 --- in particular, at most $2^{1-\lambda}$ from the transcript of any other valid witness for the same statement.
+\end{conjecture}
+
+\begin{remark}[why the linear machinery does not port]\label{rem:nonlinear}
+The level claims are evaluations of polynomials whose hypercube values are \emph{products} of the committed fractions (\Cref{lem:comb}); the messages of the level sumchecks are partial sums of products of two such layers. The map from gadget randomness to revealed values is therefore a high-degree polynomial, jointly across levels through shared cells, and no rank computation captures its image distribution. What supports the conjecture: the budget \cref{eq:budget}; \Cref{lem:reach} (every revealed coordinate moves with the randomness); the multiplicative smoothing heuristic (a product of many independent factors, each uniform on an affine line of $\Fq$, mixes toward the uniform distribution on the multiplicative cosets it can reach); and the root being the only place where the gadget's pushes and pulls are forced to cancel, which is exactly the publicly known value $\kappa = 0$.
+\end{remark}
+
+\subsection{Provable top levels}\label{sec:gkr-top}
+
+The top of the tree --- the levels with few nodes, where the comb products are largest and the separable machinery is weakest --- turns out to be the \emph{most} provable part, by working multiplicatively. The analytic inputs are classical character-sum estimates along $\Fp$-lines, which we first state with their constants.
+
+\begin{lemma}[line sums]\label{lem:linesums}
+Let $q = p^{\extdeg}$, $\extdeg$ prime, $\theta \in \Fq$ with $\theta \notin \Fp$ (so $\Fp(\theta) = \Fq$; for a uniform line this fails with probability $p/q$), $\chi$ a nontrivial multiplicative character of $\Fq$, $\psi$ the canonical additive character $\psi_p \circ \mathrm{tr}$, and $\kappa \in \Fq^*$. Then:
+\begin{enumerate}
+    \item $\big|\sum_{v \in \Fp} \chi(\theta + v)\big| \;\leq\; (\extdeg - 1)\sqrt{p}$ \quad (Katz~\cite{katz_estimate});
+    \item $\big|\sum_{v \in \Fp} \psi\big(\kappa/(\theta + v)\big)\big| \;\leq\; (2\extdeg - 1)\sqrt{p}$: the function $v \mapsto \mathrm{tr}(\kappa/(\theta+v))$, restricted to $v \in \Fp$, is the rational function $\sum_{i < \extdeg} \kappa^{p^i}/(\theta^{p^i} + v)$ over $\overline{\Fp}$, with $\extdeg$ distinct simple poles (the conjugates of $-\theta$, distinct since $\theta$ generates) and no pole at infinity; Weil's bound for additive character sums of rational functions~\cite{weil_sums,perelmuter} gives $(\extdeg + \extdeg - 1)\sqrt p$;
+    \item mixed sums $\big|\sum_{v \in \Fp} \psi\big(\kappa/(\theta+v)\big)\, \chi(\theta + v)^{e}\big| \leq 2\extdeg\, \sqrt p$ whenever $\chi^e$ is nontrivial or $\kappa \neq 0$, by the same machinery for mixed character sums along a curve~\cite{perelmuter}.
+\end{enumerate}
+For a denominator $D(v) = \gamma - \pi_{\vec\beta}(\cdot, v, \cdot) = b(\theta + v)$ this covers exactly the sums needed below; the prime-field case ($\extdeg = 1$, $D$ uniform on all of $\Fp$) is degenerate-exact: the sums vanish identically. Constants verified numerically at $\extdeg = 2, 3$ (\Cref{rem:numF}).
+\end{lemma}
+
+\begin{lemma}[fraction smoothing]\label{lem:mult}
+Let a node's comb contain, besides arbitrary fixed data, $k$ gadget fractions with independent uniform tape values, and consider the node's pair $(\den, \num/\den)$.
+\begin{enumerate}
+    \item \emph{Denominators, multiplicatively.} The den is a fixed nonzero constant times $\prod_i D_i^{e_i}$, $D_i = \gamma - \pi_{\vec\beta}(\cdot, v_i, \cdot)$ uniform on an $\Fp$-line, $e_i$ = the number of comb leaves carrying $D_i$. For every multiplicative character $\chi$ with $\chi^{e_i}$ nontrivial for some $i$, $|\mathbb{E}\,\chi(\prod D_i^{e_i})| = \prod_i |\mathbb{E}\,\chi^{e_i}(D_i)|$ gains a factor $(\extdeg-1)/\sqrt p$ per such $i$ (\Cref{lem:linesums}(1); exactly $0$ in the prime-field case). If \emph{every} $e_i$ is even, the order-$2$ character escapes: the quadratic class of the node value is deterministic --- the $\chi$-leak of \Cref{rem:numB}, now located exactly. One factor with $e_i$ odd restores all characters.
+    \item \emph{Ratios, additively.} $\num/\den = (\text{data sum}) + \sum_i \kappa_i / D_i$, and for every nontrivial additive character, $|\mathbb{E}\, \psi(c \sum_i \kappa_i/D_i)| = \prod_i |\mathbb{E}\,\psi(c\kappa_i/D_i)| \leq \big((2\extdeg-1)/\sqrt{p}\big)^{k}$ by \Cref{lem:linesums}(2) per factor.
+\end{enumerate}
+Mixed tests $\psi(a \cdot \mathrm{ratio})\,\chi(\den)$ factor the same way, with \Cref{lem:linesums}(3) per fraction. Hence, given $k$ surviving fractions with at least one odd $e_i$, the pair $(\den, \num/\den)$ is $O(\sqrt{q}\,(2\extdeg/\sqrt{p})^{k})$-close to $\mathrm{Haar}(\Fq^*) \times U_{\Fq}$, independently of the data; the bad events are the lines hitting $\Fp$ ($\theta \in \Fp$, probability $p/q$ per fraction, the same family as the node-in-$\Fp$ events of the parent document).
+\end{lemma}
+
+\begin{proposition}[top of the tree as a public pushforward]\label{prop:gkr-top}
+Fix a level $j_0$. The entire GKR transcript above level $j_0$ (all sumcheck messages and claims of levels $j \leq j_0$) is a deterministic public function of the layer-$j_0$ table $(\num_{j_0}(c), \den_{j_0}(c))_{c}$. The $2^{j_0}$ nodes have \emph{disjoint} combs (\Cref{lem:comb}), so their pairs are independent given the data; if every node's comb contains $k$ surviving gadget fractions, at least one with odd multiplicity-pattern, then by \Cref{lem:mult} the layer-$j_0$ table is $2^{j_0} \cdot O(\sqrt{q}(C/\sqrt p)^k)$-close to a product of $(\mathrm{Haar} \times U)$ pairs --- conditioned on the public root identity $\num_0 = 0$, one affine pin. The top transcript is therefore statistically close to the pushforward of that product distribution through the honest GKR prover: \emph{simulatable without a witness, with automatic consistency} (chaining and the root check hold because the simulator runs the honest algorithm on the sampled table). The canonical distribution $\mathcal{U}^*$ is redefined accordingly on the top levels.
+\end{proposition}
+
+This upgrades the multiplicative-smoothing heuristic of \Cref{rem:nonlinear} to a quantitative statement with explicit constants (\Cref{lem:linesums}), validated exactly at prime toy size (\Cref{rem:numE}). The per-node survival counts are controlled by the gadget schedule (consecutive cycles realize all residues; odd multiplicities are free to enforce). The middle levels now close by the same composition that closed the zerocheck:
+
+\begin{proposition}[GKR, full composition]\label{prop:gkr-full}
+Fix a level $j_0$ and let $Y$ be the layer-$j_0$ table $(\num_{j_0}(c), \den_{j_0}(c))_{c \in \{0,1\}^{j_0}}$.
+\begin{enumerate}
+    \item \emph{Top as pushforward.} The transcript of levels $j \leq j_0$ is a deterministic public function of $Y$ (\Cref{prop:gkr-top}); the simulator computes it by running the honest levels on a sampled $Y$, with chaining and the root check holding automatically --- the exact analogue of \Cref{prop:suffix}, at the opposite end of the recursion.
+    \item \emph{Comb separability of everything else.} Each coordinate of $Y$ depends only on the leaves of its own comb (\Cref{lem:comb}), and the levels $j > j_0$ partition the leaves into \emph{refinements} of the level-$j_0$ combs; hence every linear test of the joint vector (levels $> j_0$ transcript, $Y$) splits as a sum over the $2^{j_0}$ level-$j_0$ combs, and its bias \emph{factors} over them.
+    \item \emph{Per-comb factors.} Within a comb, the test polynomial is a polynomial in the comb's tape values whose building blocks are lines, inverse lines, and their products: each comb containing a surviving, nondegenerate gadget fraction contributes a factor $\leq C\extdeg/\sqrt p$ by \Cref{lem:linesums} (one-good-variable form), under a per-comb nonconstancy condition of \textsc{cover} type.
+\end{enumerate}
+Consequently, if every level-$j_0$ comb contains a surviving gadget fraction with an odd multiplicity-pattern, and the per-comb \textsc{cover} condition holds with margin $M = 2^{j_0}$, then the full GKR transcript is $\tfrac12 q^{N_{\textsc{gkr}}/2} (C\extdeg/\sqrt p)^{M}$-close to its canonical distribution. Budget: $2^{j_0} \geq (N_{\textsc{gkr}} \log_2 q + 2\lambda)/\log_2(p/(C\extdeg)^2)$, i.e.\ $j_0 \approx 13$ and $\sim 2^{13}$ gadget cells covering all level-$j_0$ residues at production size --- consistent with \cref{eq:budget}.
+\end{proposition}
+
+The GKR's middle levels are therefore no longer a separate gap: the only residual hypotheses are the same \textsc{cover}/survival conditions as in the zerocheck, plus \Cref{lem:linesums}'s genericity events ($\theta \in \Fp$, probability $p/q$ per fraction).
+
+\section{The AIR zerocheck}\label{sec:air}
+
+\subsection{Class decomposition}
+
+Consider a single table of height $h$ (the multi-table prefix factors change nothing structural), trace rows $w(u) \in \Fp^{n_{\mathrm{col}}}$, batched constraint $H$ of degree $d$, zerocheck weight $\hat{eq}(\cdot, \vec r)$. In round $\ell$, writing $\vec\alpha_{<\ell}$ for the bound challenges,
+\[
+h_\ell(X) \;=\; \sum_{b \in \{0,1\}^{h - \ell}} \underbrace{\hat{eq}\big((\vec\alpha_{<\ell}, X, b), \vec r\big)\, H\big(W(X, b)\big)}_{=:\, c_b(X)} , \qquad
+W(X, b) \;=\; \sum_{s \in \{0,1\}^{\ell - 1},\, \varepsilon \in \{0,1\}} \hat{eq}(\vec\alpha_{<\ell}, s)\, \hat{eq}(X, \varepsilon)\; w(s, \varepsilon, b) ,
+\]
+the \emph{folded row} of the \emph{class} $b$ --- the comb of rows congruent to $b$ modulo $2^{h-\ell}$ (shifted columns couple a class to its neighbouring residues through $\widehat{\mathsf{next}}$; this enlarges the combs by one row and changes nothing below). Split $w = w_{\dat} + w_{\pad}$ by rows and expand $H$ around the folded data:
+\begin{equation}\label{eq:taylor}
+c_b(X) \;=\; \underbrace{\hat{eq}(\cdot)\, H\big(W_{\dat}\big)}_{\text{data only}}
+\;+\; \underbrace{\hat{eq}(\cdot) \sum_i \partial_i H\big(W_{\dat}\big)\, W_{\pad, i}}_{\text{affine in the padding}}
+\;+\; \underbrace{O\big(W_{\pad}^{\,2}\big)}_{\text{nonlinear in the padding}} .
+\end{equation}
+
+\begin{remark}[no pure classes]\label{rem:no-pure}
+A class is free of secret rows only if \emph{every} row of its comb is gadget or public padding. Combs have stride $2^{h - \ell}$ across the whole table, while the gadget bursts are contiguous in time: from round $2$ on, every gadget-touching class also folds in secret rows, and the affine coefficients $\partial_i H(W_{\dat})$ in \cref{eq:taylor} are witness-dependent. (In round $1$, a class pairs row $i$ with row $i + 2^{h-1}$; when the execution occupies less than half the padded height, the prologue burst pairs with deterministic halt rows --- a data-free contribution, but only for that round.) This, together with the nonlinear terms, is what separates the present setting from every analysis in \texttt{zk\_leanVM.tex}: the masking map is a polynomial with witness-dependent coefficients, and its degenerations cannot be excluded by a statement-determined good set. The conjecture below therefore bounds the statistical distance for \emph{every} witness, with the bad-challenge probability uniform over witnesses but the bad set itself witness-dependent; this is compatible with the simulation definition, which only constrains the resulting distance.
+\end{remark}
+
+\begin{lemma}[boolean slices]\label{lem:slices}
+For every round $\ell \geq 1$ and $\varepsilon \in \{0,1\}$, the message value $h_\ell(\varepsilon)$ depends only on the rows in the slice $\{u : u_\ell = \varepsilon\}$: folding variable $\ell$ at a boolean value selects the sub-array ($\hat{eq}(\varepsilon, u_\ell)$ vanishes off the slice), while the round-$0$ values $h_0(0), h_0(1)$ vanish identically (the zerocheck summand is zero on the cube). Consequently, if all padded rows agree on some index bit $\ell$, the value $h_\ell(1 - \varepsilon)$ on the complementary slice is computed from secret rows alone and is \emph{not masked at all}, whatever the padding budget. The necessary placement condition is \emph{slice coverage}: the padded rows must realize both values of every index bit --- two complementary bursts achieve it (\Cref{con:gadget}); a single contiguous burst provably fails from round $1$ on (and measurably does: \Cref{rem:numC}).
+\end{lemma}
+
+\begin{lemma}[fresh affine directions]\label{lem:fresh}
+Fix a round $\ell$, a gadget row $u_0 = (s_0, \varepsilon_0, b_0)$ performing an \textsc{ADD} (so its $\textsf{flag}$-pattern activates the constraint $C_{\textsc{add}}$, linear in $\textsf{value}_B$), and a free cell $w_{\pad}[\textsf{value}_B](u_0)$. The coefficient of that cell in $c_{b_0}(X)$ equals
+\[
+\hat{eq}\big((\vec\alpha_{<\ell}, X, b_0), \vec r\big)\; \hat{eq}(\vec\alpha_{<\ell}, s_0)\, \hat{eq}(X, \varepsilon_0)\; \partial_{\textsf{value}_B} H\big(W_{\dat + \pad'}(X, b_0)\big) ,
+\]
+and is not identically zero as a polynomial in $(\vec\alpha_{<\ell}, X)$: the partial derivative, a multilinear-in-$\vec\alpha$ expression, evaluates at the boolean point $(\vec\alpha, X) := (s_0, \varepsilon_0)$ to $\partial_{\textsf{value}_B} H$ at the gadget row itself, which contains the term $-\mu^{k_{\textsc{add}}} \cdot (\text{the row's active flag product}) \neq 0$. Hence, for every fixed witness, each round's message receives a nonvanishing affine contribution from each such cell, except with probability $\leq (d+1)(h + 1)/q$ over the challenges per cell.
+\end{lemma}
+
+\begin{proof}
+The displayed form is the $i = \textsf{value}_B$ term of \cref{eq:taylor} (the cell enters $W$ only through its own class and column, with the stated eq-prefactor). A nonzero multilinear polynomial is nonzero as a polynomial; its value at the boolean point is the honest partial derivative at the row $u_0$, computed from the AIR: all other constraints containing $\textsf{value}_B$ carry flag factors vanishing on an \textsc{ADD} row. Schwartz--Zippel gives the probability bound.
+\end{proof}
+
+\Cref{lem:fresh} is the analogue of ``the masks reach every message''; what it does \emph{not} give is joint surjectivity across rounds, nor any control of the nonlinear terms --- in the masked WHIR these were precisely the content of the rank analysis, available there because the map was linear. The toy measurements of \Cref{rem:numC} show that the caveat is real: the affine span is challenge-robustly \emph{smaller} than the fresh-coordinate bound (rank $11$ of $17$, rising to $12$ of $18$ with a richer constraint set), so any proof of \Cref{conj:air} must let the higher-order terms carry part of the masking --- which, per the same measurements, they do.
+
+\subsection{The conjecture}
+
+\begin{conjecture}[zerocheck transcript smoothing]\label{conj:air}
+Consider the honest prover on any valid padded witness, with gadget parameters satisfying \cref{eq:budget} restricted to the AIR leakage, the per-column refinements of \Cref{conj:linear} for the terminal evaluations, and at least $(d_T + 1) h_T$ gadget rows in each table. Then, except on a set of challenges of probability $O(d_{\max} h_{\max})/q$ (uniform over witnesses), the transcript of step 4 (round messages and terminal evaluations) is at statistical distance at most $2^{-\lambda}$ from $\mathcal{U}^*$ restricted to step 4.
+\end{conjecture}
+
+\subsection{A theorem for the separable prefix}\label{sec:prefix}
+
+The conjecture is provable on a prefix of the rounds, under an explicit covering condition. Two preliminary observations pin down \emph{all} deterministic structure in the prefix transcript; both were found by the numerical program (\Cref{rem:numD}) and then proved.
+
+\begin{lemma}[forced relations]\label{lem:forced}
+Beyond the chaining identities, the honest transcript satisfies, deterministically in the witness and the padding:
+\begin{enumerate}
+    \item \emph{eq-root vanishing.} Since $\hat{eq}((\vec\alpha_{<\ell}, X, b), \vec r) = \hat{eq}(\vec\alpha_{<\ell}, \vec r_{<\ell})\, \hat{eq}(X, r_\ell)\, \hat{eq}(b, \vec r_{>\ell})$, every round message is divisible by the public linear factor $\hat{eq}(X, r_\ell)$: $h_\ell(X^*_\ell) = 0$ at the public point $X^*_\ell = (1 - r_\ell)/(1 - 2 r_\ell)$ --- one relation per round, on top of $h_1(0) = h_1(1) = 0$ (the round-$1$ boolean values vanish on-cube).
+    \item \emph{Wrap identity.} If a transition constraint is linear in the shifted column, say $s \cdot (\mathsf{shift}(c) - E(\mathrm{cols}))$ with selector $s$ vanishing only on the wrap row, then the \emph{vector} $\mathsf{shift}(c) - E$ is supported on the wrap row, so the terminal evaluations satisfy
+    \[
+    \widehat{\mathsf{shift}(c)}(\vec\alpha) - \widehat{E}(\vec\alpha) \;=\; \hat{eq}(\vec\alpha, \mathrm{last}) \cdot \big(c[\mathrm{last}] - E[\mathrm{last}]\big) :
+    \]
+    a linear combination of revealed evaluations equals an explicit multiple of the \emph{wrap-row residual}. No padding can mask a deterministic function of the witness: \textbf{the wrap rows of every masked table must be public}. (In LeanVM they are --- halt-loop and padding rows --- but this is a necessary hypothesis, not a convenience.)
+\end{enumerate}
+\end{lemma}
+
+Fix a round bound $L$ and let $T \in \Fq^N$ collect the message values of rounds $1, \dots, L$ together with the terminal column and shift evaluations. Let $D \subseteq \Fq^N$ be the space of \emph{constant tests}: those $c$ for which $\langle c, T \rangle$ does not depend on the padding. By \Cref{lem:forced} and the chaining, $D$ contains an explicit, publicly-computable family of relations, with publicly-determined constants once the wrap rows are public.
+
+\begin{condition}[\textsc{cover}$(M)$]\label{cond:cover}
+Write, under the separation hypothesis below, $T(v) = T_0 + \sum_{u} F_u(v_u)$ with $F_u : \Fp \to \Fq^N$ polynomial of degree $\leq d$. Every test $c \notin D$ satisfies $g_{u,c} := \mathrm{tr}\langle c, F_u(\cdot)\rangle$ nonconstant for at least $M$ padded cells $u$. (Numerically the strong form holds: the $\Fp$-span of all coefficient vectors of the $F_u$ equals the full complement of $D$, and $D$ is exactly the span of the relations of \Cref{lem:forced} plus chaining; \Cref{rem:numD}.)
+\end{condition}
+
+\begin{lemma}[witness-uniform certification of \textsc{cover}]\label{lem:certify}
+Failure of \textsc{cover}$(M)$ is the simultaneous vanishing of the $(\dim D^{\perp})$-minors of the stacked coefficient matrix $\Phi := (\phi_{u,e})_{u,e}$ over subsets avoiding any $M - 1$ cells. After clearing the $\hat{eq}$-denominators, each minor is a polynomial in the challenges of degree $\leq D_{\mathrm{cov}} = \mathrm{poly}(d, h, N)$. Two consequences:
+\begin{enumerate}
+    \item \emph{Per-witness certification.} Evaluating a minor at one random challenge tuple and finding it nonzero \emph{proves} the minor is a nonzero polynomial (a deterministic implication, not a probabilistic one); Schwartz--Zippel then bounds the failure probability by $D_{\mathrm{cov}}/q$ over the challenges, for that witness. The toy computation of \Cref{rem:numD} (rank $8$ of $8$) is exactly such a certificate.
+    \item \emph{Witness-uniform certification.} The coefficients $\phi_{u,e}$ depend on the witness through the folded data; but specializing the challenges at boolean points that select the gadget rows (the multilinear-extension argument of \Cref{lem:fresh}, applied jointly as in the explicit specialization of the parent document's cross-coupling proof) makes the specialized minor a function of the \emph{public gadget template} alone --- provided the gadget bursts are scheduled with public neighbours (true: halt and padding rows). A nonzero value there certifies the minor as a nonzero polynomial \emph{for every witness}, and the $D_{\mathrm{cov}}/q$ bound becomes uniform. This is a finite, one-time computation per circuit (per AIR and gadget template), of the same nature as the numerical checks of the parent document's pinning condition.
+\end{enumerate}
+\end{lemma}
+
+\begin{theorem}[prefix masking]\label{thm:prefix}
+Fix any witness whose wrap rows are public. Assume: the padded cells are i.i.d.\ uniform on $\Fp$; \emph{separation through round $L$}: the padded rows are pairwise non-congruent (and non-adjacent) modulo $2^{h-L}$, and no two padded cells co-occur nonlinearly in any class of rounds $\leq L$ --- so that $T(v) = T_0 + \sum_u F_u(v_u)$ exactly; and \textsc{cover}$(M)$. Then
+\[
+\mathrm{SD}\big(T,\ \mathcal{U}^*\big|_T\big) \;\leq\; \tfrac12\, q^{N/2} \Big(\frac{d-1}{\sqrt{p}}\Big)^{M} ,
+\]
+where $\mathcal{U}^*|_T$ is uniform on the coset cut by $D$ (with the public constants). In particular $\lambda$ bits of masking once $M \geq \big(N \log_2 q + 2\lambda + 2\big) / \log_2\!\big(p/(d-1)^2\big)$.
+\end{theorem}
+
+\begin{proof}
+$T$ and $\mathcal{U}^*|_T$ live on the same coset $x_0 + S$, $S = $ the subgroup annihilated by $D$. By Fourier inversion on $S$ and Cauchy--Schwarz, $\mathrm{SD} \leq \tfrac12 \sqrt{\sum_{c \notin D} |\mathrm{bias}(c)|^2}$ over a set of representatives $c$ of the nontrivial characters of $S$, with $\mathrm{bias}(c) = |\mathbb{E}_v\, \psi_p(\mathrm{tr}\langle c, T(v)\rangle)|$. By separation the bias \emph{factors}: $\mathrm{bias}(c) = \prod_u |\,\mathbb{E}_{x \in \Fp}\, \psi_p(g_{u,c}(x))|$. Each factor with $g_{u,c}$ nonconstant obeys the Weil bound $\leq (\deg g - 1)/\sqrt{p} \leq (d-1)/\sqrt{p}$ (the degree is $\leq d < p$, so $g$ is never of Artin--Schreier type $h^p - h + \mathrm{const}$); a $\deg$-$1$ factor even vanishes exactly. \textsc{cover}$(M)$ supplies $M$ such factors per test; the number of tests is $< q^N$.
+\end{proof}
+
+\begin{remark}[the affine deficit, explained]\label{rem:weil-affine}
+\Cref{thm:prefix} uses no affine rank at all, and quantifies the cokernel measurement of \Cref{rem:numC}: a test reachable at first order has some $\deg g_{u,c} = 1$, whose complete character sum vanishes --- bias exactly $0$; an affinely-blind test relies on $\deg \geq 2$ cells, each contributing $(\deg - 1)/\sqrt{p} > 0$ --- the measured penalty. The Jacobian deficit is thus harmless by design of the bound, not by luck.
+\end{remark}
+
+\begin{remark}[scope and the GKR analogue]\label{rem:prefix-scope}
+Separation through round $L$ caps $L \lesssim h - \log_2(\text{padded span})$: the last $\sim \log_2 r_{\mathsf{pad}}$ rounds remain conjectural (\Cref{conj:air}), as do the GKR's late levels. For the GKR, every test polynomial is separable over the \emph{comb blocks} (classes always partition the leaves), but within a block the gadget variables multiply: the per-block factor needs a ``one good variable'' Weil bound plus the survival hypotheses of \Cref{conj:gkr}, and the $\chi$-obstruction of \Cref{rem:numB} is exactly the case where a block's dependence is through perfect powers only --- excluded by residue coverage. We expect a block-wise analogue of \Cref{thm:prefix}; the within-block nondegeneracy conditions are not yet pinned down. For production parameters the prefix budget is cheap: $p/(d-1)^2 \approx 2^{24.7}$, so $M \approx (N \log_2 q + 2\lambda)/24.7 \approx 10^3$ cells masks a prefix of $N \approx 150$ coordinates at $\lambda = 100$.
+\end{remark}
+
+\begin{proposition}[suffix reduction]\label{prop:suffix}
+Fix $c \geq 0$ and let $Y$ denote the \emph{folded table} after round $h - c$: the $2^c$ remaining entries of every column array (and of the eq-weight array), together with the running sumcheck target. The transcript of the last $c$ rounds is a deterministic public function of $Y$ (the honest prover computes it from $Y$ alone), and each coordinate of $Y$ is \emph{separable} in the padded rows: every committed cell of a padded row is a function of that row's free cell, so $Y(v) = Y_0 + \sum_u G_u(v_u)$ with $G_u$ of degree $\leq \deg(\text{trace completion}) \leq d$. Consequently:
+\begin{enumerate}
+    \item the Fourier argument of \Cref{thm:prefix} applies verbatim to the \emph{joint} vector $(T_{\mathrm{prefix}}, Y)$, with \textsc{cover} extended to its tests;
+    \item if $(T_{\mathrm{prefix}}, Y)$ is $\varepsilon$-close to $\mathcal{U}^*_{\mathrm{pre}} \times (\text{uniform on } Y\text{'s coset})$, the \emph{full} transcript is $\varepsilon$-close to the distribution that samples that pair and runs the honest prover on $Y$ for the last $c$ rounds --- with chaining and the final identity holding automatically. The canonical distribution is redefined this way on the suffix; no designated-coordinate bookkeeping is needed there.
+\end{enumerate}
+\Cref{conj:air} thus \emph{reduces} to: the extended \textsc{cover}, the budget $r \gtrsim \extdeg\, n_{\mathrm{col}}\, 2^c + M$, and the masking of the \emph{rigid} columns' folds (instruction flags and the like, whose gadget entropy is small-range): the latter is precisely where the small-range budget gap of \Cref{rem:gap} enters, and the only place.
+\end{proposition}
+
+\begin{theorem}[block masking, full granularity]\label{thm:blocks}
+Suppose additionally that all padded free cells of a given population lie in a \emph{single designated column}, and that populations for different columns occupy disjoint residue classes modulo $2^{c'}$ (so that no class of any round $\leq h - c'$ mixes two populations). For a test $c$, let its \emph{blocks} be the classes of the coarsest round it touches (singletons in the prefix regime; the whole table only past round $h - c'$, which \Cref{prop:suffix} removes). Then the bias factors over blocks, and each block $B$ contributes a factor
+\[
+\Big|\,\mathbb{E}_{v_B}\ \psi\big(P_B(w_B) + \textstyle\sum_{u \in B} t_u(v_u)\big)\Big| \;\leq\; \frac{d-1}{\sqrt p} \;+\; \delta_B , \qquad w_B := \textstyle\sum_{u \in B} \mu_u v_u ,
+\]
+by fixing all of $B$'s cells but one and applying Weil, where $\delta_B \leq d/p$ once the nonconstancy of the per-fixing univariate is certified (a Schwartz--Zippel event, as in \Cref{lem:fresh}); blocks whose weights $\{\mu_u\}$ span $\Fq$ over $\Fp$ ($\geq \extdeg$ cells, a \textsc{spread}-type condition) upgrade to $(d-1)/\sqrt{q}$, the linear form $w_B$ being then uniform on $\Fq$. The conclusion of \Cref{thm:prefix} holds with $M$ counted in \emph{blocks}: the masking extends through every round whose tests retain at least $M$ nondegenerate blocks.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+Same-column placement makes each class contribution a polynomial in the single value $w_B$ (the class fold of the designated column is the only coordinate of the folded row that moves with $v_B$), plus the separable per-cell terms from finer rounds; blocks are disjoint in cells, so the bias factors. The per-block bound is the one-good-variable Weil estimate; the spanning upgrade evaluates the complete sum over $\Fq$.
+\end{proof}
+
+Together, \Cref{thm:prefix,thm:blocks,prop:suffix} cover the zerocheck transcript end to end, at the price of three explicit residual hypotheses: block-level \textsc{cover}, the \textsc{spread}-type conditions, and the rigid-column budget. None of them is a smoothing conjecture anymore; all are rank/genericity conditions of the kind the parent document handles, plus the quantitative gap of \Cref{rem:gap}.
+
+\begin{remark}[a reduction strategy]\label{rem:hybrid}
+A proof should not attack the joint distribution at once. Order the revealed values $v_1, \dots, v_N$ in transcript order and chain: conditioned on $(v_1, \dots, v_{i-1})$, the gadget randomness retains min-entropy $\geq B_{\mathsf{pad}} - (i-1)\log_2 q - \log_2(1/\delta)$ except with probability $\delta$ (chain rule); it then suffices that each \emph{single} map $\mathsf{pad} \mapsto v_i$, on every high-entropy source produced by such conditioning, have output $2^{-\lambda - \log N}$-close to the canonical conditional --- an extraction property of one polynomial of degree $\leq d + 1$. The budget \cref{eq:budget} is exactly what survives this accounting. The irreducible core is thus: \emph{low-degree polynomials with a nonvanishing differential (\Cref{lem:fresh}) extract from high-entropy sources over $\Fq$}. This is where a real proof would have to live (for degree $1$ it is \Cref{rem:lhl}; for higher degree, additive-combinatorial input seems required), and where a refutation would show up first in experiments.
+\end{remark}
+
+\section{Conditional zero-knowledge}\label{sec:zk}
+
+\begin{theorem}[conditional]\label{thm:zk}
+Assume \Cref{conj:gkr,conj:air} (which subsume \Cref{conj:linear} on the evaluation coordinates), and let the gadget parameters satisfy their budgets. Then the interactive protocol of \texttt{minimal\_zkVM.tex}, run by the padded prover with the masked WHIR of \texttt{zk\_leanVM.tex}, is honest-verifier zero-knowledge with error
+\[
+\varepsilon \;\leq\; 2 \cdot 2^{-\lambda} \;+\; \varepsilon_{\textsc{whir}} \;+\; O\big(n^2 + \ell + d_{\max} h_{\max}\big)\frac{1}{q} ,
+\]
+where $\varepsilon_{\textsc{whir}} \approx 2^{-122}$ is the masked-WHIR error. For $\lambda = 100$ and KoalaBear, $\varepsilon \approx 2^{-99}$.
+\end{theorem}
+
+\begin{proof}
+The simulator: sample steps 1--2 (dimensions are statement-determined for the padded program; the commitment is an oracle whose openings are handled below); sample the transcript of steps 3--4 from $\mathcal{U}^*$ (\Cref{def:canonical}); steps 5--6 are public; for step 7, run the masked-WHIR simulator on the claim list assembled from the simulated evaluations --- the substitute data of \texttt{zk\_leanVM.tex} (Theorem `simulator') exists and is computable from any consistent linear claim list, and its construction is independent of how the claims were produced. Hybrid argument: replace the honest steps 3--4 by $\mathcal{U}^*$ (cost $2^{-\lambda}$ each for steps 3 and 4, by \Cref{conj:gkr,conj:air}, off their bad challenge sets), then the honest WHIR opening by its simulator (cost $\varepsilon_{\textsc{whir}}$; the masked-WHIR theorem applies to \emph{every} data assignment, in particular the padded one, and to every claim list, in particular the simulated one). The challenge bad sets and the resampling failures of $\mathcal{U}^*$ contribute the last term.
+\end{proof}
+
+\begin{remark}
+As in the parent document, this treats the \emph{interactive} protocol; making the BCS transform zero-knowledge is a separate (inherited) TODO. Note also that the padded prover must \emph{not} reuse a gadget tape across two proofs of the same statement: the randomness is per-proof, like the WHIR masks $R_{\mathsf{in}}, R_{\mathsf{out}}$.
+\end{remark}
+
+\section{Numerical program and first results}\label{sec:numerics}
+
+A first round of the program was implemented and run at toy parameters, in the spirit of the numerical remarks of \texttt{zk\_leanVM.tex}: exact distributions obtained by \emph{enumerating} the gadget randomness (no sampling error), honest provers for both protocols validated by runtime assertions of every sumcheck identity (chaining, final checks, claim consistency against direct MLE evaluations, root balance). Statistical distances below are exact unless marked as sampled.
+
+\begin{remark}[\Cref{conj:linear}: consistent, with an explicit bad set]\label{rem:numA}
+Field $\Fq = \Fp[\sqrt{2}]$, $p = 13$, $h = 6$. \emph{(i) Full range.} For $\Omega = \Fp$ the conjecture is equivalent to full $\Fp$-rank of the evaluation map, and then the masked evaluations are \emph{exactly} uniform (verified to machine precision). Rank failures over random positions and points, $t = 2$ requests: $13\%$ at the threshold $r = \extdeg\, t$, $0.4\%$ at $r = \extdeg\, t + 4$; one request on $\mathsf{shift}$: identical; suffix-nested points: a $\approx 2.6\times$ larger constant, same decay. \emph{(ii) Restricted ranges.} Exact distance to uniform via dynamic programming, $|\Omega| \in \{2, 4\}$, $r$ swept: the mean over point draws tracks the leftover-hash prediction $\tfrac12 \sqrt{q^t / |\Omega|^r}$, with the predicted slope $\tfrac12 \log_2 |\Omega|$ bits per cell. The raw maximum has a heavy tail entirely explained by a challenge coordinate landing in $\{0,1\}$ (probability $\leq 2ht/q$, visible at $q = 169$, negligible in production): conditioned off this bad set, the maximum over $40$ draws stays within a factor $2^{2.7}$ of the prediction at every swept size. \emph{(iii) Root counts.} Random multilinears supported on $r = 8$ cells vanish at a random point with frequency $0.0066 \approx 1/q$, against the worst case $0.0348 \approx h/q$ (a single-cell support): the slack that defeats the naive leftover-hash argument is absent on average, as required by the route of \Cref{rem:lhl}.
+\end{remark}
+
+\begin{remark}[\Cref{conj:gkr}: decay confirmed; three measured caveats]\label{rem:numB}
+Toy GKR, $n = 5$ ($32$ leaves), $p = 17$, four secret fractions per witness, gadget = $g$ cells with values enumerated over $\Fp$ and multiplicities over $\{1,2,3\}$ ($51^g$ assignments). Exact per-coordinate distance between two witnesses over the $60$ transcript coordinates: $g = 0$: $\max = 1$, mean $0.58$; $g = 1$: $\max = 1$, mean $0.19$; $g = 2$: $\max = 0.33$, mean $0.047$; $g = 3$: $\max = 0.20$, mean $0.015$ --- decaying, with the residual maximum concentrated on multiplicity-conditioned coordinates. Sampled at $p = 251$, $n = 6$, $g = 6$, $2 \cdot 10^4$ proofs per witness: maximal bucketed marginal distance $0.023$ against a null-calibration floor of $0.024$ (two independent runs of the \emph{same} witness), while the $g = 0$ control has $72$ of $84$ coordinates deterministically distinct. Caveats discovered:
+\begin{enumerate}
+    \item \emph{Poles.} A witness denominator hitting $\gamma$ (the completeness-error event) zeroes whole den-products and produces distances $\approx 0.9$ at every budget; the conjecture must (and now does) condition on completeness.
+    \item \emph{Parity.} Gadget confined to even leaf positions: the odd level-$1$ comb is gadget-free and its den claim has distance exactly $1.0000$ (the even one: exactly $0.0000$, the den channel is perfectly masked by a single surviving uniform factor). Validates the residue-coverage hypothesis and \Cref{lem:comb}.
+    \item \emph{Collapse.} A push merged with its pull one level above the leaves ($24 \equiv 8 \bmod 16$): $\num_4$ at their node is identically $0$, and one level higher the quadratic character of $\num_3$ is \emph{constant} in the gadget value --- the surviving masking is multiplication by $D^2$, which fixes the character. Separated ($21 \not\equiv 8 \bmod 2$): both vary. Validates \Cref{lem:reach} and makes the multiplicative-smoothing caveat of \Cref{rem:nonlinear} concrete: cancelled groups mask multiplicatively only, and even-power den factors leak characters; additive survival is what mixes them.
+\end{enumerate}
+\end{remark}
+
+\begin{remark}[\Cref{conj:air}: decay confirmed; slice coverage necessary; the affine part insufficient but not load-bearing]\label{rem:numC}
+Toy zerocheck, $h = 5$ ($32$ rows), columns $(b, c = b^2, d = \text{running sum})$, transition constraint through $\mathsf{shift}(d)$, $24$ transcript coordinates. \emph{(i) Placement.} With a single contiguous padding burst (rows $27$--$30$, all sharing bits $11{*}{*}{*}$), the coordinate $h_1(0)$ has exact distance $1.0000$ between witnesses \emph{at every budget} --- the slice leak of \Cref{lem:slices}, found by this experiment. With two complementary bursts ($\{1, 2\} \cup \{29, 30\}$): max $0.059$, mean $0.021$ at $r = 4$ padded rows (space $17^4$ enumerated), decaying across the sweep. \emph{(ii) Affine rank.} Interpolated Jacobian of the transcript map at $p = 251$ w.r.t.\ $26$ padded cells: every column nonzero (\Cref{lem:fresh} holds), but the joint rank is $11$ against the fresh-coordinate bound $17$, stable across challenge seeds; enriching the constraint set ($3$ constraints, $4$ columns) raises it to $12$ of $18$. The affine span does \emph{not} saturate the bound: the purely linear mechanism of the masked WHIR is provably not available here. \emph{(iii) Cokernel test.} Exact distance along all $20$ directions annihilating the Jacobian (the affinely-blind directions): $\max = 0.055$, against a $0.0035$ floor on random directions --- the higher-order terms do mask the blind directions, at a measurable but bounded penalty. Together: the conjecture's decay is visible and no leak hides behind the marginals tested, but its proof must be about polynomial, not linear, extraction.
+\end{remark}
+
+\begin{remark}[the proof mechanisms, validated]\label{rem:numD}
+A second round of experiments validated each ingredient of \Cref{sec:linear-thms,sec:prefix} before it was written down.
+\emph{(i) Spray rank} ($p = 13$, $\extdeg = 2$, $t = 2$, conditioned challenges): measured deficiency rates $0.0048 / 0.0010 / 0.0000$ at spray sizes $5/6/7$, against the bound of \Cref{lem:spray} --- ratios $\leq 1.9$ to the leading term, covered by its factor $2^s$.
+\emph{(ii) Separability} (zerocheck, $h = 7$, $p = 251$, $12$ padded rows in two bursts, distinct classes through round $3$): cross-terms exactly zero on rounds $1$--$3$ and the evaluations, nonzero from round $4$ --- the boundary predicted by the class geometry, to the round.
+\emph{(iii) Weil factorization}: over $40$ random tests, the per-cell bias never exceeds the Weil bound, and \emph{attains} it on quadratic cells (Gauss sums are extremal); the factorized Fourier bound dominates the exact marginal distances (computed by per-cell convolution), e.g.\ $6.3 \cdot 10^{-8}$ measured against $5.0 \cdot 10^{-7}$ bounded on round-$2$ coordinates.
+\emph{(iv) \textsc{cover} and the forced relations}: the coefficient vectors of the $12$ cells span $8$ of the $16$ transcript dimensions, and the orthogonal $8$ are \emph{exactly} the predicted relations --- two round-$1$ boolean zeros, three eq-root vanishings, two chainings, one wrap identity. The first seven have constant $0$ for every witness; the wrap constant equals $-\hat{eq}(\vec\alpha, \mathrm{last}) \cdot b[\mathrm{last}]^2$ to the value ($42$ vs $57$ on the two test witnesses) --- a genuine witness-dependent leak when the wrap row is secret, which is how \Cref{lem:forced}(2) was found. With the wrap row public, \textsc{cover} holds in the strong form: the padding reaches every non-deterministic direction.
+\end{remark}
+
+\begin{remark}[the suffix and top-level mechanisms, validated]\label{rem:numE}
+A third round of experiments ($p = 251$) validated the mechanisms of \Cref{sec:gkr-top} and \Cref{prop:suffix}.
+\emph{(i) Multiplicative smoothing and the exact location of the $\chi$-leak}: for products of \emph{squared} uniform-line denominators, the exact distance between witness dilations is $\approx 0.99$ at every $k \leq 4$ when the witness ratio is a non-residue, and exactly $0$ when it is a residue; one odd-power factor restores exact invariance --- \Cref{lem:mult}(1) to the letter.
+\emph{(ii) Kloosterman smoothing}: the exact distance of $\sum_{i \leq k} \kappa_i / D_i$ to uniform decays $4 \cdot 10^{-3} \to 2.6 \cdot 10^{-10}$ for $k = 1..4$, well inside the bound of \Cref{lem:mult}(2).
+\emph{(iii) Suffix reduction}: on the $h = 7$ zerocheck toy, the last-round messages recomputed from the stored round-$5$ folded table coincide exactly with the full prover run (the public-function claim of \Cref{prop:suffix}); the folded-table coordinates have exactly zero cross-terms between padded cells (separability); and their exact marginals are masked to $4 \cdot 10^{-3}$ between witnesses at $12$ cells.
+\end{remark}
+
+\paragraph{What remains untested.} Full-transcript (rather than marginal and low-dimensional) closeness is out of reach of enumeration by construction --- the budget \cref{eq:budget} forces the padding space past anything enumerable, which is also why the sampled run at $g = 6$ probes marginals only. Still open to experiment: the small-range budget gap of \Cref{rem:gap} (reused flip coordinates, Kloosterman regime); extension-field toys for the GKR (the character effects of \Cref{rem:numB} live in $\Fq^*$ too); degree-$5$-plus constraint sets approaching the execution AIR; and the within-block nondegeneracy conditions of \Cref{rem:prefix-scope}.
+
+\section{Open problems}
+
+\begin{enumerate}
+    \item Close the small-range budget gap (\Cref{rem:gap}): extend \Cref{thm:smallomega} past the spray, where flip coordinates are reused and Kloosterman-type bounds replace exact independence. This is now the main quantitative gap: it also gates the rigid-column folds in \Cref{prop:suffix}.
+    \item Prove the \textsc{cover}/\textsc{spread}-type conditions of \Cref{thm:prefix,thm:blocks} from first principles (currently numerically verified and partially Schwartz--Zippel-certified, like the pinning condition of the parent document), and pin down the Weil--Katz constants for character sums along $\Fp$-lines in $\Fq$ used by \Cref{lem:mult} outside the prime-field case.
+    \item The GKR middle levels: interpolate \Cref{prop:gkr-top} (top, multiplicative) and the leaf-side separable machinery, in the manner of \Cref{thm:blocks}; the per-comb survival bookkeeping is the missing piece.
+    \item The bad challenge sets of \Cref{conj:gkr,conj:air} are witness-dependent (\Cref{rem:no-pure}); determine whether a statement-determined good set can be recovered, as in the masked WHIR, by constraining the gadget further (e.g.\ forcing data-free affine coefficients in designated rounds).
+    \item Quantify the multiplicative smoothing of \Cref{rem:nonlinear} (products of uniform affine-line elements in $\Fq^*$): a clean local limit statement would substantially de-risk \Cref{conj:gkr}. \Cref{rem:numB} exhibits the obstruction concretely: even-power den factors fix the quadratic character, so the smoothing must come from the odd-power and additive contributions.
+    \item The interaction with the masked WHIR is currently additive (two separate masking mechanisms); whether the WHIR masks $R_{\mathsf{in}}, R_{\mathsf{out}}$ can double as channel-(E) padding (they live in the same committed polynomial) would shave the residual overhead.
+    \item Inherited: zero-knowledge of the BCS/Fiat--Shamir compilation.
+\end{enumerate}
+
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+\end{document}
