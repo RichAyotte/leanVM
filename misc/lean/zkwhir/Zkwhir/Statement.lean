@@ -484,6 +484,11 @@ structure Hyp : Prop where
   budget : P.t₀ + extDeg P Fq * (2 + P.s₁) ≤ 2 ^ P.a
   /-- the extension degree is prime -/
   dPrime : (extDeg P Fq).Prime
+  /-- the extension degree is odd (`= 5` for KoalaBear). Needed for the
+  exact node count of `lem:nodeprob`: the cofactor `(q−1)/(p−1)` must be
+  odd — for even degree the set `{z : z^(2^k₀) ∈ F_p}` is strictly larger
+  than `p` and the `(s₀+s₁)·p/q` term would not hold. -/
+  dOdd : Odd (extDeg P Fq)
   /-- enough folding variables: `k₀ ≥ d` -/
   d_le_k₀ : extDeg P Fq ≤ P.k₀
   /-- `2^k₀` divides `p − 1` -/

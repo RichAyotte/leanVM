@@ -507,6 +507,70 @@ theorem card_triangle (n : ℕ) :
     Fin.sum_univ_eq_sum_range (fun i => i), Finset.sum_range_id,
     Nat.choose_two_right]
 
+/-! ## Parameter arithmetic
+
+`q = p^d` makes `(p−1) ∣ (q−1)`, and for odd `d` (and odd `p`) the
+cofactor `(q−1)/(p−1) = 1 + p + … + p^(d−1)` is odd, hence coprime to
+`2^k₀`. Discharges the counting hypotheses from the protocol parameters. -/
+
+theorem geom_sum_mul_eq (p d : ℕ) (hp : 1 ≤ p) :
+    (p - 1) * (∑ i ∈ Finset.range d, p ^ i) = p ^ d - 1 := by
+  induction d with
+  | zero => simp
+  | succ d ih =>
+    rw [Finset.sum_range_succ, Nat.mul_add, ih]
+    have h1 : 1 ≤ p ^ d := Nat.one_le_pow _ _ (by omega)
+    have h2 : p ^ (d + 1) = p ^ d * p := pow_succ p d
+    have h4 : (p - 1) * p ^ d = p ^ d * p - p ^ d := by
+      rw [Nat.sub_mul, one_mul, mul_comm]
+    have h5 : p ^ d ≤ p ^ d * p := Nat.le_mul_of_pos_right _ (by omega)
+    omega
+
+theorem geom_sum_odd (p d : ℕ) (hpodd : Odd p) (hdodd : Odd d) :
+    Odd (∑ i ∈ Finset.range d, p ^ i) := by
+  rw [Nat.odd_iff, Finset.sum_nat_mod]
+  have hmod : (∑ i ∈ Finset.range d, p ^ i % 2) =
+      ∑ _i ∈ Finset.range d, 1 := by
+    refine Finset.sum_congr rfl fun i _ => ?_
+    exact Nat.odd_iff.mp (Odd.pow hpodd)
+  rw [hmod, Finset.sum_const, Finset.card_range, smul_eq_mul, mul_one]
+  exact Nat.odd_iff.mp hdodd
+
+/-- `(p − 1) ∣ (q − 1)` from `q = p^d`. -/
+theorem pdvd_of_card
+    (hcard : Fintype.card Fq = P.p ^ Module.finrank (Fp P) Fq) :
+    (P.p - 1) ∣ (Fintype.card Fq - 1) := by
+  have hp := P.pPrime.two_le
+  refine ⟨∑ i ∈ Finset.range (Module.finrank (Fp P) Fq), P.p ^ i, ?_⟩
+  rw [hcard, ← geom_sum_mul_eq P.p _ (by omega)]
+
+/-- The cofactor `(q−1)/(p−1)` is coprime to `2^k₀` for odd degree. -/
+theorem cop_of_card
+    (hcard : Fintype.card Fq = P.p ^ Module.finrank (Fp P) Fq)
+    (hdvd2 : 2 ^ P.k₀ ∣ P.p - 1)
+    (hdodd : Odd (Module.finrank (Fp P) Fq)) :
+    Nat.Coprime (2 ^ P.k₀) ((Fintype.card Fq - 1) / (P.p - 1)) := by
+  have hp := P.pPrime.two_le
+  have hpne2 : P.p ≠ 2 := by
+    intro h2
+    rw [h2] at hdvd2
+    have hle := Nat.le_of_dvd one_pos hdvd2
+    have h2k : 2 ^ 1 ≤ 2 ^ P.k₀ :=
+      Nat.pow_le_pow_right (by norm_num) P.k₀_pos
+    simp at h2k
+    omega
+  have hpodd : Odd P.p := P.pPrime.odd_of_ne_two hpne2
+  have hM : (Fintype.card Fq - 1) / (P.p - 1) =
+      ∑ i ∈ Finset.range (Module.finrank (Fp P) Fq), P.p ^ i := by
+    refine Nat.div_eq_of_eq_mul_left (by omega) ?_
+    rw [hcard, ← geom_sum_mul_eq P.p _ (by omega), mul_comm]
+  rw [hM]
+  refine Nat.Coprime.pow_left _ (Nat.prime_two.coprime_iff_not_dvd.mpr ?_)
+  intro hdvd
+  have hodd := Nat.odd_iff.mp
+    (geom_sum_odd P.p (Module.finrank (Fp P) Fq) hpodd hdodd)
+  omega
+
 /-- **The node-genericity failure bound** (`lem:nodeprob`): the probability
 that `NodeHyp` fails is at most `(2+s₁)·p/q + C(2+s₁,2)·d·2^k₀/q`. -/
 theorem nodeHyp_failure_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
