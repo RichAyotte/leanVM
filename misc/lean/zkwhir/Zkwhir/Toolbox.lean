@@ -136,4 +136,22 @@ theorem coupled_blocks {ι₁ ι₂ ρ : Type*} [Fintype ρ]
     · exact absurd h0 hω₂
   exact ⟨hμ₁, hμ₂, hν⟩
 
+/-- **Chain matrices, annihilation** (`lem:chain`): with
+`ρ_ℓ = ω + ∑_{i<ℓ} λ_i τ_i`, `row(ℓ,1) = A_ℓ ρ_ℓ + B_ℓ τ_ℓ`, and
+`row(ℓ,2) = C_ℓ τ_ℓ`, the kernel vector `κ_ℓ` — coefficient `1` on
+`row(ℓ,1)`, `−B_ℓ/C_ℓ` on `row(ℓ,2)`, `−A_ℓ` on `ω`, `−A_ℓ λ_i / C_i` on
+`row(i,2)` for `i < ℓ` — annihilates the rows. -/
+theorem chain_kernel_annihilates {M : Type*} [AddCommGroup M] [Module F M]
+    (ω : M) (τ : Fin k → M) (lam A B C : Fin k → F)
+    (hC : ∀ ℓ, C ℓ ≠ 0) (ℓ : Fin k) :
+    (A ℓ • (ω + ∑ i ∈ Finset.Iio ℓ, lam i • τ i) + B ℓ • τ ℓ)
+      - (B ℓ / C ℓ) • (C ℓ • τ ℓ)
+      - A ℓ • ω
+      - ∑ i ∈ Finset.Iio ℓ, (A ℓ * lam i / C i) • (C i • τ i) = 0 := by
+  have h1 : (B ℓ / C ℓ) * C ℓ = B ℓ := div_mul_cancel₀ _ (hC ℓ)
+  have h2 : ∀ i, (A ℓ * lam i / C i) * C i = A ℓ * lam i := fun i =>
+    div_mul_cancel₀ _ (hC i)
+  simp only [smul_smul, h1, h2, smul_add, Finset.smul_sum]
+  abel
+
 end ZkWhir
