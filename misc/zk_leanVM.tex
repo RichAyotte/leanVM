@@ -34,11 +34,11 @@
 
 This document is a companion to \texttt{minimal\_zkVM.tex}: it develops a zero-knowledge variant of the LeanVM proving system. Notation, the WHIR protocol, the stacking, and the constants are as defined there, and are not redefined here.
 
-Target: statistical zero-knowledge with $\lambda$ bits of security (i.e. a simulator should be able to produce a transcript whose distribution is at statistical distance at most $2^{-\lambda}$ from the real (honest-prover) transcript distribution).
+Target: statistical zero-knowledge with $\lambda$ bits of security (i.e.\ a simulator should be able to produce a transcript whose distribution is at statistical distance at most $2^{-\lambda}$ from the real, honest-prover transcript distribution).
 
 \section{WHIR}\label{sec:zk-whir}
 
-The WHIR transcript consists of: the out-of-domain answers; the sumcheck messages ($k_i$ degree-2 univariates per iteration, then $m_M$ final ones); the STIR openings; the final polynomial $\hat{f}_M$, sent in the clear. (TODO handle the Merkle roots and the opened authentication paths?)
+The WHIR transcript consists of: the out-of-domain answers; the sumcheck messages ($k_i$ degree-2 univariates per iteration, then $m_M$ final ones); the STIR openings; the final polynomial $\hat{f}_M$, sent in the clear. (TODO: the \emph{BCS transform}~\cite{BCS}, which compiles the interactive oracle proof into a non-interactive argument via Merkle commitments and Fiat--Shamir, additionally contributes the Merkle roots and the opened authentication paths; this layer is not handled yet.)
 
 Making the claimed value $c$ (input of the opening) ZK is the job of \Cref{sec:zk-logup-gkr,sec:zk-air-sumcheck,sec:zk-column-evals}.
 
@@ -48,12 +48,12 @@ Making the claimed value $c$ (input of the opening) ZK is the job of \Cref{sec:z
 
 \textbf{2. Layout.} Two uniformly random \emph{masks} are committed next to the data:
 \[
-P \;=\; \underbrace{\,\text{stacking} \;\Vert\; 0 \cdots 0 \;\Vert\; R_{\textsf{in}}\,}_{P(0,\, \cdot\,) \text{ : the data half}} \;\Big\Vert\; \underbrace{\,R_{\textsf{out}}\,}_{P(1,\, \cdot\,)}
+P \;=\; \underbrace{\,\text{stacking} \;\Vert\; 0 \cdots 0 \;\Vert\; R_{\mathsf{in}}\,}_{P(0,\, \cdot\,) \text{ : the data half}} \;\Big\Vert\; \underbrace{\,R_{\mathsf{out}}\,}_{P(1,\, \cdot\,)}
 \]
 \begin{itemize}
-    \item The stacking part (containing the secret data) is unchanged, we simply commit to a bigger polynomial, in order to fit $R_{\textsf{in}}$ and $R_{\textsf{out}}$.
-    \item The mask $R_{\textsf{out}}$ fills the second half with i.i.d. uniform $\Fp$ cells.
-    \item The mask $R_{\textsf{in}}$ is a uniformly random segment occupying the \emph{last} $2^{k_0 - 1 + a}$ cells of the first half of the polynomial, with $2^a \geq t_0 + \extdeg \cdot (s_0 + s_1)$ (negligible in practice).
+    \item The stacking part (containing the secret data) is unchanged: we simply commit to a bigger polynomial, to fit $R_{\mathsf{in}}$ and $R_{\mathsf{out}}$.
+    \item The mask $R_{\mathsf{out}}$ fills the second half with i.i.d. uniform $\Fp$ cells.
+    \item The mask $R_{\mathsf{in}}$ is a uniformly random segment occupying the \emph{last} $2^{k_0 - 1 + a}$ cells of the first half of the polynomial, with $2^a \geq t_0 + \extdeg \cdot (s_0 + s_1)$ (a negligible size in practice).
 \end{itemize}
 
 \textbf{3. Out-of-domain count.} We require $s_0 \geq 2$ out-of-domain points at commitment. This is a zero-knowledge requirement, not necessarily a soundness one: with $s_0 = 1$, the round-0 sumcheck messages can never be masked, whatever the size of the masks (see the proof sketch).
@@ -70,25 +70,51 @@ There is no further change; in particular, the prover performs no check. The ana
 
 \vspace{2mm}
 
-\textbf{Prover overhead.} Roughly 2x.
+\textbf{Prover overhead.} Roughly $2\times$: the committed polynomial doubles in size.
 
 \subsection{Why it is zero-knowledge (sketch)}\label{sec:zk-sketch}
 
 We go through the transcript in order.
 
 \begin{itemize}
-    \item \emph{Round-0 STIR openings.} For $s \in \{0,1\}^{k_0}$, let $u_s \in \Fp^{2^{n - k_0}}$ be the vector of cells whose round-0 coordinates equal $s$. By locality, a query at $z$ reveals exactly the $2^{k_0}$ evaluations $\hat{u}_s(\pow(z, n - k_0))$. The $u_s$ with $X_1$-coordinate $1$ partition $R_{\textsf{out}}$: they are entirely random. (Their revealed evaluations do consume some of $R_{\textsf{out}}$'s randomness; the $\hat{f}_1$ item below accounts for this.) Each $u_s$ with $X_1$-coordinate $0$ contains data, but ends with $2^a$ i.i.d. random cells (its share of $R_{\textsf{in}}$), and is evaluated at most $t_0$ times (duplicates reveal nothing new). The contribution of these $2^a$ random cells to $\hat{u}_s(\pow(z, \cdot))$ is $z^{2^{n-k_0} - 2^a}\, g(z)$, where $g$ ranges uniformly over all univariate polynomials of degree $< 2^a$ as the random cells vary. A polynomial of degree $< 2^a$ can take any values at up to $2^a$ distinct points, and the prefactor never vanishes: the fiber part of \textsc{independence} holds automatically. This is a Vandermonde system.
+    \item \emph{Round-0 STIR openings.} For $s \in \{0,1\}^{k_0}$, let $u_s \in \Fp^{2^{n - k_0}}$ be the vector of cells whose round-0 coordinates equal $s$. By locality, a query at $z$ reveals exactly the $2^{k_0}$ evaluations $\hat{u}_s(\pow(z, n - k_0))$. The $u_s$ with $X_1$-coordinate $1$ partition $R_{\mathsf{out}}$: they are entirely random. (Their revealed evaluations do consume some of $R_{\mathsf{out}}$'s randomness; the $\hat{f}_1$ item below accounts for this.) Each $u_s$ with $X_1$-coordinate $0$ contains data, but ends with $2^a$ i.i.d. random cells (its share of $R_{\mathsf{in}}$), and is evaluated at most $t_0$ times (duplicates reveal nothing new). The contribution of these $2^a$ random cells to $\hat{u}_s(\pow(z, \cdot))$ is $z^{2^{n-k_0} - 2^a}\, g(z)$, where $g$ ranges uniformly over all univariate polynomials of degree $< 2^a$ as the random cells vary. A polynomial of degree $< 2^a$ can take any values at up to $2^a$ distinct points (a Vandermonde system), and the prefactor never vanishes: the fiber part of \textsc{independence} holds automatically.
     
     \begin{remark}
     The random cells must sit at the \emph{end} of $u_s$. There, the fixed coordinates of the evaluation point all carry the bit $1$, contributing the prefactor $z^{2^a} z^{2^{a+1}} \cdots z^{2^{n-k_0-1}} = z^{2^{n-k_0} - 2^a}$. Elsewhere, a fixed coordinate carrying the bit $0$ would contribute a factor $(1 - z^{2^i})$, which vanishes on small-order $z$, a constant fraction of the queries.
     \end{remark}
     \item \emph{Out-of-domain answers.} Restricted to one $u_s$, an out-of-domain answer at $z$ is a point evaluation of the same univariate, at $z^{2^{k_0}}$, times a factor depending on $s$, nonzero unless $z = 0$ or $z^{2^{k_0 - 1}} = 1$: probability at most $2^{k_0}/q$. (For the $s_1$ samples on $\hat{f}_1$: a factor $\hat{eq}(\vec{\alpha}_0, s)$ appears, nonzero unless a challenge lies in $\{0, 1\}$: at most $2 k_0/q$.) The out-of-domain points join the Vandermonde system as extra nodes; hence the size $2^a \geq t_0 + \extdeg(s_0 + s_1)$. An $\Fq$-node counts as $\extdeg$ independent linear combinations, because $\Fq$ has no proper intermediate subfield, provided the node lies outside $\Fp$: this fails with probability exactly $p/q$ per node. (For a commitment node: the set $\{z : z^{2^{k_0}} \in \Fp\}$ has size exactly $p$, since the $2^{k_0}$-th powers inside $\Fp^*$ form the subgroup of order $(p-1)/2^{k_0}$, using $2^{k_0} \mid p-1$, and each has $2^{k_0}$ preimages.) These events, of order $p/q \approx 2^{-124}$ for KoalaBear, dominate the total. Finally, the nodes must be pairwise distinct and non-Frobenius-conjugate: at most $\extdeg \, 2^{k_0}/q$ per pair (an orbit has $\extdeg$ elements, each with at most $2^{k_0}$ preimages).
-    \item \emph{Round-0 sumcheck messages.} Restricted to the mask cells, each fresh coefficient is a linear combination of the per-class node values, with explicit public weights coming from the out-of-domain part of $\hat{W}_0$ (the input weight $\hat{w}$ also contributes cross-terms, but they vanish identically on the last $2^a$ cells of \emph{every} class, because the slice of $\hat{w}$ through such a cell crosses only unclaimed and mask positions; the masking flows entirely through these cross-free cells). With a single out-of-domain point, these node weights satisfy $k_0 + 1$ exact linear dependencies, valid for \emph{every} choice of challenges: the sumcheck recursion and the terminal claim, restricted to node components. The node channel can then never mask all the values: this is why we require $s_0 \geq 2$. With two points, the two recursions have different coefficients, and the $2 k_0 + 2$ values (two answers, $2k_0$ fresh coefficients) become jointly independent combinations of the node values: proved in \Cref{thm:twopoint}, under explicit per-slot conditions failing with probability at most $(4 \cdot 2^{k_0} + 2k_0)/q$ (\Cref{cor:twopointprob}; verified numerically: rank $16/16$ at $k_0 = 7$, against $8/15$ for $s_0 = 1$). Every class, data or mask, ends with $2^a$ random cross-free cells, through which all its evaluations at the queried points and the nodes are jointly fresh (Chinese remaindering, \Cref{lem:crt}). Under \textsc{independence}, all the round-0 reveals are jointly uniform.
+    \item \emph{Round-0 sumcheck messages.} Notation: $z_1, z_2 \in \Fq$ are the two out-of-domain points sampled at commitment ($s_0 = 2$) and $y_1, y_2$ their answers; write $\zeta^{(j)}_i := z_j^{2^{i-1}}$ and $\vec{\zeta}^{(j)} := (\zeta^{(j)}_1, \dots, \zeta^{(j)}_{k_0})$, and the \emph{nodes} are $\nu_j := \pow(z_j^{2^{k_0}}, n - k_0)$, so that, in folding order, $\pow(z_j, n) = (\vec{\zeta}^{(j)}, \nu_j)$; the batched weight is $\hat{W}_0 = \hat{eq}(\pow(z_1, n), \cdot) + \gamma\, \hat{eq}(\pow(z_2, n), \cdot) + \gamma^2\, \hat{w}$. Round $0$ reveals $2k_0 + 2$ values: the two answers, and two \emph{fresh} coefficients per sumcheck message $\hat{h}_\ell$, $\ell = 1, \dots, k_0$ (the degree-$2$ univariate of the $\ell$-th round, written out in \Cref{sec:setting}; the third coefficient is pinned by $\hat{h}_\ell(0) + \hat{h}_\ell(1) = \sigma$). We sketch why they are jointly uniform.
+    \begin{enumerate}
+        \item \emph{All the messages come from one polynomial.} In the defining sum of $\hat{h}_\ell$, sum the position coordinates first: what remains is a partial boolean sum of a single polynomial $\hat{H}$ in the $k_0$ round-$0$ variables,
+        \[
+        \hat{H}(Y) \;:=\; \sum_{c \in \{0,1\}^{n - k_0}} \hat{f}_0(Y, c)\, \hat{W}_0(Y, c) , \qquad \hat{h}_\ell(X) \;=\; \sum_{b \in \{0,1\}^{k_0 - \ell}} \hat{H}(\alpha_1, \dots, \alpha_{\ell - 1}, X, b) .
+        \]
+        \item \emph{$\hat{H}$ splits into two masked channels and a data part.} Split $\hat{W}_0$ into its three terms. In the out-of-domain ones, $\hat{eq}((\vec{\zeta}^{(j)}, \nu_j), (Y, c)) = \hat{eq}(\vec{\zeta}^{(j)}, Y)\, \hat{eq}(\nu_j, c)$, and $\sum_c \hat{f}_0(Y, c)\, \hat{eq}(\nu_j, c) = \hat{f}_0(Y, \nu_j)$, since $\hat{f}_0$ is multilinear in the position coordinates (Lagrange). With $G_j(Y) := \hat{f}_0(Y, \nu_j)$ and $\hat{H}^w(Y) := \sum_c \hat{f}_0(Y, c)\, \hat{w}(Y, c)$:
+        \[
+        \hat{H}(Y) \;=\; \hat{eq}\big(\vec{\zeta}^{(1)}, Y\big)\, G_1(Y) \;+\; \gamma\, \hat{eq}\big(\vec{\zeta}^{(2)}, Y\big)\, G_2(Y) \;+\; \gamma^2\, \hat{H}^w(Y) .
+        \]
+        The $G_j$ are multilinear in $k_0$ variables; their values on the hypercube are the \emph{node values} $G_j(s) = \hat{u}_s(\nu_j) =: V_{s,j}$; and $y_j = G_j(\vec{\zeta}^{(j)})$.
+        \item \emph{The masks act on $(G_1, G_2)$ alone.} The masking argument uses only the last $2^a$ cells of each class (the \emph{blocks}). At a block position $c$, $\hat{w}(\cdot, c) = 0$ (\Cref{lem:blocks}): the blocks are absent from $\hat{H}^w$, and they act on the two other terms through their contribution to $(V_{s,1}, V_{s,2})$ only. So, whatever the size of $R_{\mathsf{in}}$, the masks control exactly the $2 \cdot 2^{k_0}$ numbers $(V_{s,j})$, that is, the pair $(G_1, G_2)$, and nothing else in $\hat{H}$.
+        \item \emph{The masked part of the messages superposes two sumcheck transcripts.} By steps 1 and 2, the contribution of the channel $j$ to $\hat{h}_\ell$ is exactly the $\ell$-th message of the standard sumcheck proving the evaluation claim $G_j(\vec{\zeta}^{(j)}) = y_j$, with its weight $\hat{eq}(\vec{\zeta}^{(j)}, \cdot)$; resumming the boolean coordinates as in step 2, it equals
+        \[
+        \Big[ \prod_{i < \ell} \hat{eq}\big(\zeta^{(j)}_i, \alpha_i\big) \Big]\; \hat{eq}\big(\zeta^{(j)}_\ell, X\big)\; g^{(j)}_\ell(X) ,
+        \]
+        with
+        \[
+        g^{(j)}_\ell(X) \;:=\; G_j\big(\alpha_1, \dots, \alpha_{\ell-1},\, X,\, \zeta^{(j)}_{\ell+1}, \dots, \zeta^{(j)}_{k_0}\big) :
+        \]
+        public factors times an \emph{affine} polynomial ($G_j$ is multilinear and only $X$ is free). Directly from this definition, each transcript is a \emph{chain}:
+        \[
+        g^{(j)}_1\big(\zeta^{(j)}_1\big) \;=\; y_j , \quad g^{(j)}_{\ell+1}\big(\zeta^{(j)}_{\ell+1}\big) \;=\; g^{(j)}_\ell(\alpha_\ell) , \quad g^{(j)}_{k_0}(\alpha_{k_0}) \;=\; G_j(\vec{\alpha}_0) \;=\; \hat{f}_1(\nu_j) ,
+        \]
+        the last relation being the exit: it pins the node evaluations of $\hat{f}_1$, taken up in the next item. A chained affine carries one fresh dimension, so the masked content of the round-0 view is $y_1, y_2$ plus two fresh dimensions per round: $2k_0 + 2$, exactly the number of revealed values. (With a single point, the same count gives $k_0 + 1$ masked dimensions for $2k_0 + 1$ values, and the $k_0$ missing directions show the data, whatever the size of the masks: \Cref{prop:rank,rem:identities}. This is why $s_0 \geq 2$.)
+        \item \emph{Full rank, generically.} Each message shows only the $\gamma$-weighted \emph{sum} of the two chains' contributions, so it remains to check that no combination of the $2k_0 + 2$ revealed values escapes both chains: they are jointly independent functionals of the $(V_{s,j})$, proved in \Cref{thm:twopoint} under per-slot conditions ($\zeta^{(1)}_\ell \neq \zeta^{(2)}_\ell$ and $(2\zeta^{(1)}_\ell - 1)(2\zeta^{(2)}_\ell - 1) \neq -1$) failing with probability at most $(4 \cdot 2^{k_0} + 2k_0)/q$ (\Cref{cor:twopointprob}; verified numerically: rank $16/16$ at $k_0 = 7$). Finally, the blocks realize any prescribed $(V_{s,1}, V_{s,2})$ jointly with the queried-point evaluations (Chinese remaindering, \Cref{lem:crt}): under \textsc{independence}, the round-0 reveals are jointly uniform.
+    \end{enumerate}
     \item \emph{The folded polynomial $\hat{f}_1$.} Each coefficient of $\hat{f}_1$ mixes data and mask:
     \[
-    \hat{f}_1[c] \;=\; \big(\text{combination of data cells}\big) \;+ \sum_{s' \in \{0,1\}^{k_0 - 1}} \hat{eq}\big(\vec{\alpha}_0, (1, s')\big)\, R_{\textsf{out}}[(c, s')].
+    \hat{f}_1[c] \;=\; \big(\text{combination of data cells}\big) \;+ \sum_{s' \in \{0,1\}^{k_0 - 1}} \hat{eq}\big(\vec{\alpha}_0, (1, s')\big)\, R_{\mathsf{out}}[(c, s')].
     \]
-    The random cells on the right are disjoint across $c$, with weights independent of $c$. If these $2^{k_0 - 1}$ weights span $\Fq$ over $\Fp$, which is exactly the \textsc{spread} condition, then every coefficient is uniform, independently: $\hat{f}_1$ is a uniformly random polynomial. (\textsc{spread} fails with probability at most $2/q$: \Cref{lem:spread} below.) One subtlety: round 0 already revealed information about $R_{\textsf{out}}$, so conditioned on the view, $\hat{f}_1$ is no longer fully uniform. The leak has a narrow structure. Fibers and out-of-domain answers touch a mask class only through its evaluations at the \emph{nodes} (the queried points and the out-of-domain nodes), and the sumcheck messages add at most $2k_0$ further combinations: condition on all of them. Each mask class then remains uniform on the subspace $V \subseteq \Fp^{2^{n - k_0}}$ of vectors vanishing at every node, the \emph{same} subspace for every class, cut by the few sumcheck combinations. Under \textsc{spread}, the mix of these $2^{k_0 - 1}$ independent residuals in the display above is uniform on a subspace $W$ of small explicit codimension ($W = V \otimes_{\Fp} \Fq$, ignoring the sumcheck cut: \Cref{lem:absorb}). So, given the view, $\hat{f}_1$ is uniform on an explicit coset of $W$: every direction outside the annihilator of $W$ (the combinations vanishing on $W$) is perfectly masked. The annihilator is spanned by the evaluations at the nodes and the few inherited sumcheck directions, and on each of its directions the conditional value of $\hat{f}_1$ is a function of the view, which the simulator generates itself. Among these pinned directions sit the constraints the protocol checks anyway: $\hat{f}_1(\pow(z_t, n - k_0)) = \fold(f_0, \vec{\alpha}_0)(z_t)$ for each queried $z_t$; the $s_1$ out-of-domain answers; and the running sumcheck claim $\sum_b \hat{f}_1(b)\, \hat{W}_0(\vec{\alpha}_0, b) = \sigma$, with $\sigma$ the target at the end of the round-0 sumcheck. (The list is not exhaustive: the evaluations of $\hat{f}_1$ at the commitment nodes are also pinned, their node combinations lying in the span of the revealed values by \Cref{thm:twopoint}. Pinned directions are harmless: their values are computable from the view.)
+    The random cells on the right are disjoint across $c$, with weights independent of $c$. If these $2^{k_0 - 1}$ weights span $\Fq$ over $\Fp$, which is exactly the \textsc{spread} condition, then every coefficient is uniform, independently: $\hat{f}_1$ is a uniformly random polynomial. (\textsc{spread} fails with probability at most $2/q$: \Cref{lem:spread} below.) One subtlety: round 0 already revealed information about $R_{\mathsf{out}}$, so conditioned on the view, $\hat{f}_1$ is no longer fully uniform. The leak has a narrow structure. Fibers and out-of-domain answers touch a mask class only through its evaluations at the \emph{nodes} (the queried points and the out-of-domain nodes), and the sumcheck messages add at most $2k_0$ further combinations: condition on all of them. Each mask class then remains uniform on the subspace $V \subseteq \Fp^{2^{n - k_0}}$ of vectors vanishing at every node, the \emph{same} subspace for every class, cut by the few sumcheck combinations. Under \textsc{spread}, the mix of these $2^{k_0 - 1}$ independent residuals in the display above is uniform on a subspace $W$ of small explicit codimension ($W$ is the $\Fq$-span of $V$, cut by those combinations: the mix is an $\Fp$-linear surjection onto the span, and a surjective linear image of a uniform variable is uniform). So, given the view, $\hat{f}_1$ is uniform on an explicit coset of $W$: every direction outside the annihilator of $W$ (the combinations vanishing on $W$) is perfectly masked. The annihilator is spanned by the evaluations at the nodes and the few inherited sumcheck directions, and on each of its directions the conditional value of $\hat{f}_1$ is a function of the view, which the simulator generates itself. Among these pinned directions sit the constraints the protocol checks anyway: $\hat{f}_1(\pow(z_t, n - k_0)) = \fold(f_0, \vec{\alpha}_0)(z_t)$ for each queried $z_t$; the $s_1$ out-of-domain answers; and the running sumcheck claim $\sum_b \hat{f}_1(b)\, \hat{W}_0(\vec{\alpha}_0, b) = \sigma$, with $\sigma$ the target at the end of the round-0 sumcheck. (The list is not exhaustive: the evaluations of $\hat{f}_1$ at the commitment nodes are also pinned, their node combinations lying in the span of the revealed values by \Cref{thm:twopoint}. Pinned directions are harmless: their values are computable from the view.)
     \item \emph{Everything after round 0.} The oracles $f_1, \dots, f_{M-1}$, their fibers and out-of-domain answers, the remaining sumcheck messages, $\hat{f}_M$ and the final sumcheck are all deterministic functions of $\hat{f}_1$, the claims, and public challenges. Consequently, the honest transcript is identically distributed for any two witnesses with the same claimed values. \Cref{sec:simulator} turns this sketch into a theorem (\Cref{thm:simulator}), with the simplest possible simulator: the honest prover run on substitute data computed from the statement.
 \end{itemize}
 
@@ -101,7 +127,11 @@ which is at most $2/q$ for the practical parameters ($k_0 = 7$, $\extdeg = 5$: t
 \end{lemma}
 
 \begin{proof}
-Since $\hat{eq}(\alpha, 0) = 1 - \alpha$ and $\hat{eq}(\alpha, 1) = \alpha$, expanding the products shows that the family $\{\hat{eq}(\vec{\alpha}_0, (1, s'))\}_{s'}$ and the family $\{\alpha_1 \prod_{i \in S} \alpha_i : S \subseteq \{2, \dots, k_0\}\}$ are related by an invertible $\Fp$-linear transform (unitriangular with respect to the subset order): they have the same $\Fp$-span. If $\alpha_1 = 0$ (probability $1/q$) the span is $\{0\}$; otherwise multiplication by $\alpha_1$ preserves spanning, so it suffices to study $V_{k_0}$, where
+Since $\hat{eq}(\alpha, 0) = 1 - \alpha$ and $\hat{eq}(\alpha, 1) = \alpha$, writing $A := \{i \geq 2 : s'_i = 1\}$ and expanding the factors $(1 - \alpha_i)$ gives
+\[
+\hat{eq}\big(\vec{\alpha}_0, (1, s')\big) \;=\; \alpha_1 \prod_{i \in A} \alpha_i \;+\; \text{($\pm 1$)-combination of the monomials } \alpha_1 \!\prod_{i \in S} \alpha_i \text{ with } S \supsetneq A .
+\]
+By downward induction on $|A|$, each monomial $\alpha_1 \prod_{i \in S} \alpha_i$, $S \subseteq \{2, \dots, k_0\}$, is in turn an integer combination of the family $\{\hat{eq}(\vec{\alpha}_0, (1, s'))\}_{s'}$: the two families have the same $\Fp$-span. If $\alpha_1 = 0$ (probability $1/q$) the span is $\{0\}$; otherwise multiplication by $\alpha_1$ preserves spanning, so it suffices to study $V_{k_0}$, where
 \[
 V_j \;:=\; \mathrm{span}_{\Fp}\Big\{ \prod_{i \in S} \alpha_i \;:\; S \subseteq \{2, \dots, j\} \Big\} , \qquad \text{so that } V_1 = \Fp \text{ and } V_j = V_{j-1} + \alpha_j V_{j-1} .
 \]
@@ -110,13 +140,13 @@ We claim: if an $\Fp$-subspace $V$ satisfies $1 \in V$ and $V \neq \Fq$, then $T
 Consequently, whenever $V_{j-1} \neq \Fq$ and $\alpha_j \notin \Fp$, we have $\alpha_j V_{j-1} \not\subseteq V_{j-1}$, hence $\dim_{\Fp} V_j \geq \dim_{\Fp} V_{j-1} + 1$. Starting from $\dim_{\Fp} V_1 = 1$, if at least $\extdeg - 1$ of $\alpha_2, \dots, \alpha_{k_0}$ lie outside $\Fp$, then $V_{k_0} = \Fq$. Failure therefore requires at least $(k_0 - 1) - (\extdeg - 2) = k_0 - \extdeg + 1$ of them to lie in $\Fp$; each does so independently with probability $p/q$, and a union bound over the $\binom{k_0 - 1}{k_0 - \extdeg + 1}$ choices concludes.
 \end{proof}
 
-Open question: the Fiat--Shamir and Merkle layers. \Cref{cor:statzk} proves the \emph{interactive} protocol statistically zero-knowledge against the honest verifier, at distance $\approx 2^{-122}$, with no prover-side check.
+Open question: the BCS transform. \Cref{cor:statzk} proves the \emph{interactive} protocol statistically zero-knowledge against the honest verifier, at distance $\approx 2^{-122}$, with no prover-side check.
 
 \section{Proofs for the masked WHIR}
 
-We analyse the linear algebra of the values revealed during round 0 of the masked opening, and prove the lemmas behind the \textsc{independence} condition and the absorption argument of \Cref{sec:zk-sketch}. Two structural results first. Negative: with a single commitment out-of-domain point ($s_0 = 1$), the round-0 values satisfy $k_0 + 1$ exact linear dependencies in their node components, for every choice of challenges; these dependencies are protocol identities (the sumcheck recursion and the terminal sumcheck claim), and no mask size can compensate them (\Cref{prop:rank}). Positive: with $s_0 = 2$, the values become jointly independent combinations of the node values, under explicit per-slot conditions (\Cref{thm:twopoint}). We then close the analysis: the cross-terms of the input weight vanish identically on a block of every class (\Cref{lem:blocks}), which upgrades \Cref{thm:twopoint} to the joint uniformity of the full round-0 view (\Cref{prop:uniform}); and \Cref{sec:simulator} constructs the simulator: the simulation is perfect on an explicit good set of challenge tuples, and the complement is bounded and absorbed into the statistical error (\Cref{cor:statzk}).
+We analyse the linear algebra of the values revealed during round 0 of the masked opening, and prove the lemmas behind the \textsc{independence} condition of \Cref{sec:zk-sketch}. The route: \Cref{sec:slot,sec:rank} work at a single out-of-domain point and compute the revealed values as linear forms in the per-class node values, with an explicit rank and kernel (\Cref{prop:rank}); \Cref{sec:twopoint} assembles two points into joint independence, under explicit per-slot conditions (\Cref{thm:twopoint}; stated at $s_0 = 2$, the case we instantiate, while \Cref{rem:s0} treats $s_0 > 2$). The cross-freeness of the blocks (\Cref{lem:blocks}) then upgrades independence to the joint uniformity of the full round-0 view (\Cref{prop:uniform}), and \Cref{sec:simulator} builds the simulator: perfect simulation on an explicit good set of challenge tuples, whose complement is bounded (\Cref{cor:restart}) and absorbed into the statistical error (\Cref{cor:statzk}).
 
-\subsection{Setting and notation}
+\subsection{Setting and notation}\label{sec:setting}
 
 \Cref{sec:slot,sec:rank} work with a single commitment out-of-domain point $z$; \Cref{sec:twopoint} treats two points. For a point $z$, write $\zeta_i := z^{2^{i-1}}$, so that $\pow(z, n) = (\zeta_1, \dots, \zeta_{k_0}, \pow(z^{2^{k_0}}, n - k_0))$. The \emph{node} is the point $\nu := \pow(z^{2^{k_0}}, n - k_0)$, and the \emph{node values} are
 \[
@@ -182,6 +212,8 @@ By \cref{eq:acd}, replacing $\tilde{a}_\ell$ by $c_\ell + (\alpha_\ell - \zeta_\
 
 \subsection{One point: the rank of the node matrix}\label{sec:rank}
 
+This subsection is the per-point engine of the two-point analysis: \Cref{thm:twopoint} consumes the rank and the explicit kernel basis of \Cref{prop:rank} (per point), \Cref{cor:twopointprob} consumes \Cref{cor:rankprob}, and the twist-rigidity argument (\Cref{cond:twist}) uses $\eta \in \mathrm{span}\{\omega, \tau_1, \dots, \tau_{k_0}\}$.
+
 \begin{lemma}\label{lem:tau}
 The $k_0 + 1$ tensors $\omega, \tau_1, \dots, \tau_{k_0}$ are linearly independent, for all values of the variables.
 \end{lemma}
@@ -216,7 +248,7 @@ The two families of dependencies in \Cref{prop:rank} are not accidents. The tele
 
 \subsection{Two points: full rank}\label{sec:twopoint}
 
-Now take $s_0 = 2$ points $z_1, z_2$, with $\zeta^{(j)}_i := z_j^{2^{i-1}}$, nodes $\nu_j$, and node values $V_{s,j} := \hat{u}_s(\nu_j)$, treated as $2 \cdot 2^{k_0}$ independent variables (columns indexed by pairs $(s, j)$). The batched weight is $\hat{W}_0 = \hat{eq}(\pow(z_1, n), \cdot) + \gamma\, \hat{eq}(\pow(z_2, n), \cdot) + \gamma^2 \hat{w}$. The transcript values, as linear forms in the $V_{s,j}$, are the \emph{value rows}:
+Now take $s_0 = 2$ points $z_1, z_2$, with $\zeta^{(j)}_i := z_j^{2^{i-1}}$, nodes $\nu_j := \pow(z_j^{2^{k_0}}, n - k_0)$, and node values $V_{s,j} := \hat{u}_s(\nu_j)$, treated as $2 \cdot 2^{k_0}$ independent variables (columns indexed by pairs $(s, j)$). The batched weight is $\hat{W}_0 = \hat{eq}(\pow(z_1, n), \cdot) + \gamma\, \hat{eq}(\pow(z_2, n), \cdot) + \gamma^2 \hat{w}$. The transcript values, as linear forms in the $V_{s,j}$, are the \emph{value rows}:
 \begin{itemize}
     \item the two out-of-domain answers $\omega_1, \omega_2$: answer $j$ is supported on the columns $(\cdot, j)$, where it equals the one-point row $\omega^{(j)}$ of \Cref{sec:slot} with $\zeta = \zeta^{(j)}$;
     \item the $2k_0$ fresh sumcheck coefficients: the value row $(\ell, r)$ has block-$j$ component $\gamma^{j-1}\, \mathrm{row}(\ell, r)^{(j)}$, on both blocks simultaneously.
@@ -228,7 +260,7 @@ Let $g(x) := \dfrac{1 - 2x^2}{2x - 1}$. Assume $\gamma \neq 0$, the assumptions 
 \[
 \zeta^{(1)}_\ell \neq \zeta^{(2)}_\ell \qquad \text{and} \qquad \big(2\zeta^{(1)}_\ell - 1\big)\big(2\zeta^{(2)}_\ell - 1\big) \neq -1 .
 \]
-Then the $2k_0 + 2$ value rows are linearly independent. Moreover, their span contains the two extension rows $\eta_j$ (coefficient $\hat{eq}(\vec{\alpha}_0, s)$ at column $(s,j)$): the node combinations giving the evaluations of $\hat{f}_1$ at the two nodes are determined by the revealed values. In the $\hat{f}_1$ analysis of \Cref{sec:zk-sketch}, these evaluations accordingly join the directions pinned by the view; this is harmless, since pinned values are functions of the view, which the simulator generates itself.
+Then the $2k_0 + 2$ value rows are linearly independent. Moreover, their span contains the two extension rows $\eta_j$ (coefficient $\hat{eq}(\vec{\alpha}_0, s)$ at column $(s,j)$, supported on block $j$): the node combinations giving the evaluations of $\hat{f}_1$ at the two nodes are determined by the revealed values. In the $\hat{f}_1$ analysis of \Cref{sec:zk-sketch}, these evaluations accordingly join the directions pinned by the view; this is harmless, since pinned values are functions of the view, which the simulator generates itself.
 \end{theorem}
 
 \begin{proof}
@@ -238,7 +270,10 @@ Suppose $\mu_1 \omega_1 + \mu_2 \omega_2 + \sum_{\ell, r} \nu_{\ell,r}\, (\text{
 \]
 Consider the left kernel $K^{(j)}$ of the $(2k_0+1)$-row one-point matrix $\big[\omega^{(j)}; \mathrm{row}(\ell,r)^{(j)}\big]$. By \Cref{prop:rank} its rank is $k_0 + 1$, so $\dim K^{(j)} = k_0$, and \cref{eq:rows,eq:telescope} give an explicit basis $\{k^{(j)}_\ell\}_{\ell \leq k_0}$: writing $\tau^{(j)}_\ell = \mathrm{row}(\ell,2)^{(j)} / (P^{(j)}_\ell (2\zeta^{(j)}_\ell - 1))$ and substituting the telescoped $\rho^{(j)}_\ell$ into $\mathrm{row}(\ell,1)^{(j)}$,
 \[
-k^{(j)}_\ell : \quad 1 \ \text{on } (\ell,1), \qquad -\,g\big(\zeta^{(j)}_\ell\big) \ \text{on } (\ell,2), \qquad -\,\frac{P^{(j)}_\ell (2\zeta^{(j)}_\ell - 1)(\alpha_i - \zeta^{(j)}_i)}{P^{(j)}_i (2\zeta^{(j)}_i - 1)} \ \text{on } (i,2),\ i < \ell, \qquad -\,P^{(j)}_\ell (2\zeta^{(j)}_\ell - 1) \ \text{on } \omega .
+\begin{aligned}
+k^{(j)}_\ell : \quad & 1 \ \text{on } (\ell,1), \qquad -\,g\big(\zeta^{(j)}_\ell\big) \ \text{on } (\ell,2), \qquad -\,P^{(j)}_\ell \big(2\zeta^{(j)}_\ell - 1\big) \ \text{on } \omega , \\
+& -\,\frac{P^{(j)}_\ell \big(2\zeta^{(j)}_\ell - 1\big)\big(\alpha_i - \zeta^{(j)}_i\big)}{P^{(j)}_i \big(2\zeta^{(j)}_i - 1\big)} \ \text{on } (i,2) \ \text{for } i < \ell .
+\end{aligned}
 \]
 The projection $\pi$ dropping the $\omega$-coordinate is injective on $K^{(j)}$: an element with all $(\ell,r)$-coordinates zero has $\mu\, \omega^{(j)} = 0$, and $\omega^{(j)} \neq 0$. The two block restrictions say $(\mu_1, \nu) \in K^{(1)}$ and $(\mu_2, \gamma \nu) \in K^{(2)}$; since $\gamma \neq 0$ and $\pi(K^{(2)})$ is a subspace, $\nu \in \pi(K^{(1)}) \cap \pi(K^{(2)})$.
 
@@ -265,6 +300,10 @@ Indeed: $\gamma = 0$ costs $1/q$; the per-point assumptions cost $(2^{k_0} + k_0
 
 \begin{remark}[numerical verification]
 At $k_0 = 7$ with random challenges in the KoalaBear field: the $16$ value rows have rank $16$ (full), and adding the extension rows does not increase the rank; with a single point, the $15$ value rows have rank $8 = k_0 + 1$, matching \Cref{prop:rank}. Both checks were run with $\zeta_i = z^{2^{i-1}}$ and with independent $\zeta_i$.
+\end{remark}
+
+\begin{remark}[$s_0 > 2$]\label{rem:s0}
+The analysis is written for $s_0 = 2$, the minimal and tightest case: the $2k_0 + 2$ value rows then span the full space $\bigoplus_j \mathrm{span}\{\omega_j, \tau_{1,j}, \dots, \tau_{k_0,j}\}$, of dimension exactly $2(k_0 + 1)$, which is what pins the extension rows (the second part of \Cref{thm:twopoint}) and shapes \Cref{cond:cross2,prop:pinbound}. For $s_0 > 2$ the masking only gains channels. (i) Joint independence of the $s_0 + 2k_0$ value rows holds under the conditions of \Cref{thm:twopoint} applied to any \emph{single pair} of points: restricting a vanishing combination to the two corresponding blocks gives $\nu \in \pi(K^{(1)}) \cap \pi(K^{(2)}) = 0$ as in the proof, and the remaining blocks force $\mu_j\, \omega^{(j)} = 0$; \Cref{prop:uniform} and the budget $2^a \geq t_0 + \extdeg(s_0 + s_1)$ are already stated for general $s_0$. (ii) The value rows now span a \emph{proper} subspace, of codimension $(s_0 - 2)\, k_0$: the extension rows are no longer automatically in their span, and a generic dimension count suggests that the only pinned combination $\sum_j \theta_j \eta_j$ is the terminal one, which the terminal protocol direction accounts for; \Cref{cond:cross2,prop:pinbound} would simplify accordingly, at the cost of a genericity lemma quantifying that count. We do not pursue this: $s_0 = 2$ suffices for zero-knowledge, and extra points only add prover and proof cost.
 \end{remark}
 
 \subsection{Cross-free blocks and joint uniformity}\label{sec:uniform}
@@ -298,42 +337,9 @@ Take $s_0 = 2$ and assume: the conditions of \Cref{thm:twopoint}; and that the $
 Restrict every value, as an $\Fp$-linear form on the cells, to the union of the blocks. By \Cref{lem:blocks} the cross-terms vanish there, so each restricted form factors through the blockwise evaluations: the fiber value of class $s$ at $x_t$ reads the evaluation of the block univariate of $s$ at $x_t$, times the nonzero prefactor $x_t^{2^{n - k_0} - 2^a}$ (the blocks sit at the end of their classes), and the out-of-domain and sumcheck values apply the node matrix to the block evaluations at the nodes, by the computation of \Cref{sec:slot}. The blockwise evaluation map is $\Fp$-surjective: per class by \Cref{lem:crt}, with the budget $t_0 + \extdeg(s_0 + s_1) \leq 2^a$, and jointly because the blocks are disjoint. The assembling map is $\Fq$-linear and surjective: the fiber coordinates pass through unchanged; the commitment out-of-domain and sumcheck values are the node matrix, of full row rank by \Cref{thm:twopoint}; and each $\hat{f}_1$ out-of-domain answer adds one row supported on the columns of its own node, where it is the nonzero vector $(\hat{eq}(\vec{\alpha}_0, s))_s$, so the extended matrix keeps full row rank. The values equal this composition applied to the uniform block cells, plus a contribution of the remaining cells (data and non-block mask cells): conditionally on the latter, they are a shifted surjective image of a uniform variable, hence uniform; so they are uniform unconditionally, with a law independent of the shift, hence of the data.
 \end{proof}
 
-\subsection{The absorption lemma}
-
-For a finite set $N \subseteq \Fq^{m}$ of nodes, let
-\[
-V \;:=\; \{ w \in \Fp^{2^{m}} \;:\; \hat{w}(\nu) = 0 \ \forall \nu \in N \} ,
-\]
-an $\Fp$-subspace of codimension at most $\extdeg\,|N|$. Fix an $\Fp$-basis $(\beta_1, \dots, \beta_{\extdeg})$ of $\Fq$ and write every $g \in \Fq^{2^m}$ as $g = \sum_r \beta_r\, g_r$ with \emph{slices} $g_r \in \Fp^{2^m}$. Define
-\[
-V \otimes_{\Fp} \Fq \;:=\; \{ g \in \Fq^{2^m} \;:\; g_r \in V \text{ for all } r \} ,
-\]
-the $\Fq$-span of $V$: an $\Fq$-subspace, independent of the chosen basis.
-
-\begin{lemma}[absorption]\label{lem:absorb}
-Let $U_1, \dots, U_t$ be independent uniform elements of $V$, and let $\lambda_1, \dots, \lambda_t \in \Fq$ span $\Fq$ as an $\Fp$-vector space. Then:
-\begin{enumerate}
-    \item $\sum_i \lambda_i U_i$ is uniform on $V \otimes_{\Fp} \Fq$.
-    \item If, in addition, $e$ $\Fq$-linear forms $L_1, \dots, L_e$ of the tuple $(U_1, \dots, U_t)$ are conditioned on, the conditional law of $\sum_i \lambda_i U_i$ is uniform on a coset of an $\Fp$-subspace $W \subseteq V \otimes_{\Fp} \Fq$ of $\Fp$-codimension at most $e\,\extdeg$ in it.
-    \item The $\Fq$-linear forms on $\Fq^{2^m}$ that are constant on the cosets of $V \otimes_{\Fp} \Fq$ are exactly those whose $\extdeg$ slices lie in the $\Fp$-span of the $\extdeg |N|$ slice forms of the node evaluations $g \mapsto \hat{g}(\nu)$, $\nu \in N$. The conditioning of item 2 enlarges the set of pinned $\Fp$-forms by at most $e\, \extdeg$ explicit ones.
-\end{enumerate}
-\end{lemma}
-
-\begin{proof}
-(1) The map $\Phi : V^t \to V \otimes_{\Fp} \Fq$, $(u_i)_i \mapsto \sum_i \lambda_i u_i$, is $\Fp$-linear with image inside $V \otimes \Fq$ (each slice of $\sum_i \lambda_i u_i$ is an $\Fp$-combination of the $u_i$, hence in $V$). It is surjective: choose an $\Fp$-basis of $V$ and work coordinate-wise; in each coordinate the map becomes $\Fp^t \to \Fq$, $(x_i) \mapsto \sum_i \lambda_i x_i$, which is surjective because the $\lambda_i$ span $\Fq$ over $\Fp$, and the coordinates are independent. A surjective linear image of a uniform variable is uniform.
-
-(2) Conditioning a uniform variable on affine constraints yields the uniform law on the affine solution set $A \subseteq V^t$; the image of this law under the $\Fp$-linear $\Phi$ is uniform on $\Phi(A)$, a coset of $W := \Phi(\ker)$, where $\ker$ is the solution set of the homogeneous constraints. Each $\Fq$-form amounts to $\extdeg$ $\Fp$-forms, so $\ker$ has $\Fp$-codimension at most $e\, \extdeg$ in $V^t$, and a linear image loses no more codimension than its source.
-
-(3) An $\Fq$-form $\varphi$ is constant on the cosets of $V \otimes \Fq$ if and only if it vanishes on $V \otimes \Fq$; since $V \otimes \Fq$ is the $\Fq$-span of $V$ and $\varphi$ is $\Fq$-linear, this holds if and only if $\varphi(v) = 0$ for every $v \in V$. Writing $\varphi(v) = \sum_r \beta_r \langle \varphi_r, v \rangle$ with slices $\varphi_r$: equivalent to every slice annihilating $V$. The annihilator of $V$ is the $\Fp$-span of the slice forms of the node evaluations, since $V$ is defined as their common kernel. The last sentence is item 2 read on annihilators.
-\end{proof}
-
-\begin{remark}
-$V \otimes_{\Fp} \Fq$ is strictly smaller than the set of $\Fq$-vectors $g$ with $\hat{g}(\nu) = 0$ for all $\nu \in N$ (codimension $\extdeg |N|$ versus $|N|$). The masked directions are correspondingly larger than the naive count: a single node removes $\extdeg$ $\Fq$-dimensions of masking, not one. This is harmless for the budget of $R_{\mathsf{in}}$ and $R_{\mathsf{out}}$ (the codimensions stay microscopic), but the annihilator description of item 3 is the correct one to use when listing the unmasked directions.
-\end{remark}
-
 \subsection{The simulator}\label{sec:simulator}
 
-We consider the interactive protocol; the Fiat--Shamir and Merkle layers are out of scope. Fix the statement (public parameters, public input, claimed value) and the verifier challenges. A \emph{data assignment} is a content of the data cells consistent with the statement; the difference $\delta$ of two data assignments satisfies $\langle \delta, w \rangle = 0$ and vanishes on the public positions. Write $\mathrm{cells} = \mathrm{data} \oplus \mathrm{masks}$, and let $L := (L_{\mathrm{view}}, L_{\mathrm{fold}})$ be the $\Fp$-linear map sending the cells to the pair (round-0 view, $\hat{f}_1$), where $L_{\mathrm{view}}$ collects the values of \Cref{prop:uniform} and $L_{\mathrm{fold}}$ is the round-0 fold.
+We consider the interactive protocol; the BCS transform is out of scope. Fix the statement (public parameters, public input, claimed value) and the verifier challenges. A \emph{data assignment} is a choice of contents for the data cells, consistent with the statement; the difference $\delta$ of two data assignments satisfies $\langle \delta, w \rangle = 0$ and vanishes on the public positions. Write $\mathrm{cells} = \mathrm{data} \oplus \mathrm{masks}$, and let $L := (L_{\mathrm{view}}, L_{\mathrm{fold}})$ be the $\Fp$-linear map sending the cells to the pair (round-0 view, $\hat{f}_1$), where $L_{\mathrm{view}}$ collects the values of \Cref{prop:uniform} and $L_{\mathrm{fold}}$ is the round-0 fold.
 
 \begin{lemma}[reduction to round 0]\label{lem:reduction}
 The whole transcript is a deterministic function of $L(\mathrm{cells})$, the statement, and the challenges.
@@ -344,7 +350,7 @@ The round-0 messages are the view together with deterministic completions (dupli
 \end{proof}
 
 \begin{lemma}[exactness criterion]\label{lem:criterion}
-Assume the conditions of \Cref{prop:uniform} and let $W' := L_{\mathrm{fold}}\big(\ker(L_{\mathrm{view}}) \cap \mathrm{masks}\big)$. The transcripts produced with two data assignments differing by $\delta$ are identically distributed if and only if
+Assume the conditions of \Cref{prop:uniform}. Let $W' := L_{\mathrm{fold}}\big(\ker(L_{\mathrm{view}}) \cap \mathrm{masks}\big)$. The transcripts produced with two data assignments differing by $\delta$ are identically distributed if and only if
 \[
 \varphi\big(L_{\mathrm{fold}}(\delta)\big) \;=\; \varphi\big(L_{\mathrm{fold}}(\varrho(L_{\mathrm{view}}(\delta)))\big) \qquad \text{for every } \varphi \in \mathrm{ann}(W') ,
 \]
@@ -356,11 +362,11 @@ By \Cref{lem:reduction} it suffices to compare the laws of $L(\mathrm{cells})$. 
 \end{proof}
 
 \begin{lemma}[protocol directions]\label{lem:protocoldirs}
-The following $\Fq$-forms on the $\hat{f}_1$-space (each counting as $\extdeg$ $\Fp$-forms) lie in $\mathrm{ann}(W')$ and satisfy the exactness criterion for \emph{every} $\delta$: (i) $f \mapsto \hat{f}(\pow(x_t, n - k_0))$ for each queried point $x_t$; (ii) $f \mapsto \hat{f}(\pow(y, n - k_0))$ for each out-of-domain point $y$ of $\hat{f}_1$; (iii) $f \mapsto \sum_b \hat{f}(b)\, \hat{W}_0(\vec{\alpha}_0, b)$.
+The following $\Fq$-forms on the $\hat{f}_1$-space (each counting as $\extdeg$ $\Fp$-forms) lie in $\mathrm{ann}(W')$ and satisfy the exactness criterion for \emph{every} $\delta$: (i) $f \mapsto \hat{f}(\pow(x_t, n - k_0))$ for each queried point $x_t$; (ii) $f \mapsto \hat{f}(\pow(z', n - k_0))$ for each out-of-domain point $z'$ of $\hat{f}_1$; (iii) $f \mapsto \sum_b \hat{f}(b)\, \hat{W}_0(\vec{\alpha}_0, b)$.
 \end{lemma}
 
 \begin{proof}
-Each of these forms, composed with $L_{\mathrm{fold}}$, equals a fixed linear combination of the view coordinates \emph{as an identity of linear forms on the cells}: (i) is the fold consistency $\hat{f}_1(\pow(x_t, \cdot)) = \fold(f_0, \vec{\alpha}_0)(x_t)$, where the right side is a public combination of the opened fiber of $x_t$; (ii) is the definition of the out-of-domain answer; (iii) is the terminal sumcheck identity $\sum_b \hat{f}_1(b)\, \hat{W}_0(\vec{\alpha}_0, b) = \hat{h}_{k_0}(\alpha_{k_0})$, whose right side is a public combination of the sumcheck values. A form $\varphi$ with $\varphi \circ L_{\mathrm{fold}} = (\text{combination of view forms})$ vanishes on $\ker(L_{\mathrm{view}})$, in particular $\varphi \in \mathrm{ann}(W')$; and both sides of its criterion equal the same combination applied to $L_{\mathrm{view}}(\delta)$.
+Each of these forms, composed with $L_{\mathrm{fold}}$, equals a fixed linear combination of the view coordinates, possibly plus a multiple of $\langle \cdot, w \rangle$, \emph{as an identity of linear forms on the cells}: (i) is the fold consistency $\hat{f}_1(\pow(x_t, \cdot)) = \fold(f_0, \vec{\alpha}_0)(x_t)$, where the right side is a public combination of the opened fiber of $x_t$; (ii) is the definition of the out-of-domain answer; (iii) is the terminal sumcheck identity $\sum_b \hat{f}_1(b)\, \hat{W}_0(\vec{\alpha}_0, b) = \hat{h}_{k_0}(\alpha_{k_0})$, whose right side is a public linear combination of the sumcheck values and of the initial target $\sigma_0 = y_1 + \gamma y_2 + \gamma^2 \langle \cdot, w \rangle$. Such a $\varphi$ vanishes on $\ker(L_{\mathrm{view}}) \cap \mathrm{masks}$ ($\langle \cdot, w \rangle$ vanishes on the masks), so $\varphi \in \mathrm{ann}(W')$; and both sides of its criterion equal the same combination applied to $L_{\mathrm{view}}(\delta)$, the term $\langle \cdot, w \rangle$ vanishing on data differences and on masks alike.
 \end{proof}
 
 \begin{condition}[no accidental pinning]\label{cond:pinning}
@@ -376,7 +382,7 @@ By \Cref{lem:criterion} it suffices to verify the criterion for $\delta := D - D
 \end{proof}
 
 \begin{corollary}[statistical zero-knowledge]\label{cor:statzk}
-For uniform challenges (the interactive setting), and for every data assignment $D$, the honest transcript with data $D$ is at statistical distance at most $\Pr[\text{degenerate challenges}] \approx 2^{-122}$ from the output of the simulator (the honest prover run on $D^*$), with no prover-side check.
+For uniform challenges (the interactive setting), and for every data assignment $D$, the honest transcript with data $D$ is at statistical distance at most $\varepsilon$ from the output of the simulator (the honest prover run on $D^*$), with no prover-side check, where $\varepsilon := \Pr[\text{degenerate challenges}] \approx 2^{-122}$ (\Cref{cor:restart}).
 \end{corollary}
 
 \begin{proof}
@@ -389,7 +395,7 @@ We checked \Cref{cond:pinning} numerically at toy parameters ($p = 103$, $\extde
 
 \subsection{Bounding the pinned directions}\label{sec:pinbound}
 
-We now bound $\mathrm{ann}(W')$ from above, to control the probability that \Cref{cond:pinning} fails. Throughout, fix challenges satisfying \textsc{spread}, $\alpha_1 \notin \{0, 1\}$, and the conditions of \Cref{prop:uniform}. Notation: by trace duality, an $\Fp$-form $\varphi$ on the $\hat{f}_1$-space $\Fq^{2^m}$ ($m := n - k_0$) has a unique representative $\phi \in \Fq^{2^m}$ with $\varphi(g) = \mathrm{tr}\,\langle \phi, g \rangle$, where $\langle \cdot, \cdot \rangle$ is the coordinatewise $\Fq$-pairing and $\mathrm{tr} = \mathrm{tr}_{\Fq/\Fp}$. Write $w^{(t)} \in \Fp^{2^m}$ for the weight vector of the evaluation at the queried point $x_t$, and $u^{(\nu)} \in \Fq^{2^m}$ for the weight vector of the evaluation at a node $\nu$ (commitment nodes $\nu_1, \nu_2$ and $\hat{f}_1$ points $y_1, \dots, y_{s_1}$).
+We now bound $\mathrm{ann}(W')$ from above, to control the probability that \Cref{cond:pinning} fails. Throughout, fix challenges satisfying \textsc{spread}, $\alpha_1 \notin \{0, 1\}$, and the conditions of \Cref{prop:uniform}. Notation: by trace duality, an $\Fp$-form $\varphi$ on the $\hat{f}_1$-space $\Fq^{2^m}$ ($m := n - k_0$) has a unique representative $\phi \in \Fq^{2^m}$ with $\varphi(g) = \mathrm{tr}\,\langle \phi, g \rangle$, where $\langle \cdot, \cdot \rangle$ is the coordinatewise $\Fq$-pairing and $\mathrm{tr} = \mathrm{tr}_{\Fq/\Fp}$. Write $w^{(t)} \in \Fp^{2^m}$ for the weight vector of the evaluation at the queried point $x_t$, and $u^{(\nu)} \in \Fq^{2^m}$ for the weight vector of the evaluation at a node $\nu$ (the commitment nodes $\nu_1, \nu_2$ and the $s_1$ out-of-domain points of $\hat{f}_1$).
 
 \begin{lemma}[confinement]\label{lem:confine}
 Let $\varphi \in \mathrm{ann}(W')$ with representative $\phi$. Then, restricted to the block coordinates (the last $2^a$ positions),
@@ -404,7 +410,11 @@ Let $K \subseteq \Fp^{2^a}$ be the common kernel, inside the block coordinates, 
 \end{proof}
 
 \begin{lemma}[node channel]\label{lem:nodechannel}
-Let $\varphi \in \mathrm{ann}(W')$ and write, by \Cref{lem:confine}, $\phi|_{\mathrm{blk}} = (\text{queried and } \hat{f}_1 \text{ parts}) + \sum_{j \leq s_0,\, r} b_{j,r}\, \mathrm{slice}_r(u^{(\nu_j)})|_{\mathrm{blk}}$ with $b_{j,r} \in \Fq$. Define $B_{s, j} := \sum_r \mathrm{tr}(\lambda_s\, b_{j,r})\, \beta_r \in \Fq$. Then the vector $(B_{s,j})_{s,j}$ lies in the $\Fq$-row space of the node matrix of \Cref{sec:twopoint}.
+Let $\varphi \in \mathrm{ann}(W')$ and write, by \Cref{lem:confine},
+\[
+\phi|_{\mathrm{blk}} \;=\; (\text{queried and } \hat{f}_1 \text{ parts}) \;+\; \sum_{j \leq s_0,\, r} b_{j,r}\, \mathrm{slice}_r\big(u^{(\nu_j)}\big)\big|_{\mathrm{blk}} , \qquad b_{j,r} \in \Fq .
+\]
+Define $B_{s, j} := \sum_r \mathrm{tr}(\lambda_s\, b_{j,r})\, \beta_r \in \Fq$. Then the vector $(B_{s,j})_{s,j}$ lies in the $\Fq$-row space of the node matrix of \Cref{sec:twopoint}.
 \end{lemma}
 
 \begin{proof}
@@ -533,15 +543,18 @@ TODO
 
 \section{Column evaluations}\label{sec:zk-column-evals}
 
-In the two protocols above (\Cref{sec:zk-logup-gkr} and \Cref{sec:zk-air-sumcheck}), the prover sends a few evaluations (at random points) of the columns (interpreted as multilinear polynomial, storing data we want to hide). For some columns $c$, the prover sends the evaluation of $\mathsf{shift}(c)$ at a random point.
+In the two protocols above (\Cref{sec:zk-logup-gkr,sec:zk-air-sumcheck}), the prover sends a few evaluations, at random points, of the columns, interpreted as multilinear polynomials storing data we want to hide; for some columns $c$ it also sends an evaluation of $\mathsf{shift}(c)$.
 
 Strategy:
 \begin{itemize}
-    \item For each table $T$, for each column $c$, that will be evaluated $t$ times, that can take values in $\Omega$ (in the sense that it's possible to fill the other columns, while respecting the AIR constraints), add $r = t \cdot \log_2(q / |\Omega|) + 2 \cdot \lambda$ rows where each of the $r$ value in the column $c$ is chosen independently, and uniformly at random from $\Omega$. The rest of the trace is adapted to 'make it pass' the constraints.
-    \item Using the conjecture bellow, these 'structured random' masks protect the column evaluations, i.e. it's statistically ZK at $\lambda$ bits.
-    \item Conjecture: Consider a multilinear polynomial in $n$ variables, where $r = t \cdot \log_2(q / |\Omega|) + 2 \cdot \lambda$ of its coefficients (in the Lagrange basis) are sampled at random (independently and uniformly) (and the $2^n - r$ remaining ones are set to zero), evaluted at $t$ random points (each point is in $\Fq^n$, sampled independently and uniformly), where some of the evaluations may concern $\mathsf{shift}(P)$ instead of $P$. Then the resulting $r$ evaluations are at statistical distance at most $2^{-\lambda}$ from the uniform distribution over $\Fq^t$.
+    \item For each table $T$ and each column $c$ that will be evaluated $t$ times and can take values in $\Omega$ (in the sense that the other columns can be filled so that the AIR constraints hold), add $r = t \cdot \log_2(q / |\Omega|) + 2 \lambda$ rows whose values in column $c$ are chosen independently and uniformly at random in $\Omega$; the rest of the trace is adapted to satisfy the constraints.
+    \item By the conjecture below, these structured random masks protect the column evaluations: statistical zero-knowledge at $\lambda$ bits.
+    \item Conjecture: let $P$ be a multilinear polynomial in $n$ variables, $r = t \cdot \log_2(q / |\Omega|) + 2 \lambda$ of whose coefficients (in the Lagrange basis) are sampled independently and uniformly at random, the other $2^n - r$ set to zero. Evaluate it at $t$ random points, each sampled independently and uniformly in $\Fq^n$, some of the evaluations possibly taken on $\mathsf{shift}(P)$ instead of $P$. Then the $t$ evaluations are at statistical distance at most $2^{-\lambda}$ from the uniform distribution over $\Fq^t$.
 \end{itemize}
 
 \textit{No protocol changes.}
+
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
 
 \end{document}
