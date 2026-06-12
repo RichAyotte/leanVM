@@ -57,7 +57,7 @@ This document is a companion to \texttt{minimal\_zkVM.tex} and \texttt{zk\_leanV
     \item \emph{Conditional}: assuming the conjectures, statistical honest-verifier zero-knowledge of the full protocol at $\lambda$ bits, with the simulator and error accounting spelled out (\Cref{thm:zk}).
 \end{itemize}
 
-\paragraph{Status.} Largely reduced to explicit conditions; the smoothing conjectures survive only in residual roles. \emph{Proven}: the full-range linear channel, outright and exactly (\Cref{thm:fullrange}, via the spray-rank \Cref{lem:spray}); the small-range linear channel at a capped budget (\Cref{thm:smallomega}); the zerocheck \emph{prefix} under an explicit covering condition (\Cref{thm:prefix}, via separability of every linear test and the Weil bound); its extension to \emph{block} granularity under same-column placement (\Cref{thm:blocks}); the reduction of the zerocheck's \emph{last rounds} to the linear/separable machinery (\Cref{prop:suffix}: the suffix transcript is a public function of the folded table, simulatable with automatic consistency); and the GKR's \emph{top levels} as a public pushforward of per-node Haar$\times$uniform pairs, via multiplicative-character and Kloosterman bounds (\Cref{lem:mult,prop:gkr-top}) --- which also upgrades the $\chi$-leak from a measured anomaly to a located theorem (all-even multiplicity patterns, excluded by the gadget schedule). \emph{Residual}: the small-range budget gap (\Cref{rem:gap}, which now also gates the rigid-column folds in \Cref{prop:suffix}); the \textsc{cover}/\textsc{spread}-type genericity conditions (numerically verified, Schwartz--Zippel-certifiable in parts, like the pinning condition of the parent document); the Weil--Katz constants for incomplete character sums along $\Fp$-lines in $\Fq$; and the GKR middle levels. The numerical program (\Cref{sec:numerics}) validated every mechanism before it was written down, and \emph{discovered} four necessary hypotheses now part of the construction or the lemmas: boolean-slice coverage (\Cref{lem:slices}), residue coverage (\Cref{sec:gkr}), public wrap rows (\Cref{lem:forced}), and odd read multiplicities (\Cref{lem:mult}).
+\paragraph{Status.} Complete at the $\approx 71$-bit level, modulo one per-circuit finite computation. \emph{Proven}: the full-range linear channel, outright and exactly (\Cref{thm:fullrange}); the small-range linear channel at the \emph{full} conjectured budget, via the root-count recursion (\Cref{thm:moment}: $\mathbb{E}[\rho^t] \leq q^{-t}(1 + O(th^2/q))$, with the degeneracies budget-suppressed) --- so every production vector, including $\textsf{bytecode\_acc}$ and the instruction columns, clears a proven budget; the zerocheck end to end (\Cref{thm:prefix,thm:blocks,prop:suffix}); the GKR end to end (\Cref{lem:linesums,lem:mult,prop:gkr-top,prop:gkr-full}), with the survival bookkeeping settled by an explicit schedule (\Cref{lem:schedule}). \emph{Residual}: (i) the \textsc{cover}-type conditions --- reduced by \Cref{lem:certify} to one nonzero evaluation of an explicit minor per circuit, witness-uniform at the gadget-selecting specialization; executed for the toy, still to be executed for the production AIRs; (ii) the constant-level polish of \Cref{lem:degprob} ($D_{\max}$ per placement) and \Cref{lem:linesums} (the mixed-sum constant); (iii) $\lambda$ beyond $\approx 71 = \tfrac12\log_2(q/th^2)$ bits, where the binding constraint is the moment theorem's generic term, and only there does \Cref{conj:linear} retain a role. The numerical program (\Cref{sec:numerics}) validated every mechanism before it was written down --- including the recursion identity bit-for-bit (\Cref{rem:numG}) --- and \emph{discovered} four necessary hypotheses now part of the construction or the lemmas: boolean-slice coverage (\Cref{lem:slices}), residue coverage (\Cref{sec:gkr}), public wrap rows (\Cref{lem:forced}), and odd read multiplicities (\Cref{lem:mult}).
 
 \section{Leakage inventory}\label{sec:leakage}
 
@@ -226,7 +226,57 @@ q^t\, \mathrm{CP} - 1 \;=\; q^t\Big[\, |\Omega_\Delta|^{-r}\text{-type mass at }
 \]
 so the full conjectured budget is \emph{equivalent} to the $t$-th moment bound $\mathbb{E}_{\delta \neq 0}[\rho(\delta)^t] \leq q^{-t}(1 + 2^{-2\lambda})$ for random differences $\delta$ supported on the padded cells: a root-counting moment problem for random supported multilinears (the program of \Cref{rem:lhl}, now exactly delimited). The first moment is $q^{-1}(1 + \eta)$ with $\eta$ measured at $3\%$ at a toy size deliberately past the spray cap, and the second moment matches $q^{-2}$ to the same precision (\Cref{rem:numF}); the Poisson-type heuristic puts the true correction at $O(q^{1-h})$.
 
-Meanwhile the \emph{proven} spray budget already covers part of production: $\textsf{memory\_acc}$ lives at $h = h_\textsc{memory} \leq 26$ with $t = 1$, so $k = 14$-bit read multiplicities give $26 \cdot 14 = 364 \geq \log_2 q + 2\lambda \approx 355$ bits at $\lambda = 100$ --- at the cost of $\sum \kappa_i \approx 2^{17}$ extra execution rows, a few percent of a $2^{21}$-row trace. What does \emph{not} clear the proven budget: $\textsf{bytecode\_acc}$ ($h \approx 16$--$19$: would need $k > 20$, i.e.\ $2^{20}$-iteration dummy loops) and the instruction columns (branch entropy $c$ bits per row, $c \geq 21$ infeasible); for those, \Cref{conj:linear} (equivalently, the moment bound) remains the operative assumption --- or a protocol-adjacent mitigation (e.g.\ accepting a lower $\lambda$ for the control-flow channel alone).
+The next subsection \emph{proves} the moment bound, with $\varepsilon = O(t h^2/q)$: the gap closes at the $\approx \tfrac12 \log_2(q/h^2) \approx 71$-bit level for every production vector, and the conjecture's only residual role is pushing $\lambda$ beyond that.
+\end{remark}
+
+\subsection{Closing the budget gap: the root-count recursion}\label{sec:moment}
+
+\begin{lemma}[recursion]\label{lem:recursion}
+Let $\hat\delta$ be a multilinear polynomial in $h$ variables over $\Fq$, split on the leading variable as $\hat\delta(z_1, \vec z') = \hat\delta_0(\vec z') + z_1 \big(\hat\delta_1 - \hat\delta_0\big)(\vec z')$. Then, \emph{exactly},
+\[
+N(\hat\delta) \;=\; q^{h-1} \;-\; N\big(\hat\delta_1 - \hat\delta_0\big) \;+\; q \cdot N\big(\hat\delta_0 \cap \hat\delta_1\big) ,
+\]
+where $N(\cdot)$ counts zeros in $\Fq^{h-1}$ (resp.\ common zeros) of the displayed polynomials in the remaining variables.
+\end{lemma}
+
+\begin{proof}
+For fixed $\vec z'$: if $B := (\hat\delta_1 - \hat\delta_0)(\vec z') \neq 0$ there is exactly one root in $z_1$; if $B = 0$ there are $q$ or $0$ roots according as $\hat\delta_0(\vec z') = 0$ or not. Summing, $N = (q^{h-1} - N(B)) + q\,N(\hat\delta_0 \cap B)$, and $Z(\hat\delta_0) \cap Z(B) = Z(\hat\delta_0) \cap Z(\hat\delta_1)$. (Verified bit-for-bit at toy size, \Cref{rem:numG}.)
+\end{proof}
+
+\begin{lemma}[B\'ezout count]\label{lem:bezout}
+Let $F, G$ be coprime nonzero polynomials in $m$ variables over $\Fq$, multilinear in each variable. Then $N(F \cap G) \leq m^2\, q^{m-2}$.
+\end{lemma}
+
+\begin{proof}
+Induction on $m$ (and, inside, on degrees). Pick a variable $x$ on which $F$ or $G$ depends and write $F = F_0 + x F_1$, $G = G_0 + x G_1$. The resultant $R := F_0 G_1 - F_1 G_0$ is not identically zero: if it were, then $F \cdot G_1 = G \cdot F_1$, and coprimality would force $F \mid F_1$, impossible by $x$-degrees unless $F_1 = 0$, in which case symmetrically (with $F_1 = 0$, $R = F_0 G_1$ and both factors are nonzero). Common zeros split: those with $(F_1, G_1)(\vec z') \neq 0$ admit at most one $x$-root and force $R(\vec z') = 0$, contributing at most $\deg R \cdot q^{m-2} \leq 2(m-1) q^{m-2}$ by Schwartz--Zippel; those with $F_1 = G_1 = 0$ also need $F_0 = G_0 = 0$ and contribute $q \cdot N(F_0 \cap F_1 \cap G_0 \cap G_1) \leq q \cdot (m-1)^2 q^{m-3}$ by the inductive hypothesis applied to a coprime pair among the four (if e.g.\ $g := \gcd(F_0, F_1) \neq 1$, replace $F_0 \cap F_1$ by $Z(g) \cup Z(F_0/g \cap F_1/g)$ and induct on degree). Total $\leq [2(m-1) + (m-1)^2]q^{m-2} \leq m^2 q^{m-2}$.
+\end{proof}
+
+\begin{lemma}[degeneracy probability]\label{lem:degprob}
+Let the padded cells split as $r_0$ cells in the leading-bit-$0$ half and $r_1$ in the other (the two-burst placement), at non-mirror-aligned positions, with i.i.d.\ $\Omega$-difference coordinates ($\max$ atom $1/|\Omega|$). Then
+\[
+P_{\mathrm{deg}} \;:=\; \Pr\big[\hat\delta_0 \equiv 0 \,\vee\, \hat\delta_1 \equiv 0 \,\vee\, \hat\delta_1 \equiv \hat\delta_0 \,\vee\, \gcd(\hat\delta_0, \hat\delta_1) \neq 1\big] \;\leq\; |\Omega|^{-r_0} + |\Omega|^{-r_1} + |\Omega|^{-r_\Delta} + 2^{h} |\Omega|^{-(r_1 - D_{\max})} ,
+\]
+where $r_\Delta$ is the number of non-mirrored cells and $D_{\max}$ is the maximal dimension, over irreducible multilinear $g$, of the space of multiples of $g$ supported on the half-$1$ cells --- a computable constant of the placement, $O(1)$ for burst placements (a factor in a variable subset forces the support into a combinatorial cylinder, which bursts are not).
+\end{lemma}
+
+\begin{proof}[Proof sketch]
+The first three events force the per-cell differences to vanish (or collide) coordinatewise on the indicated cell sets, each coordinate independently with probability $\leq 1/|\Omega|$. For the gcd event: an irreducible multilinear factor uses a fixed variable subset, and the multiples of a fixed $g$ supported on the cells form a linear space of dimension $\leq D_{\max}$; conditioned on any choice of $\hat\delta_0$, membership of $\hat\delta_1$ in that space costs $|\Omega|^{-(r_1 - D_{\max})}$ by per-coordinate anticoncentration, and there are fewer than $2^h$ variable subsets.
+\end{proof}
+
+\begin{theorem}[moment bound; the small-range budget, in full]\label{thm:moment}
+In the setting above, for every $\delta \neq 0$ outside the degeneracy event, \emph{deterministically} $\rho(\delta) \leq q^{-1}\big(1 + h^2/q\big)$ (\Cref{lem:recursion,lem:bezout}: $N \leq q^{h-1} + q \cdot h^2 q^{h-3}$), while every $\delta \neq 0$ satisfies the Schwartz--Zippel cap $\rho(\delta) \leq h/q$. Hence for every $t \geq 1$,
+\[
+\mathbb{E}_{\delta \neq 0}\big[\rho(\delta)^t\big] \;\leq\; q^{-t}\Big[\big(1 + h^2/q\big)^t \;+\; P_{\mathrm{deg}}\, h^t\Big] ,
+\]
+and via \Cref{lem:lhl} the masked evaluations are within
+\[
+\tfrac12 \sqrt{\, q^t |\Omega|^{-r} \;+\; 2 t h^2/q \;+\; P_{\mathrm{deg}}\, h^t \,}
+\]
+of uniform: the \emph{full} cell count $r$ enters the main term, as conjectured. With the budget $r \log_2 |\Omega| \geq t \log_2 q + 2\lambda$ and $P_{\mathrm{deg}} h^t \leq 2^{-2\lambda}$ (a mild side condition: $\tfrac{r}{2} \log_2|\Omega| \gtrsim 2\lambda + t \log_2 h + h$), the distance is $\leq 2^{-\lambda} + \sqrt{t h^2/q}$: statistical masking at $\lambda_{\mathrm{eff}} = \min\big(\lambda,\ \tfrac12 \log_2(q / t h^2) - 1\big)$ bits.
+\end{theorem}
+
+\begin{remark}[production arithmetic, revisited]\label{rem:production}
+$\lambda_{\mathrm{eff}} \approx 71$ for KoalaBear ($q = 2^{155}$, $h \leq 26$, $t \leq 2$). Every small-range production vector now clears a \emph{proven} budget: $\textsf{bytecode\_acc}$ with $k = 8$-bit read multiplicities needs $r \geq (155 + 200)/8 \approx 45$ randomized program counters (plus the side condition, $\sim 130$); the instruction columns with $c = 4$ branch bits need $r \approx 90$ ($\sim 260$ with the side condition) padded rows --- all far below the gadget budgets of \cref{eq:budget}. \Cref{conj:linear}'s only residual role is pushing $\lambda$ past $\approx 71$ bits, where the term $\sqrt{t h^2/q}$ --- not any structural gap --- is the binding constraint; the parent document's own challenge-genericity errors sit at $2^{-122}$, so the overall zero-knowledge error becomes $\approx 2^{-71}$, dominated by this term.
 \end{remark}
 
 \section{Logup-GKR}\label{sec:gkr}
@@ -312,7 +362,20 @@ Fix a level $j_0$ and let $Y$ be the layer-$j_0$ table $(\num_{j_0}(c), \den_{j_
 Consequently, if every level-$j_0$ comb contains a surviving gadget fraction with an odd multiplicity-pattern, and the per-comb \textsc{cover} condition holds with margin $M = 2^{j_0}$, then the full GKR transcript is $\tfrac12 q^{N_{\textsc{gkr}}/2} (C\extdeg/\sqrt p)^{M}$-close to its canonical distribution. Budget: $2^{j_0} \geq (N_{\textsc{gkr}} \log_2 q + 2\lambda)/\log_2(p/(C\extdeg)^2)$, i.e.\ $j_0 \approx 13$ and $\sim 2^{13}$ gadget cells covering all level-$j_0$ residues at production size --- consistent with \cref{eq:budget}.
 \end{proposition}
 
-The GKR's middle levels are therefore no longer a separate gap: the only residual hypotheses are the same \textsc{cover}/survival conditions as in the zerocheck, plus \Cref{lem:linesums}'s genericity events ($\theta \in \Fp$, probability $p/q$ per fraction).
+The GKR's middle levels are therefore no longer a separate gap: the only residual hypotheses are the same \textsc{cover}/survival conditions as in the zerocheck, plus \Cref{lem:linesums}'s genericity events ($\theta \in \Fp$, probability $p/q$ per fraction). The survival conditions themselves are a counting property of the schedule, which the following lemma settles.
+
+\begin{lemma}[survival counting]\label{lem:schedule}
+For a comb $c$ at level $j$, fraction $i$ enters the den with exponent $e_i(c) = \mathbb{1}[a_i \equiv c] + \#\{l : p_{i,l} \equiv c\}$ and the ratio with coefficient $\nu_i(c) = \kappa_i \mathbb{1}[a_i \equiv c] - \#\{l : p_{i,l} \equiv c\}$ (all congruences mod $2^j$), where $a_i$ is the tape address (the push leaf) and $p_{i,l}$ the pull leaves. Schedule the gadget so that: tape addresses occupy distinct \emph{even} residues mod $2^{j_0+1}$, covering all of them ($2^{j_0}$ cells suffice); each cell is read $\kappa_i \leq 2^{j_0}$ times at consecutive cycles of an \emph{odd-length} loop body, so its pull leaves occupy $\kappa_i$ \emph{distinct} residues, and the bursts' offsets are chosen (greedily, one cell at a time) so that no pull of cell $i$ is congruent to $a_i$. Then, for every level $j \leq j_0 + 1$ and every comb $c$:
+\begin{itemize}
+    \item if $c$ contains a push: the matching fraction has $e_i(c) = 1$ (odd) and $\nu_i(c) = \kappa_i \neq 0$;
+    \item otherwise, pulls cover the remaining residues (consecutive cycles with odd stride traverse all residues mod $2^j$), and a fraction with exactly one pull in $c$ has $e_i(c) = 1$ and $\nu_i(c) = -1$.
+\end{itemize}
+For finer levels $j > j_0 + 1$, the number of combs containing a surviving fraction is at least the number of distinct gadget-leaf residues, $\geq \min(2^j, g + \sum_i \kappa_i)(1 - o(1))$: \Cref{prop:gkr-full}'s requirement of $M$ nondegenerate blocks holds at every level with $M \geq 2^{j_0}$, and per-comb odd exponents hold up to level $j_0 + 1$ by construction.
+\end{lemma}
+
+\begin{proof}
+Direct bookkeeping. Distinct even residues for pushes and $\kappa_i \leq 2^{j}$ consecutive odd-stride cycles for pulls make every $e_i(c) \in \{0, 1\}$ at levels $j \leq j_0+1$ --- no fraction meets a comb twice --- so exponent parity and coefficient nonvanishing are automatic wherever a fraction is present; presence everywhere is the coverage of residues by pushes and pulls together. The greedy choice avoiding $p_{i,l} \equiv a_i$ is possible because each cell constrains $\kappa_i \leq 2^{j_0}$ of the $2^{j_0+1}$ residues and the loop offset is free.
+\end{proof}
 
 \section{The AIR zerocheck}\label{sec:air}
 
@@ -414,7 +477,7 @@ Fix $c \geq 0$ and let $Y$ denote the \emph{folded table} after round $h - c$: t
     \item the Fourier argument of \Cref{thm:prefix} applies verbatim to the \emph{joint} vector $(T_{\mathrm{prefix}}, Y)$, with \textsc{cover} extended to its tests;
     \item if $(T_{\mathrm{prefix}}, Y)$ is $\varepsilon$-close to $\mathcal{U}^*_{\mathrm{pre}} \times (\text{uniform on } Y\text{'s coset})$, the \emph{full} transcript is $\varepsilon$-close to the distribution that samples that pair and runs the honest prover on $Y$ for the last $c$ rounds --- with chaining and the final identity holding automatically. The canonical distribution is redefined this way on the suffix; no designated-coordinate bookkeeping is needed there.
 \end{enumerate}
-\Cref{conj:air} thus \emph{reduces} to: the extended \textsc{cover}, the budget $r \gtrsim \extdeg\, n_{\mathrm{col}}\, 2^c + M$, and the masking of the \emph{rigid} columns' folds (instruction flags and the like, whose gadget entropy is small-range): the latter is precisely where the small-range budget gap of \Cref{rem:gap} enters, and the only place.
+\Cref{conj:air} thus \emph{reduces} to: the extended \textsc{cover}, the budget $r \gtrsim \extdeg\, n_{\mathrm{col}}\, 2^c + M$, and the masking of the \emph{rigid} columns' folds (instruction flags and the like, whose gadget entropy is small-range) --- the latter now covered by \Cref{thm:moment} at the $\lambda_{\mathrm{eff}} \approx 71$-bit level.
 \end{proposition}
 
 \begin{theorem}[block masking, full granularity]\label{thm:blocks}
@@ -489,14 +552,27 @@ A third round of experiments ($p = 251$) validated the mechanisms of \Cref{sec:g
 \emph{(iii) Suffix reduction}: on the $h = 7$ zerocheck toy, the last-round messages recomputed from the stored round-$5$ folded table coincide exactly with the full prover run (the public-function claim of \Cref{prop:suffix}); the folded-table coordinates have exactly zero cross-terms between padded cells (separability); and their exact marginals are masked to $4 \cdot 10^{-3}$ between witnesses at $12$ cells.
 \end{remark}
 
+\begin{remark}[the recursion route, validated]\label{rem:numG}
+The mechanism of \Cref{sec:moment}, checked exactly at $h = 3$, $q = 169$, $r = 8$, $\Omega = \{0,1\}$ (all $6{,}560$ difference patterns, all $q^2$ residual points):
+the recursion identity of \Cref{lem:recursion} matches brute-force root counts over the full $q^3$ space, pattern by pattern;
+the maximal intersection count over coprime patterns is $2$, inside \Cref{lem:bezout}'s cap of $4$;
+and the measured excess $\mathbb{E}[N]/q^{h-1} - 1 = 0.308$ decomposes exactly as \Cref{thm:moment} predicts: a generic part $q\,\mathbb{E}[N_\cap \cdot \mathbb{1}_{\mathrm{coprime}}]/q^{h-1} = 0.006$ (bound $h^2/q = 0.053$) plus a degenerate part $0.326$ carried by patterns with vanishing, equal, or factor-sharing halves --- probability $0.26$ at this minimal size, suppressed as $|\Omega|^{-r/2}$ at production sizes.
+\end{remark}
+
+\begin{remark}[line-sum constants and root-count moments, validated]\label{rem:numF}
+A fourth round of experiments.
+\emph{(i) \Cref{lem:linesums} in genuine extension fields} ($\Fq = \mathbb{F}_{13^2}$ and $\mathbb{F}_{7^3}$, exhaustive over the line, $12$ random lines, several characters each): the Katz bound is \emph{attained} at $\extdeg = 2$ ($\max |{\textstyle\sum}\chi| = 3.61 = (\extdeg-1)\sqrt p$) and near-attained at $\extdeg = 3$ ($5.00$ vs $5.29$); the Kloosterman-type and mixed sums stay well inside their bounds ($5.7$ vs $13.2$, $4.4$ vs $15.9$ at $\extdeg = 3$). The constants of \Cref{lem:linesums} are correct and, for (1), sharp.
+\emph{(ii) Root-count moments} (the reformulation of \Cref{rem:gap}; $q = 169$, $\Omega = \{0,1\}$, exact in $\delta$, exhaustive or $2 \cdot 10^5$-sampled in $\vec z$): beyond the spray cap the moments carry a finite-size excess --- $q\,\mathbb{E}[\rho] = 1.40$, $q^2\,\mathbb{E}[\rho^2] = 2.20$ at $h = 2$, $r = 4$ --- traceable to algebraic coincidences of the $3$-point difference support (e.g.\ $\delta_0\delta_3 = \delta_1\delta_2$, which doubles the root count of a bilinear form); and the excess \emph{decays in $r$ exactly as the conjecture needs}: $q\,\mathbb{E}[\rho] = 2.45 \to 1.66 \to 1.31$ for $r = 4 \to 6 \to 8$ at $h = 3$. The conjectured budget's $2\lambda$ slack is what absorbs the residual.
+\end{remark}
+
 \paragraph{What remains untested.} Full-transcript (rather than marginal and low-dimensional) closeness is out of reach of enumeration by construction --- the budget \cref{eq:budget} forces the padding space past anything enumerable, which is also why the sampled run at $g = 6$ probes marginals only. Still open to experiment: the small-range budget gap of \Cref{rem:gap} (reused flip coordinates, Kloosterman regime); extension-field toys for the GKR (the character effects of \Cref{rem:numB} live in $\Fq^*$ too); degree-$5$-plus constraint sets approaching the execution AIR; and the within-block nondegeneracy conditions of \Cref{rem:prefix-scope}.
 
 \section{Open problems}
 
 \begin{enumerate}
-    \item Close the small-range budget gap (\Cref{rem:gap}): extend \Cref{thm:smallomega} past the spray, where flip coordinates are reused and Kloosterman-type bounds replace exact independence. This is now the main quantitative gap: it also gates the rigid-column folds in \Cref{prop:suffix}.
-    \item Prove the \textsc{cover}/\textsc{spread}-type conditions of \Cref{thm:prefix,thm:blocks} from first principles (currently numerically verified and partially Schwartz--Zippel-certified, like the pinning condition of the parent document), and pin down the Weil--Katz constants for character sums along $\Fp$-lines in $\Fq$ used by \Cref{lem:mult} outside the prime-field case.
-    \item The GKR middle levels: interpolate \Cref{prop:gkr-top} (top, multiplicative) and the leaf-side separable machinery, in the manner of \Cref{thm:blocks}; the per-comb survival bookkeeping is the missing piece.
+    \item Execute the certification of \Cref{lem:certify} for the production AIRs and gadget template: compute the gadget-selecting specialization of the \textsc{cover} minors once per circuit. This is the last load-bearing item: with it, the full pipeline of theorems applies to LeanVM as deployed. (A first-principles proof of \textsc{cover} for every AIR would be stronger but is not needed: the condition is per-circuit and finite.)
+    \item Push $\lambda$ past $\tfrac12 \log_2(q/th^2) \approx 71$ bits: improve the generic term of \Cref{thm:moment} beyond $h^2/q$ (deeper recursion --- one more level should yield $h^c/q^{3/2}$-type terms --- or a sharper count of the coprime intersection), the only place \Cref{conj:linear} still operates.
+    \item Constant-level polish: $D_{\max}$ of \Cref{lem:degprob} for the concrete burst placements; the mixed-sum constant of \Cref{lem:linesums}(3); the reducibility induction of \Cref{lem:bezout} written in full.
     \item The bad challenge sets of \Cref{conj:gkr,conj:air} are witness-dependent (\Cref{rem:no-pure}); determine whether a statement-determined good set can be recovered, as in the masked WHIR, by constraining the gadget further (e.g.\ forcing data-free affine coefficients in designated rounds).
     \item Quantify the multiplicative smoothing of \Cref{rem:nonlinear} (products of uniform affine-line elements in $\Fq^*$): a clean local limit statement would substantially de-risk \Cref{conj:gkr}. \Cref{rem:numB} exhibits the obstruction concretely: even-power den factors fix the quadratic character, so the smoothing must come from the odd-power and additive contributions.
     \item The interaction with the masked WHIR is currently additive (two separate masking mechanisms); whether the WHIR masks $R_{\mathsf{in}}, R_{\mathsf{out}}$ can double as channel-(E) padding (they live in the same committed polynomial) would shave the residual overhead.
