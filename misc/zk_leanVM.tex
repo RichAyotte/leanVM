@@ -144,15 +144,15 @@ Open question: the BCS transform. \Cref{cor:statzk} proves the \emph{interactive
 
 \section{Proofs for the masked WHIR}
 
-We analyse the linear algebra of the values revealed during round 0 of the masked opening, and prove the lemmas behind the \textsc{independence} condition of \Cref{sec:zk-sketch}. The route: \Cref{sec:slot,sec:rank} work at a single out-of-domain point and compute the revealed values as linear forms in the per-class node values, with an explicit rank and kernel (\Cref{prop:rank}); \Cref{sec:twopoint} assembles two points into joint independence, under explicit per-slot conditions (\Cref{thm:twopoint}; stated at $s_0 = 2$, the case we instantiate, while \Cref{rem:s0} treats $s_0 > 2$). The cross-freeness of the blocks (\Cref{lem:blocks}) then upgrades independence to the joint uniformity of the full round-0 view (\Cref{prop:uniform}), and \Cref{sec:simulator} builds the simulator: perfect simulation on an explicit good set of challenge tuples, whose complement is bounded (\Cref{cor:restart}) and absorbed into the statistical error (\Cref{cor:statzk}).
+We analyse the linear algebra of the values revealed during round 0 of the masked opening, and prove the lemmas behind the \textsc{independence} condition of \Cref{sec:zk-sketch}. The route: the two-point system of \Cref{sec:twopoint} splits per point, each point contributing its own block of node values, so \Cref{sec:slot,sec:rank} first work out the structure contributed by \emph{one} point, with an explicit rank and kernel (\Cref{prop:rank}); \Cref{sec:twopoint} then assembles the two blocks into joint independence, under explicit per-slot conditions (\Cref{thm:twopoint}; stated at $s_0 = 2$, the case we instantiate, while \Cref{rem:s0} treats $s_0 > 2$). The cross-freeness of the blocks (\Cref{lem:blocks}) then upgrades independence to the joint uniformity of the full round-0 view (\Cref{prop:uniform}), and \Cref{sec:simulator} builds the simulator: perfect simulation on an explicit good set of challenge tuples, whose complement is bounded (\Cref{cor:restart}) and absorbed into the statistical error (\Cref{cor:statzk}).
 
 \subsection{Setting and notation}\label{sec:setting}
 
-\Cref{sec:slot,sec:rank} work with a single commitment out-of-domain point $z$; \Cref{sec:twopoint} treats two points. For a point $z$, write $\zeta_i := z^{2^{i-1}}$, so that $\pow(z, n) = (\zeta_1, \dots, \zeta_{k_0}, \pow(z^{2^{k_0}}, n - k_0))$. The \emph{node} is the point $\nu := \pow(z^{2^{k_0}}, n - k_0)$, and the \emph{node values} are
+The two-point analysis of \Cref{sec:twopoint} proceeds by restricting the revealed values to the block of one point at a time, and each such restriction is a one-point computation: \Cref{sec:slot,sec:rank} carry it out. (Nothing here concerns an $s_0 = 1$ variant of the protocol.) For a point $z$, write $\zeta_i := z^{2^{i-1}}$, so that $\pow(z, n) = (\zeta_1, \dots, \zeta_{k_0}, \pow(z^{2^{k_0}}, n - k_0))$. The \emph{node} is the point $\nu := \pow(z^{2^{k_0}}, n - k_0)$, and the \emph{node values} are
 \[
 V_s \;:=\; \hat{u}_s(\nu) \;\in\; \Fq , \qquad s \in \{0,1\}^{k_0} ,
 \]
-with $u_s$ the classes of \Cref{sec:zk-sketch}. The batched weight is $\hat{W}_0 = \hat{eq}(\pow(z, n), \cdot) + \gamma\, \hat{w}$ (for $s_0 = 1$), where the input weight $\hat{w}$ vanishes on every mask cell. The round-0 sumcheck messages are
+with $u_s$ the classes of \Cref{sec:zk-sketch}. We compute with the one-point weight $\hat{W}_0 = \hat{eq}(\pow(z, n), \cdot) + \gamma\, \hat{w}$; the two-point batching scalars are restored in \Cref{sec:twopoint}. The input weight $\hat{w}$ vanishes on every mask cell. The round-0 sumcheck messages are
 \[
 \hat{h}_\ell(X) \;=\; \sum_{b \in \{0,1\}^{n - \ell}} \hat{f}_0(\alpha_1, \dots, \alpha_{\ell - 1}, X, b)\; \hat{W}_0(\alpha_1, \dots, \alpha_{\ell - 1}, X, b) , \qquad \ell = 1, \dots, k_0 ,
 \]
@@ -210,7 +210,7 @@ By \cref{eq:acd}, replacing $\tilde{a}_\ell$ by $c_\ell + (\alpha_\ell - \zeta_\
 \rho_{\ell + 1} \;=\; \rho_\ell + (\alpha_\ell - \zeta_\ell)\, \tau_\ell , \qquad \ell = 1, \dots, k_0 .
 \end{equation}
 
-\subsection{One point: the rank of the node matrix}\label{sec:rank}
+\subsection{The per-point node matrix: rank and kernel}\label{sec:rank}
 
 This subsection is the per-point engine of the two-point analysis: \Cref{thm:twopoint} consumes the rank and the explicit kernel basis of \Cref{prop:rank} (per point), \Cref{cor:twopointprob} consumes \Cref{cor:rankprob}, and the twist-rigidity argument (\Cref{cond:twist}) uses $\eta \in \mathrm{span}\{\omega, \tau_1, \dots, \tau_{k_0}\}$.
 
