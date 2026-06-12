@@ -51,7 +51,7 @@ The \emph{transcript} of an execution is everything the verifier sees: its chall
 \begin{theorem}[informal; see \Cref{thm:simulator,cor:statzk}]\label{thm:main}
 The masked WHIR opening is honest-verifier zero-knowledge with error
 \[
-\varepsilon \;\leq\; \big(s_0 + s_1 + 1\big)\, \frac{p}{q} \;+\; O\big(2^{k_0+7}\big)\frac{1}{q} \;\approx\; 2^{-122} \quad \text{for KoalaBear} .
+\varepsilon \;\leq\; \big(s_0 + s_1 + \extdeg\big)\, \frac{p}{q} \;+\; O\big(2^{k_0+7}\big)\frac{1}{q} \;\approx\; 2^{-121} \quad \text{for KoalaBear} .
 \]
 \begin{itemize}
     \item \emph{Prover:} cost slightly above $2\times$ (the committed polynomial doubles), and no new prover-side check.
@@ -404,7 +404,7 @@ By \Cref{lem:criterion} it suffices to verify the criterion for $\delta := D - D
 \end{proof}
 
 \begin{corollary}[statistical zero-knowledge]\label{cor:statzk}
-For uniform challenges, the masked opening is honest-verifier zero-knowledge (\Cref{def:hvzk}) with error $\varepsilon := \Pr[\text{degenerate challenges}] \approx 2^{-122}$ (\Cref{cor:restart}): for every data assignment $D$, the honest transcript with data $D$ is at statistical distance at most $\varepsilon$ from the output of the simulator (the honest prover run on $D^*$), with no prover-side check.
+For uniform challenges, the masked opening is honest-verifier zero-knowledge (\Cref{def:hvzk}) with error $\varepsilon := \Pr[\text{degenerate challenges}] \approx 2^{-121}$ (\Cref{cor:restart}): for every data assignment $D$, the honest transcript with data $D$ is at statistical distance at most $\varepsilon$ from the output of the simulator (the honest prover run on $D^*$), with no prover-side check.
 \end{corollary}
 
 \begin{proof}
@@ -553,34 +553,90 @@ Assume the conditions of \Cref{prop:uniform}, \textsc{spread}, and that $\hat{w}
 By the identity $F_{\theta^{\mathrm{term}}} = \gamma^2\, T_{\hat{w}}|_{\text{non-block mask cells}}$ of \Cref{cond:cross2} and $\Fq$-linearity of $\theta \mapsto F_\theta$, the coefficient of $F_{a\,\theta^{\mathrm{term}}}$ at the cell of class $s$ (inside $R_{\mathsf{out}}$) and non-block position $c$ is $a\, \gamma^2\, \lambda_s\, \hat{w}(\vec{\alpha}_0, c)$. If $\mathrm{tr} \circ F_{a\,\theta^{\mathrm{term}}} = 0$, every coefficient has zero trace; at the cells $(s, c^*)$ this reads $\mathrm{tr}\big(\lambda_s \cdot a \gamma^2\, \hat{w}(\vec{\alpha}_0, c^*)\big) = 0$ for every class $s$ inside $R_{\mathsf{out}}$. By \textsc{spread} the multipliers $\lambda_s$ span $\Fq$ over $\Fp$, so by $\Fp$-linearity $\mathrm{tr}\big(x \cdot a \gamma^2\, \hat{w}(\vec{\alpha}_0, c^*)\big) = 0$ for \emph{every} $x \in \Fq$, and nondegeneracy of the trace forces $a \gamma^2\, \hat{w}(\vec{\alpha}_0, c^*) = 0$: a contradiction ($a \neq 0$, $\gamma \neq 0$). For the probability: $\vec{\alpha}_0 \mapsto \hat{w}(\vec{\alpha}_0, c^*)$ is a multilinear polynomial whose hypercube values include $\hat{w}\big((0, s^*), c^*\big) \neq 0$, hence nonzero; a nonzero multilinear polynomial in $k_0$ variables vanishes at a uniform point with probability at most $k_0 / q$.
 \end{proof}
 
-\begin{remark}[slice level]\label{rem:slice}
-\Cref{prop:pinbound} below applies \Cref{cond:cross2} to a single $\Fp$-form: what is used there is $\mathrm{tr} \circ F_\theta \neq 0$ for every $\theta \neq 0$, slightly stronger than $F_\theta \neq 0$ (some \emph{entry} of $F_\theta$ must avoid the kernel of the trace). Writing $v_u := \big(F_{(1,0)}[u],\, F_{(0,1)}[u]\big) \in \Fq^2$ for the pair of entries at the cell $u$, trace duality identifies $\{\theta : \mathrm{tr} \circ F_\theta = 0\}$ with the orthogonal of $\mathrm{span}_{\Fp}\{v_u\}_u$ under the nondegenerate trace pairing on $\Fq^2$: the slice-level statement is \emph{equivalent} to the entry pairs spanning $\Fq^2$ over $\Fp$ --- a spanning condition of the same species as \textsc{spread}. \Cref{lem:termslice} settles it on the terminal line $\Fq\, \theta^{\mathrm{term}}$, with a strong bound and no degree loss (composing with $\mathrm{tr}$ multiplies Schwartz--Zippel degrees by $p^{\extdeg-1}$, so naive routes give only $\approx 2^{k_0+7}/p$). For the directions transverse to $\theta^{\mathrm{term}}$ the analytic bound remains open: there the entries mix the rounds through the representation coefficients $c^{(j)}_v$, and no product structure analogous to $T_{\hat{w}}\text{'s } \lambda_s\, \hat{w}(\vec{\alpha}_0, c)$ is available. Two footholds for the attack: (i) the \emph{round-1} cross weights are exact and challenge-free --- at every cell $(1, v)$, MaskFree gives $\hat{w}(X, v) = (1 - X)\, \hat{w}_0(v)$, so $C_{(1,1)}[(1,v)] = \gamma^2\, \hat{w}_0(v)$ and $C_{(1,2)}[(1,v)] = -\gamma^2\, \hat{w}_0(v)$, with no specialization; (ii) for fixed class, the cell map $u \mapsto F_\theta[u]$ is the restriction of a multilinear polynomial in the position coordinates, so the trace conditions over a single-class family are equivalent to trace conditions on its $2^a$ multilinear \emph{coefficients}.
+\begin{lemma}[slice]\label{lem:fullslice}
+Assume the conditions of \Cref{prop:uniform}, the conclusion of \Cref{cond:cross2} ($F_\theta \neq 0$ for every $\theta \neq 0$), $k_0 \geq \extdeg + 2$, and:
+(i) the multipliers $E'(\pi) := \alpha_1 \prod_{i=2}^{k_0 - 2} \hat{eq}(\alpha_i, \pi_i)$, $\pi \in \{0,1\}^{k_0 - 3}$, span $\Fq$ over $\Fp$;
+(ii) $\alpha_\ell \neq z_j^{2^{\ell-1}}$ for $\ell \in \{k_0 - 1, k_0\}$ and $j = 1, 2$;
+(iii) the two-level moment system at levels $\{k_0 - 1, k_0\}$, defined in the proof, is nondegenerate.
+Then $\mathrm{tr} \circ F_\theta \neq 0$ for \emph{every} $\theta \neq 0$. For uniform challenges, the conditions (i)--(iii) fail with probability at most $(\extdeg - 1)\, p/q + O(2^{k_0})/q$.
+\end{lemma}
 
-Numerics at the toy parameters (pipeline validated against the exact identity $F_{\theta^{\mathrm{term}}} = \gamma^2 T_{\hat{w}}$, stable across seeds) localize the target sharply: the entry pairs of a \emph{single class}, varying over its non-block positions, already span $\Fq^2$ over $\Fp$ --- for every class; equivalently (M\"obius), the per-monomial coefficient pairs have full rank $2\extdeg$. The round-$1$ contribution alone spans exactly the terminal $\Fq$-line ($\extdeg$ dimensions, matching \Cref{lem:termslice}); the rounds $\ell \geq 2$ supply the transverse complement.
-
-The proof plan this suggests: write the single-class entries as $\Psi(\theta) \in \Fq^{2^a}$, the M\"obius coefficients of $c \mapsto F_\theta[(s, c)]$, an $\Fq$-linear map of $\theta$; failure of the slice statement on the class is the event $\Psi(\theta) \in H^{2^a}$ for some $\theta \neq 0$, with $H := \ker(\mathrm{tr})$. A union bound over the $\approx q^2/p$ directions is hopeless, but the first-moment bound
+\begin{proof}
+\emph{Step 1: a $y$-family of channel identities.} Let $\delta \in \ker(L_{\mathrm{view}}) \cap \mathrm{masks}$, with node values $V$ and non-block restriction $\delta_{\mathrm{out}}$. The contribution of $\delta$ to every sumcheck message vanishes \emph{identically as a polynomial}: its two fresh coefficients vanish by definition of the view, and its constant coefficients telescope to zero --- $\hat{h}^\delta_\ell(0) + \hat{h}^\delta_\ell(1) = \hat{h}^\delta_{\ell-1}(\alpha_{\ell-1})$, with initial target $\sigma_0^\delta = y_1^\delta + \gamma y_2^\delta + \gamma^2 \langle \delta, w \rangle = 0$, so by induction $2\,\hat{h}^\delta_\ell(0) = -\big([X^1] + [X^2]\big)\hat{h}^\delta_\ell + \hat{h}^\delta_{\ell-1}(\alpha_{\ell-1}) = 0$ ($p$ odd). Evaluating the channel decomposition of $\hat{h}^\delta_\ell$ (\cref{eq:channel} applied to $\delta$'s table; the cross part is supported off the blocks by \Cref{lem:blocks}) at an \emph{arbitrary} point $y$:
+\begin{equation}\label{eq:yfam}
+P^1_\ell(y)\, \big\langle g^1_\ell(y), V \big\rangle \;+\; \gamma\, P^2_\ell(y)\, \big\langle g^2_\ell(y), V \big\rangle \;+\; \gamma^2\, T^{\ell, y}(\delta_{\mathrm{out}}) \;=\; 0 ,
+\end{equation}
+where $P^j_\ell(y) := \big[\prod_{i<\ell} \hat{eq}(\alpha_i, z_j^{2^{i-1}})\big]\, \hat{eq}(y, z_j^{2^{\ell-1}})$, the node functional is, by the slot decomposition (\cref{eq:acd} at $y$),
 \[
-\Pr\big[\exists\, \theta \neq 0 : \Psi(\theta) \in H^{2^a}\big] \;\leq\; \sum_{\theta \neq 0} \Pr\big[\Psi(\theta) \in H^{2^a}\big]
+g^j_\ell(y) \;=\; \rho^{(j)}_\ell + \big(y - z_j^{2^{\ell-1}}\big)\, \tau^{(j)}_\ell \;\in\; \mathrm{span}\{\omega^{(j)}, \tau^{(j)}_1, \dots, \tau^{(j)}_{k_0}\} ,
 \]
-succeeds if, per fixed $\theta$, the $2^a$ coefficient coordinates are jointly equidistributed enough that the right side is $\ll q^2 \cdot p^{-2^a}$: a multivariate character-sum estimate over the challenge randomness, of the same species as the Weil--Katz line-sum bounds used elsewhere in this project. One caveat for the plan: the single-class statement can degenerate for structured input weights (for a rank-one data matrix $\hat{w}_0(s, c) = f(s)\, g(c)$, the same-class minors of the specialization of \Cref{cond:cross2} vanish identically), so the analytic version must either condition on the rank of the weight data or combine two classes, as the proof of \Cref{cond:cross2} already does. The numerical verification of \Cref{cond:pinning}, which computes $\mathrm{ann}(W')$ as an $\Fp$-space, operates directly at the slice level, and confirms the full statement.
+and the cross form $T^{\ell, y}$ has coefficient $\big[\prod_{i < \ell} \hat{eq}(\alpha_i, s_i)\big]\, \hat{eq}(y, s_\ell)\, \hat{w}(\alpha_{<\ell}, y, (s_{>\ell}, c))$ at the cell $(s, c)$. The terminal identity of \Cref{cond:cross2} is the member $(\ell, y) = (k_0, \alpha_{k_0})$.
+
+\emph{Step 2: representing every $\eta$-pair at the top two levels.} Fix three distinct points $y_1, y_2, y_3 \in \Fp$ and, per level $\ell$, coefficients $\mu_t$ with moments $m_h := \sum_t \mu_t\, y_t^h$ ($h = 0, 1, 2$; the Vandermonde makes moments and coefficients equivalent). The $\mu$-combination of \cref{eq:yfam} has node part $S^1 \rho^{(1)}_\ell + R^1 \tau^{(1)}_\ell$ on block $1$ and $\gamma(S^2 \rho^{(2)}_\ell + R^2 \tau^{(2)}_\ell)$ on block $2$, where, writing $\zeta_j := z_j^{2^{\ell-1}}$ and $\Pi^j := \prod_{i<\ell} \hat{eq}(\alpha_i, z_j^{2^{i-1}})$,
+\[
+S^j = \Pi^j \big[(1 - \zeta_j)\, m_0 + (2\zeta_j - 1)\, m_1\big] , \qquad
+R^j = \Pi^j \big[ -\zeta_j (1 - \zeta_j)\, m_0 + (1 - 2\zeta_j^2)\, m_1 + (2\zeta_j - 1)\, m_2 \big] :
+\]
+a linear map $(m_0, m_1, m_2) \mapsto (S^1, R^1, S^2, R^2)$ of rank $3$ outside an explicit hypersurface (at $\zeta_1 = 0$ the minor on $(S^1, R^1, R^2)$ is $\Pi^1\Pi^1\Pi^2\, \zeta_2 (1 - \zeta_2) \neq 0$; Schwartz--Zippel over the $\zeta$'s costs $O(2^{k_0})/q$). Now match $\theta_1 \eta_1 \oplus \theta_2 \eta_2$ against a combination at the two levels $\ell \in \{k_0 - 1, k_0\}$: in the per-block staircase basis $\{\omega^{(j)}, \tau^{(j)}_\ell\}$ (independent by \Cref{lem:staircase}), with $\eta_j = \omega^{(j)} + \sum_\ell \lambda^{(j)}_\ell \tau^{(j)}_\ell$ and $\rho^{(j)}_\ell = \omega^{(j)} + \sum_{i<\ell} \lambda^{(j)}_i \tau^{(j)}_i$, the matching equations are (with $\Theta_1 := \theta_1$, $\Theta_2 := \theta_2/\gamma$):
+\[
+S^j_{k_0-1} + S^j_{k_0} = \Theta_j , \qquad
+R^j_{k_0} = \lambda^{(j)}_{k_0}\, \Theta_j , \qquad
+R^j_{k_0-1} = \lambda^{(j)}_{k_0-1}\big(\Theta_j - S^j_{k_0}\big) ,
+\]
+and the equations at levels $\ell < k_0 - 1$ hold automatically. Solving: the $R^j_{k_0}$ are prescribed; the level-$k_0$ rank-$3$ relation fixes one combination of $(S^1_{k_0}, S^2_{k_0})$, leaving one free parameter; the level-$(k_0-1)$ quadruple is then determined, and its rank-$3$ relation is one affine equation in that parameter, solvable whenever its leading coefficient is nonzero --- an explicit polynomial condition in the challenges (condition (iii), $O(2^{k_0})/q$ by Schwartz--Zippel). The solution is \emph{linear in $\Theta$}: one representation, uniformly for every $\theta$.
+
+\emph{Step 3: factorization.} Apply the represented identity to $V^\delta$ and use $\langle \theta_1 \eta_1 \oplus \theta_2 \eta_2, V \rangle = -F_\theta(\delta_{\mathrm{out}})$ (proof of \Cref{cond:cross2}); since $\delta_{\mathrm{out}}$ is arbitrary (\Cref{lem:kersurj}), as forms on the non-block mask cells:
+\[
+F_\theta \;=\; \gamma^2 \sum_{\ell \in \{k_0-1,\, k_0\}} \sum_t \mu_{\ell, t}\, T^{\ell, y_t} .
+\]
+Write the cell as $(1, \pi, a, b, c)$ with $\pi := s_{2..k_0-2}$, $a := s_{k_0-1}$, $b := s_{k_0}$. \emph{Both} levels' coefficients carry the common prefix $E'(\pi)$:
+\[
+\begin{gathered}
+F_\theta[(1, \pi, a, b, c)] \;=\; \gamma^2\, E'(\pi)\, G_\theta(a, b, c) , \\
+G_\theta(a,b,c) \;:=\; \sum_t \mu'_t\, \hat{eq}(y_t, a)\, \hat{w}(\alpha_{<k_0-1}, y_t, (b, c)) \;+\; \hat{eq}(\alpha_{k_0-1}, a) \sum_t \mu_t\, \hat{eq}(y_t, b)\, \hat{w}(\alpha_{<k_0}, y_t, c) .
+\end{gathered}
+\]
+
+\emph{Step 4: conclusion.} Suppose $\mathrm{tr} \circ F_\theta = 0$ for some $\theta \neq 0$. For every fixed $(a, b, c)$ and every $\pi$: $\mathrm{tr}\big(E'(\pi) \cdot \gamma^2 G_\theta(a, b, c)\big) = 0$. By (i) the multipliers $E'(\pi)$ span $\Fq$ over $\Fp$, so nondegeneracy of the trace gives $\gamma^2 G_\theta(a, b, c) = 0$ for all $(a, b, c)$: $F_\theta$ vanishes identically on the non-block mask cells, contradicting \Cref{cond:cross2}. By \Cref{lem:span}, condition (i) needs at least $\extdeg - 1$ of $\alpha_2, \dots, \alpha_{k_0-2}$ outside $\Fp$ --- hence the hypothesis $k_0 \geq \extdeg + 2$, met exactly by the production parameters ($k_0 = 7$, $\extdeg = 5$) --- and fails with probability at most $1/q + (\extdeg - 1)\, p/q$-grade terms as in \Cref{lem:spread}; condition (ii) costs at most $4 \cdot 2^{k_0 - 1}/q$.
+\end{proof}
+
+\begin{remark}[slice level]\label{rem:slice}
+\Cref{lem:fullslice} is what \Cref{prop:pinbound} consumes: $\mathrm{tr} \circ F_\theta \neq 0$ for every $\theta \neq 0$, strictly stronger than the $\Fq$-level $F_\theta \neq 0$ of \Cref{cond:cross2} (trace duality identifies $\{\theta : \mathrm{tr} \circ F_\theta = 0\}$ with the orthogonal of the $\Fp$-span of the entry pairs $(F_{(1,0)}[u], F_{(0,1)}[u]) \in \Fq^2$, so the statement is a spanning condition of the same species as \textsc{spread}). Direct routes fail --- composing with $\mathrm{tr}$ multiplies Schwartz--Zippel degrees by $p^{\extdeg-1}$, and a union bound over the $\approx q^2/p$ directions is hopeless --- which is why the proof goes through the $y$-family: the representation of Step~2 is \emph{uniform in $\theta$}, so no per-direction probability is ever paid. Numerics at toy parameters (validated against $F_{\theta^{\mathrm{term}}} = \gamma^2 T_{\hat{w}}$, stable across seeds) confirm the picture: the entry pairs of a single class already span $\Fq^2$, the round-$1$ contribution spans exactly the terminal line of \Cref{lem:termslice}, and the higher rounds supply the transverse complement --- as in Step~3, where level $k_0$'s table $\hat{w}(\alpha_{<k_0}, y, c)$ is class-free. The numerical verification of \Cref{cond:pinning}, which computes $\mathrm{ann}(W')$ as an $\Fp$-space, operates directly at the slice level and independently confirms the statement.
 \end{remark}
 
+\begin{lemma}[no other component]\label{lem:noother}
+Assume the conditions of \Cref{lem:fullslice}, and in addition that for $L \in \{k_0 - 1, k_0\}$ the two slice tables $\hat{w}(\alpha_{<L}, 0, \cdot)$ and $\hat{w}(\alpha_{<L}, 1, \cdot)$ are not $\Fq$-proportional (which, provided the corresponding \emph{data} slices of $\hat{w}$ are not proportional, fails with probability at most $4 k_0/q$ over the $\alpha$'s: the $2 \times 2$ minors are polynomials of degree $\leq 2k_0$, nonzero by evaluation at boolean $\alpha$'s). Let $\varphi' \in \mathrm{ann}(W')$ have block representative the trace dual of $\sum_j \theta_j\, u^{(\nu_j)}|_{\mathrm{blk}}$. Then there is an $e \in \Fq$ with $\theta = e\, \theta^{\mathrm{term}}$ and
+\[
+\varphi' \;=\; \text{trace dual of } e \Big( \sum_j \theta^{\mathrm{term}}_j\, u^{(\nu_j)} + \gamma^2\, \hat{w}(\vec{\alpha}_0, \cdot) \Big) :
+\]
+the residue is $e$ times the terminal protocol direction.
+\end{lemma}
+
+\begin{proof}
+\emph{Step 1: confinement to the fold tables.} For an $R_{\mathsf{out}}$ class $s$ and $v \in \Fp^{2^m}$ with vanishing evaluations at the queried points, at all $s_0 + s_1$ nodes, and vanishing pairings against every fold table $w_{\ell, x, t} := \hat{w}(\alpha_{<\ell}, x, (t, \cdot))$, the single-class perturbation placing $v$ on $s$ is invisible to the view: its cross contributions are $E$-prefixed pairings against the fold tables, all zero. Its fold image is $\lambda_s v$, so $\mathrm{tr}(\lambda_s \langle \varphi', v \rangle) = 0$; the common space of such $v$ is class-independent, so \textsc{spread} and \Cref{lem:traceorth} confine $\varphi'$ to the $\Fq$-span of the queried-point duals, the node duals, and the fold tables. Subtracting the (queried and $\hat{f}_1$-node) protocol components as in \Cref{prop:pinbound}, and noting that every fold table vanishes on the blocks (\Cref{lem:blocks}), consistency with the block representative leaves
+$\varphi' = $ dual of $\sum_j \theta_j u^{(\nu_j)} + W_e$, with $W_e := \sum_{\ell, x, t} e_{\ell x t}\, w_{\ell, x, t}$ an unknown table combination.
+
+\emph{Step 2: the membership identity.} For $\delta \in \ker(L_{\mathrm{view}}) \cap \mathrm{masks}$: $0 = \varphi'(\mathrm{fold}\,\delta) = \mathrm{tr}\big( \sum_j \theta_j \eta_j(V) + \langle W_e, \mathrm{fold}\,\delta \rangle \big)$. The first term is $-F_\theta(\delta_{\mathrm{out}})$, equal by \Cref{lem:fullslice} (Step 3) to $-\gamma^2 E'(\pi) G_\theta(a,b,c)$-weighted pairing; the second has weight $\lambda_s W_e(c) = E'(\pi)\, \hat{eq}(\alpha_{k_0-1}, a)\, \hat{eq}(\alpha_{k_0}, b)\, W_e(c)$ at the cell $(1, \pi, a, b, c)$. Since $\delta_{\mathrm{out}}$ is arbitrary (\Cref{lem:kersurj}) and this must hold at the slice level for the single form $\varphi'$... the form itself must vanish; dividing by $E'(\pi) \neq 0$ (\Cref{lem:fullslice}\,(i) forces $\alpha_2, \dots, \alpha_{k_0-2} \notin \Fp$):
+\begin{equation}\label{eq:noother}
+\gamma^2\, G_\theta(a, b, c) \;=\; \hat{eq}(\alpha_{k_0-1}, a)\, \hat{eq}(\alpha_{k_0}, b)\, W_e(c) \qquad \forall (a, b, c) .
+\end{equation}
+(Indeed, per cell the condition reads $\mathrm{tr}\big(E'(\pi)\, D(a,b,c)\big) = 0$ with $D := \hat{eq}(\alpha_{k_0-1}, a)\, \hat{eq}(\alpha_{k_0}, b)\, W_e(c) - \gamma^2 G_\theta(a,b,c)$; condition (i) of \Cref{lem:fullslice} and nondegeneracy of the trace give $D \equiv 0$.)
+
+\emph{Step 3: elimination.} Write $\hat{w}(\alpha_{<L}, Y, \cdot) = p_L + Y q_L$ ($p_L, q_L$ the slice combinations, independent by hypothesis). Comparing the two $a$-components of \cref{eq:noother} and eliminating the right side: $\sum_t \mu'_t (\alpha_{k_0-1} - y_t)\, \hat{w}(\alpha_{<k_0-1}, y_t, (b, c)) = 0$, i.e.\ $c_1 p_{k_0-1} + c_2 q_{k_0-1} = 0$ with $c_1 = \alpha_{k_0-1} m'_0 - m'_1$, $c_2 = \alpha_{k_0-1} m'_1 - m'_2$: independence forces $m'_h = m'_0\, \alpha_{k_0-1}^h$ --- the level-$(k_0{-}1)$ moments are those of the \emph{point mass} at $y = \alpha_{k_0-1}$, where $g^j_{k_0-1}(\alpha_{k_0-1}) = \rho^{(j)}_{k_0}$: the telescoped direction. Substituting back and repeating the elimination in the $b$-components forces the level-$k_0$ moments to the point mass at $y = \alpha_{k_0}$, where $g^j_{k_0}(\alpha_{k_0}) = \rho^{(j)}_{k_0+1} = \eta_j$. The represented functional is then a scalar multiple of the terminal identity: $\theta = e\, \theta^{\mathrm{term}}$ and $W_e = e\, \gamma^2\, \hat{w}(\vec{\alpha}_0, \cdot)$, as claimed.
+\end{proof}
+
 \begin{proposition}\label{prop:pinbound}
-Under \textsc{spread}, $\alpha_1 \notin \Fp$, the conditions of \Cref{prop:uniform}, and the assumptions of \Cref{cond:twist,cond:cross2}, the conclusion of \Cref{cond:pinning} holds: $\mathrm{ann}(W')$ is spanned by the protocol directions.
+Under \textsc{spread}, $\alpha_1 \notin \Fp$, the conditions of \Cref{prop:uniform}, and the assumptions of \Cref{cond:twist,cond:cross2,lem:fullslice,lem:noother}, the conclusion of \Cref{cond:pinning} holds: $\mathrm{ann}(W')$ is spanned by the protocol directions.
 \end{proposition}
 
 \begin{proof}
-Let $\varphi \in \mathrm{ann}(W')$. By \Cref{lem:confine,lem:nodechannel,cond:twist}, the commitment-node part of $\phi|_{\mathrm{blk}}$ is the trace dual of $\sum_j \theta_j \eta_j$ for scalars $\theta_j$, and the queried-point and $\hat{f}_1$-node parts are $\Fq$-combinations of protocol directions outright. Subtract the latter: the residue $\varphi'$ lies in $\mathrm{ann}(W')$, with block representative the dual of $\sum_j \theta_j \eta_j$; and \Cref{lem:confine}'s orthogonality argument (whose perturbations of the $R_{\mathsf{out}}$ classes range over the entire class, so the conclusion also constrains the non-block coordinates) leaves, beyond it, no component except along the input-weight direction $\gamma^2\, \hat{w}(\vec{\alpha}_0, \cdot)$, the one the terminal protocol direction itself carries: $\varphi'$ is the trace dual of $\sum_j \theta_j\, u^{(\nu_j)} + e\, \gamma^2\, \hat{w}(\vec{\alpha}_0, \cdot)$ for some $e \in \Fq$. Evaluating on $W'$, with the identity $F_{\theta^{\mathrm{term}}} = \gamma^2\, T_{\hat{w}}$ from the proof of \Cref{cond:cross2}: for every $\delta \in \ker(L_{\mathrm{view}}) \cap \mathrm{masks}$,
-\[
-0 \;=\; \varphi'\big(\mathrm{fold}(\delta)\big) \;=\; \mathrm{tr}\Big( \sum_j \theta_j\, \eta_j(V) \;+\; e\, \gamma^2\, T_{\hat{w}}(\delta_{\mathrm{out}}) \Big) \;=\; -\,\mathrm{tr}\Big( F_{\theta - e\, \theta^{\mathrm{term}}}(\delta_{\mathrm{out}}) \Big) ,
-\]
-with $\delta_{\mathrm{out}}$ arbitrary (\Cref{lem:kersurj}). By \Cref{cond:cross2}, applied at the slice level (\Cref{rem:slice}), $\theta = e\, \theta^{\mathrm{term}}$: the residue is $e$ times the terminal direction, and $\varphi$ is a combination of protocol directions.
+Let $\varphi \in \mathrm{ann}(W')$. By \Cref{lem:confine,lem:nodechannel,cond:twist}, the commitment-node part of $\phi|_{\mathrm{blk}}$ is the trace dual of $\sum_j \theta_j \eta_j$ for scalars $\theta_j$, and the queried-point and $\hat{f}_1$-node parts are $\Fq$-combinations of protocol directions outright. Subtract the latter: the residue $\varphi'$ lies in $\mathrm{ann}(W')$, with block representative the dual of $\sum_j \theta_j\, u^{(\nu_j)}|_{\mathrm{blk}}$. By \Cref{lem:noother}, $\varphi'$ is $e$ times the terminal protocol direction, and $\varphi$ is a combination of protocol directions.
 \end{proof}
 
 \begin{corollary}[degenerate challenges]\label{cor:restart}
-A challenge tuple is outside the good set only if one of the following fails: \textsc{spread} (at most $2/q$, \Cref{lem:spread}); the conditions of \Cref{prop:uniform} (at most $(4 \cdot 2^{k_0} + 2k_0)/q$ for \Cref{thm:twopoint}, plus $(s_0 + s_1)\, p/q + \binom{s_0 + s_1}{2} \extdeg\, 2^{k_0}/q$ for the node conditions, \Cref{lem:nodeprob}); the twist-rigidity assumptions (at most $p/q$ plus a negligible term, \Cref{cor:twistprob}); the cross coupling (at most $2^{k_0+7}/q$, \Cref{cond:cross2}, at the $\Fq$ level: \Cref{rem:slice}). Total, for KoalaBear with $s_0 = 2$:
+A challenge tuple is outside the good set only if one of the following fails: \textsc{spread} (at most $2/q$, \Cref{lem:spread}); the conditions of \Cref{prop:uniform} (at most $(4 \cdot 2^{k_0} + 2k_0)/q$ for \Cref{thm:twopoint}, plus $(s_0 + s_1)\, p/q + \binom{s_0 + s_1}{2} \extdeg\, 2^{k_0}/q$ for the node conditions, \Cref{lem:nodeprob}); the twist-rigidity assumptions (at most $p/q$ plus a negligible term, \Cref{cor:twistprob}); the cross coupling (at most $2^{k_0+7}/q$, \Cref{cond:cross2}); the slice conditions (at most $(\extdeg - 1)\, p/q + O(2^{k_0})/q$, \Cref{lem:fullslice}); the slice-table conditions (at most $4 k_0 / q$, \Cref{lem:noother}, under the data hypothesis stated there). Total, for KoalaBear with $s_0 = 2$:
 \[
-\Pr[\mathrm{degenerate\ challenges}] \;\leq\; \big(s_0 + s_1 + 1\big)\, \frac{p}{q} \;+\; O\big(2^{k_0 + 7}\big)\frac{1}{q} \;\approx\; 2^{-122} ,
+\Pr[\mathrm{degenerate\ challenges}] \;\leq\; \big(s_0 + s_1 + \extdeg\big)\, \frac{p}{q} \;+\; O\big(2^{k_0 + 7}\big)\frac{1}{q} \;\approx\; 2^{-121} ,
 \]
 dominated by the events that a sampled point or node lands in the base field.
 \end{corollary}

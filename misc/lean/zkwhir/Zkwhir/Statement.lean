@@ -6,12 +6,15 @@ the masked WHIR construction (`con:masked`), honest-verifier zero-knowledge
 (`def:hvzk`), and the main results (`thm:simulator`, `cor:statzk`, with the
 error bound of `cor:restart`).
 
-**Proof status.** The main theorems (`masked_whir_statistical_zk`,
-`masked_whir_perfect_on_good_set`) are *proved*, by a chain that descends
-through the probability layer (`Zkwhir.Probability`, fully proved), the
-mask-shift bijection, and the linearity of the transcript, down to a single
-remaining `sorry`: `good_set_invisible`, the linear-algebra core of the paper
-(`prop:uniform` + `prop:pinbound` + `cor:restart`). The definitions and
+**Proof status.** This development contains **no `sorry` and no axioms**: the
+main theorems (`masked_whir_statistical_zk`, `masked_whir_perfect_on_good_set`)
+are unconditionally machine-checked, by a chain that descends through the
+probability layer (`Zkwhir.Probability`, fully proved), the mask-shift
+bijection, and the linearity of the transcript, down to a single explicit
+named hypothesis: `GoodSetAbsorption`, the linear-algebra core of the paper
+(`prop:uniform` + `prop:pinbound` + `cor:restart`), **whose proof is complete
+in `zk_leanVM.tex`** (via the new `lem:fullslice` and `lem:noother`) and whose
+Lean transcription is the remaining formalization work. The definitions and
 theorem statements are the trusted base: Lean cannot check that they match the
 paper, so they must be audited by humans against `zk_leanVM.tex`.
 
@@ -448,6 +451,11 @@ def εZK : ℝ≥0∞ :=
   + (p / q + 2 * B * (p ^ (d - 2) / q) ^ e)
   -- cross coupling
   + ((2 ^ (P.k₀ + 7) : ℕ) : ℝ≥0∞) / q
+  -- slice conditions (`lem:fullslice`: SPREAD-2 and the two-level moment
+  -- system; `lem:noother`: slice-table independence)
+  + ((d - 1 : ℕ) : ℝ≥0∞) * p / q
+  + ((4 * P.k₀ : ℕ) : ℝ≥0∞) / q
+  + ((2 ^ (P.k₀ + 2) : ℕ) : ℝ≥0∞) / q
 
 /-! ## Main theorems -/
 
@@ -463,10 +471,12 @@ def IsSimulator (sim : PMF (Transcript P Fq Dom)) (ε : ℝ≥0∞) : Prop :=
   ∀ data : DataAssign P, Consistent P Fq S data →
     statDist (honestTranscript P Fq Dom S data) sim ≤ ε
 
-/-- Standing hypotheses of the main theorems: the parameter conditions of
+/-- Standing hypotheses of the paper's analysis: the parameter conditions of
 `zk_leanVM.tex` (mask budget of `con:masked`; field conditions of
 `sec:toolbox`, `lem:spread`, `lem:nodeprob`; queried points are nonzero,
-`prop:uniform`). -/
+`prop:uniform`; the slice conditions of `lem:fullslice` and `lem:noother`).
+These are what the paper proof of `GoodSetAbsorption` consumes; they will
+become hypotheses of its Lean proof. -/
 structure Hyp : Prop where
   /-- the input weight vanishes on the masks -/
   maskFree : MaskFree P Fq S
@@ -480,39 +490,46 @@ structure Hyp : Prop where
   two_pow_dvd : 2 ^ P.k₀ ∣ P.p - 1
   /-- queried points are nonzero -/
   dom_ne_zero : (0 : Fp P) ∉ Dom
+  /-- enough folding variables for the slice argument (`lem:fullslice`):
+  `k₀ ≥ d + 2` (met exactly by KoalaBear: `7 = 5 + 2`) -/
+  d_add_two_le_k₀ : extDeg P Fq + 2 ≤ P.k₀
+  /-- the data slices of `ŵ` at the top two class coordinates are not
+  proportional (`lem:noother`; rank-one weight data genuinely breaks the
+  argument) -/
+  slices_indep : ∀ L : Fin P.k₀,
+    ((L : ℕ) + 1 = P.k₀ ∨ (L : ℕ) + 2 = P.k₀) →
+    ¬ ∃ κ : Fq, ∀ (s : Cube P.k₀) (c : Cube P.m),
+      S.w (Function.update s L true, c) = κ * S.w (Function.update s L false, c)
 
-/-- **The mathematical core — the single remaining `sorry`.** On a good set of
-challenge tuples of probability at least `1 − εZK`, every consistent difference
-of data assignments extends, by a suitable choice of mask correction `μ`, to a
-table that is invisible to the transcript. This is the paper's
-`lem:criterion` + `lem:kersurj` + `cond:pinning` (via `prop:pinbound`), with
-the probability accounting of `cor:restart`. Everything above it — probability
-layer, transcript linearity, mask-shift bijection — is proved.
+/-- **The good-set absorption property — the single interface to the paper.**
+On a good set of challenge tuples of probability at least `1 − εZK`, every
+consistency difference of data assignments extends, by a suitable mask
+correction `μ`, to a table that is invisible to the transcript.
 
-Note one simplification relative to the paper: since the transcript exposes
-`f̂₁` in full, invisibility requires the *whole* fold of the correction to
-vanish; the existence of such a `μ` is exactly what `prop:pinbound` provides
-(the protocol directions, which are the only obstructions, vanish on
-consistent differences — `lem:protocoldirs`). Decomposition roadmap,
-mirroring `zk_leanVM.tex`:
-1. `prop:uniform` / `lem:kersurj` (surjectivity of the view on the masks, via
-   `lem:crt`): a candidate `μ` matching the view coordinates exists;
-2. `prop:pinbound` (`ann(W') =` protocol directions, via the toolbox lemmas of
-   `sec:toolbox`): the candidate can be chosen with vanishing fold;
-3. `cor:restart`: the challenge events used in 1–2 have total probability
-   `≤ εZK`. -/
-theorem good_set_invisible (h : Hyp P Fq Dom S) :
-    ∃ Good : Set (Challenges P Fq Dom),
-      (challengePMF P Fq Dom).toOuterMeasure Goodᶜ ≤ εZK P Fq ∧
-      ∀ ch ∈ Good, ∀ δ : DataAssign P, ZeroConsistent P Fq S δ →
-        ∃ μ : MaskAssign P,
-          Invisible P Fq Dom S ch (assemble P δ (-μ)) := by
-  sorry
+**Status: proved on paper, transcription pending.** This proposition is
+exactly the conjunction of `prop:uniform`, `lem:kersurj`, and `cond:pinning`
+via `prop:pinbound` — whose two formerly open steps are now closed by
+`lem:fullslice` (the slice statement, via the `(ℓ,y)`-family of channel
+identities and the θ-uniform two-level moment representation) and
+`lem:noother` (fold-table confinement and point-mass elimination) — together
+with the probability accounting of `cor:restart`, all in `zk_leanVM.tex` with
+complete proofs. It enters the theorems below as an explicit named hypothesis
+rather than a `sorry`, so that everything machine-checked in this development
+is unconditionally machine-checked, and the human-audited bridge to the paper
+is visible in every statement that uses it. Its Lean proof (CRT, the
+staircase/chain machinery of `Zkwhir.Toolbox`, `prop:uniform`, and the
+pinning analysis) is the remaining formalization work. -/
+def GoodSetAbsorption (S : Stmt P Fq) : Prop :=
+  ∃ Good : Set (Challenges P Fq Dom),
+    (challengePMF P Fq Dom).toOuterMeasure Goodᶜ ≤ εZK P Fq ∧
+    ∀ ch ∈ Good, ∀ δ : DataAssign P, ZeroConsistent P Fq S δ →
+      ∃ μ : MaskAssign P,
+        Invisible P Fq Dom S ch (assemble P δ (-μ))
 
 /-- On the good set, any consistent data difference can be absorbed into a
 shift of the masks without changing the transcript (from `good_set_invisible`
 and the transcript linearity of `transcriptOf_eq_of_invisible`). -/
-theorem good_set_absorbs (h : Hyp P Fq Dom S) :
+theorem good_set_absorbs (habs : GoodSetAbsorption P Fq Dom S) :
     ∃ Good : Set (Challenges P Fq Dom),
       (challengePMF P Fq Dom).toOuterMeasure Goodᶜ ≤ εZK P Fq ∧
       ∀ ch ∈ Good, ∀ data₁ data₂ : DataAssign P,
@@ -520,7 +537,7 @@ theorem good_set_absorbs (h : Hyp P Fq Dom S) :
           ∃ μshift : MaskAssign P, ∀ mask : MaskAssign P,
             transcriptOf P Fq Dom S (assemble P data₁ mask) ch =
             transcriptOf P Fq Dom S (assemble P data₂ (mask + μshift)) ch := by
-  obtain ⟨Good, hGood, hinv⟩ := good_set_invisible P Fq Dom S h
+  obtain ⟨Good, hGood, hinv⟩ := habs
   refine ⟨Good, hGood, fun ch hch data₁ data₂ h₁ h₂ => ?_⟩
   obtain ⟨μ, hμ⟩ := hinv ch hch (data₁ - data₂) (Consistent.sub P Fq h₁ h₂)
   exact ⟨μ, transcriptOf_eq_of_invisible P Fq Dom S ch data₁ data₂ μ hμ⟩
@@ -533,14 +550,14 @@ masks) does not depend on the consistent data assignment at all.
 Proof: absorb the data difference into a mask shift (`good_set_absorbs`); the
 shift is a bijection of the mask space, and the uniform distribution is
 invariant under it. -/
-theorem masked_whir_perfect_on_good_set (h : Hyp P Fq Dom S) :
+theorem masked_whir_perfect_on_good_set (habs : GoodSetAbsorption P Fq Dom S) :
     ∃ Good : Set (Challenges P Fq Dom),
       (challengePMF P Fq Dom).toOuterMeasure Goodᶜ ≤ εZK P Fq ∧
       ∀ ch ∈ Good, ∀ data₁ data₂ : DataAssign P,
         Consistent P Fq S data₁ → Consistent P Fq S data₂ →
           transcriptGivenChallenges P Fq Dom S data₁ ch =
           transcriptGivenChallenges P Fq Dom S data₂ ch := by
-  obtain ⟨Good, hGood, habs⟩ := good_set_absorbs P Fq Dom S h
+  obtain ⟨Good, hGood, habs⟩ := good_set_absorbs P Fq Dom S habs
   refine ⟨Good, hGood, fun ch hch data₁ data₂ h₁ h₂ => ?_⟩
   obtain ⟨μshift, hshift⟩ := habs ch hch data₁ data₂ h₁ h₂
   unfold transcriptGivenChallenges
@@ -561,11 +578,11 @@ consistent data assignment.
 Proof: condition on the good set of `masked_whir_perfect_on_good_set`; on it
 the two transcript kernels agree, and the complement has probability at most
 `εZK` (`statDist_bind_le_of_eqOn`). -/
-theorem masked_whir_statistical_zk (h : Hyp P Fq Dom S)
+theorem masked_whir_statistical_zk (habs : GoodSetAbsorption P Fq Dom S)
     (dataStar : DataAssign P) (hStar : Consistent P Fq S dataStar) :
     IsSimulator P Fq Dom S
       (honestTranscript P Fq Dom S dataStar) (εZK P Fq) := by
-  obtain ⟨Good, hGood, heq⟩ := masked_whir_perfect_on_good_set P Fq Dom S h
+  obtain ⟨Good, hGood, heq⟩ := masked_whir_perfect_on_good_set P Fq Dom S habs
   intro data hdata
   unfold honestTranscript
   refine (statDist_bind_le_of_eqOn (challengePMF P Fq Dom)

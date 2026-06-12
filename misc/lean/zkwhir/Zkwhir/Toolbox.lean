@@ -154,4 +154,95 @@ theorem chain_kernel_annihilates {M : Type*} [AddCommGroup M] [Module F M]
   simp only [smul_smul, h1, h2, smul_add, Finset.smul_sum]
   abel
 
+/-- **Spanning solvability**: a family that spans the whole module hits every
+target by a finite linear combination. This is how the \textsc{spread}
+condition (`lem:spread`) is consumed by the mask solver (`prop:uniform`,
+Stage A). -/
+theorem span_top_solve {ι : Type*} [Fintype ι] {M : Type*} [AddCommGroup M]
+    [Module F M] (v : ι → M) (hspan : span F (Set.range v) = ⊤) (t : M) :
+    ∃ lam : ι → F, ∑ i, lam i • v i = t := by
+  have ht : t ∈ span F (Set.range v) := hspan ▸ mem_top
+  rwa [mem_span_range_iff_exists_fun] at ht
+
+/-- `span_top_solve` in algebra form: base-field coefficients hitting an
+extension-field target (the masks are `F_p`-valued, the fold is
+`F_q`-valued). -/
+theorem span_top_solve_algebra {ι : Type*} [Fintype ι] {E : Type*}
+    [CommRing E] [Algebra F E] (v : ι → E)
+    (hspan : span F (Set.range v) = ⊤) (t : E) :
+    ∃ lam : ι → F, ∑ i, algebraMap F E (lam i) * v i = t := by
+  obtain ⟨lam, hlam⟩ := span_top_solve v hspan t
+  exact ⟨lam, by simpa [Algebra.smul_def] using hlam⟩
+
+/-- **Joint surjectivity from independent functionals**: a finite, linearly
+independent family of linear forms reaches every target tuple. This is how
+the full row rank of the node system (`thm:twopoint`) is consumed by the
+mask solver. -/
+theorem exists_preimage_of_linearIndependent_dual {V : Type*} [AddCommGroup V]
+    [Module F V] {ι : Type*} [Fintype ι] [DecidableEq ι]
+    (φ : ι → V →ₗ[F] F) (hli : LinearIndependent F φ) (t : ι → F) :
+    ∃ v : V, ∀ i, φ i v = t i := by
+  classical
+  set Φ : V →ₗ[F] (ι → F) := LinearMap.pi φ with hΦ
+  suffices hsurj : Function.Surjective Φ by
+    obtain ⟨v, hv⟩ := hsurj t
+    exact ⟨v, fun i => congrFun hv i⟩
+  rw [← LinearMap.range_eq_top]
+  by_contra hne
+  obtain ⟨w₀, hw₀⟩ : ∃ w₀, w₀ ∉ LinearMap.range Φ := by
+    by_contra hall
+    exact hne (top_unique fun w _ =>
+      not_not.mp fun hw => hall ⟨w, hw⟩)
+  have hmk : (Submodule.Quotient.mk w₀ :
+      (ι → F) ⧸ LinearMap.range Φ) ≠ 0 := by
+    rw [Ne, Submodule.Quotient.mk_eq_zero]
+    exact hw₀
+  obtain ⟨ψ', hψ'⟩ : ∃ ψ' : Module.Dual F ((ι → F) ⧸ LinearMap.range Φ),
+      ψ' (Submodule.Quotient.mk w₀) ≠ 0 := by
+    by_contra hall
+    exact hmk ((Module.forall_dual_apply_eq_zero_iff F _).mp
+      (fun f => not_not.mp fun hf => hall ⟨f, hf⟩))
+  set ψ : (ι → F) →ₗ[F] F := ψ'.comp (LinearMap.range Φ).mkQ with hψdef
+  have hψ1 : ψ w₀ ≠ 0 := by
+    simpa [hψdef, Submodule.mkQ_apply] using hψ'
+  have hψ : ∀ w ∈ LinearMap.range Φ, ψ w = 0 := by
+    intro w hw
+    have hw0 : (Submodule.Quotient.mk w :
+        (ι → F) ⧸ LinearMap.range Φ) = 0 :=
+      (Submodule.Quotient.mk_eq_zero _).mpr hw
+    simp [hψdef, Submodule.mkQ_apply, hw0]
+  -- expand `ψ` over coordinates
+  have hψw : ∀ w : ι → F, ψ w = ∑ i, w i * ψ (Pi.single i 1) := by
+    intro w
+    conv_lhs => rw [← Finset.univ_sum_single w]
+    rw [map_sum]
+    refine Finset.sum_congr rfl fun i _ => ?_
+    have : Pi.single i (w i) = w i • Pi.single i (1 : F) := by
+      rw [← Pi.single_smul, smul_eq_mul, mul_one]
+    rw [this, map_smul, smul_eq_mul]
+  -- the corresponding combination of the functionals vanishes
+  have hcomb : ∑ i, ψ (Pi.single i 1) • φ i = 0 := by
+    apply LinearMap.ext
+    intro v
+    simp only [LinearMap.sum_apply, LinearMap.smul_apply, smul_eq_mul,
+      LinearMap.zero_apply]
+    have hv := hψ (Φ v) ⟨v, rfl⟩
+    rw [hψw (Φ v)] at hv
+    calc ∑ i, ψ (Pi.single i 1) * φ i v
+        = ∑ i, Φ v i * ψ (Pi.single i 1) := by
+          refine Finset.sum_congr rfl fun i _ => ?_
+          rw [hΦ, LinearMap.pi_apply, mul_comm]
+      _ = 0 := hv
+  -- independence kills the coefficients, contradicting `ψ w₀ = 1`
+  have hc := linearIndependent_iff'.mp hli Finset.univ
+    (fun i => ψ (Pi.single i 1)) hcomb
+  have hψ0 : ψ = 0 := by
+    apply LinearMap.ext
+    intro w
+    rw [hψw w, LinearMap.zero_apply]
+    refine Finset.sum_eq_zero fun i _ => ?_
+    rw [hc i (Finset.mem_univ i), mul_zero]
+  rw [hψ0, LinearMap.zero_apply] at hψ1
+  exact hψ1 rfl
+
 end ZkWhir
