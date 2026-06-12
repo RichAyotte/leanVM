@@ -92,7 +92,7 @@ We work with a single point and the one-point weight $\hat{W}_0 = \hat{eq}(\pow(
 \]
 each of degree $2$ in $X$, with two fresh coefficients (the third is fixed by $\hat{h}_\ell(0) + \hat{h}_\ell(1) = \sigma$).
 
-\paragraph{Row computation.} Expanding $\hat{f}_0 = \sum_u P[u] \prod_i \hat{eq}(\cdot, u_i)$, the coefficient of the cell $u \in \{0,1\}^n$ in $\hat{h}_\ell(X)$ is
+\paragraph{Row computation.} Each message $\hat{h}_\ell$ is a linear combination of the committed cells $P[u]$ with coefficients in $\Fq[X]$: expanding $\hat{f}_0 = \sum_u P[u] \hat{eq}(u, \cdot)$ in its definition, the coefficient of $P[u]$, for $u \in \{0,1\}^n$, is the degree-$2$ polynomial
 \[
 \Big[\prod_{i < \ell} \hat{eq}(\alpha_i, u_i)\Big] \cdot \hat{eq}(X, u_\ell) \cdot \hat{W}_0(\alpha_1, \dots, \alpha_{\ell-1}, X, u_{> \ell}) .
 \]
@@ -100,7 +100,7 @@ For the out-of-domain term of $\hat{W}_0$, the last factor factorizes coordinate
 \begin{equation}\label{eq:lambda}
 \Lambda_\ell(X; s) \;=\; \Big[\prod_{i < \ell} \hat{eq}(\alpha_i, s_i)\, \hat{eq}(\alpha_i, \zeta_i)\Big] \cdot \hat{eq}(X, s_\ell)\, \hat{eq}(X, \zeta_\ell) \cdot \prod_{i = \ell + 1}^{k_0} \hat{eq}(s_i, \zeta_i) .
 \end{equation}
-For the $\hat{w}$ term, the partial evaluation $\hat{w}(\alpha_1, \dots, \alpha_{\ell-1}, X, u_{>\ell})$ does \emph{not} vanish for a cell $u$ of $R_{\mathsf{out}}$, because it averages $w$ over a slice of cells that contains data cells (at a cell of $R_{\mathsf{in}}$ it vanishes: the slice crosses only unclaimed positions). These \emph{cross-terms} are extra additive contributions on $R_{\mathsf{out}}$; the analysis below does not rely on them. For a revealed value $v$, we write $N_v$ for its node component (its linear form in the node values) and $C_v$ for its cross component (a linear form on the cells of $R_{\mathsf{out}}$).
+Summing up: as a linear form on the cells, every revealed value $v$ (an out-of-domain answer, or a fresh coefficient of a sumcheck message $\hat{h}_\ell$) is the sum of three parts. The out-of-domain term of $\hat{W}_0$ contributes the \emph{node component} $N_v$, a linear form in the node values $(V_s)_s$. The $\hat{w}$ term vanishes on $R_{\mathsf{in}}$ (\Cref{lem:blocks} below) and contributes a form supported on the data cells and on $R_{\mathsf{out}}$; the $R_{\mathsf{out}}$ part is the \emph{cross component} $C_v$, and its contributions are called the \emph{cross-terms}.
 
 We study the following $2 k_0 + 2$ linear forms in the variables $(V_s)_s$, called the \emph{node matrix}:
 \begin{itemize}
