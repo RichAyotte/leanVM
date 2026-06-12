@@ -15,6 +15,7 @@ Part of the `GoodSetAbsorption` formalization campaign.
 -/
 import Mathlib
 import Zkwhir.Statement
+import Zkwhir.Toolbox
 import Zkwhir.Sumcheck
 import Zkwhir.Channel
 import Zkwhir.Blocks
@@ -25,6 +26,8 @@ set_option linter.unusedSectionVars false
 set_option maxHeartbeats 1000000
 
 noncomputable section
+
+open scoped ENNReal
 
 namespace ZkWhir
 
@@ -72,6 +75,153 @@ structure NodeHyp : Prop where
   conj : ∀ j j', j ≠ j' →
     minpoly (Fp P) (nodes P Fq Dom ch j) ≠
     minpoly (Fp P) (nodes P Fq Dom ch j')
+
+/-- The weight table of the node-system rows: every row functional is the
+pairing against its weight vector. The index `y : Fin 2` encodes the
+evaluation point `y + 1 ∈ {1, 2}`. -/
+def rowWeights : (Fin 2 ⊕ Fin P.k₀ × Fin 2) → Cube P.k₀ → Fin 2 → Fq
+  | Sum.inl j => fun s j' =>
+      if j' = j then eqPoly (powSeq (ch.z j) P.k₀) s else 0
+  | Sum.inr (ℓ, y) => fun s j' =>
+      if j' = 0 then
+        prefixFactor P Fq Dom ch ℓ (((y : ℕ) + 1 : ℕ) : Fq)
+            (powSeq (ch.z 0) P.k₀) *
+          eqPoly (mixedPoint P Fq Dom ch ℓ (((y : ℕ) + 1 : ℕ) : Fq)
+            (powSeq (ch.z 0) P.k₀)) s
+      else
+        ch.γ * (prefixFactor P Fq Dom ch ℓ (((y : ℕ) + 1 : ℕ) : Fq)
+            (powSeq (ch.z 1) P.k₀) *
+          eqPoly (mixedPoint P Fq Dom ch ℓ (((y : ℕ) + 1 : ℕ) : Fq)
+            (powSeq (ch.z 1) P.k₀)) s)
+
+/-- **Full row rank from row independence** (`thm:twopoint` ⟹ `RowSurj`):
+if the row weight vectors are linearly independent, the node system reaches
+every target. -/
+theorem rowSurj_of_rowsLI
+    (hli : LinearIndependent Fq (rowWeights P Fq Dom ch)) :
+    RowSurj P Fq Dom ch := by
+  classical
+  -- the row functionals
+  set φ : (Fin 2 ⊕ Fin P.k₀ × Fin 2) →
+      (Cube P.k₀ → Fin 2 → Fq) →ₗ[Fq] Fq := fun r =>
+    { toFun := fun n => ∑ s, ∑ j, rowWeights P Fq Dom ch r s j * n s j
+      map_add' := by
+        intro n n'
+        rw [← Finset.sum_add_distrib]
+        refine Finset.sum_congr rfl fun s _ => ?_
+        rw [← Finset.sum_add_distrib]
+        refine Finset.sum_congr rfl fun j _ => ?_
+        simp [Pi.add_apply, mul_add]
+      map_smul' := by
+        intro a n
+        simp only [RingHom.id_apply, smul_eq_mul]
+        rw [Finset.mul_sum]
+        refine Finset.sum_congr rfl fun s _ => ?_
+        rw [Finset.mul_sum]
+        refine Finset.sum_congr rfl fun j _ => ?_
+        simp only [Pi.smul_apply, smul_eq_mul]
+        ring } with hφ
+  -- evaluating a functional at an indicator reads off a weight entry
+  have heval : ∀ (r) (s₀ : Cube P.k₀) (j₀ : Fin 2),
+      φ r (fun s' j' => if s' = s₀ ∧ j' = j₀ then 1 else 0) =
+        rowWeights P Fq Dom ch r s₀ j₀ := by
+    intro r s₀ j₀
+    show (∑ s, ∑ j, rowWeights P Fq Dom ch r s j *
+      (if s = s₀ ∧ j = j₀ then 1 else 0)) = _
+    rw [Finset.sum_eq_single s₀]
+    · rw [Finset.sum_eq_single j₀]
+      · simp
+      · intro j _ hj
+        simp [hj]
+      · intro h
+        exact absurd (Finset.mem_univ j₀) h
+    · intro s _ hs
+      refine Finset.sum_eq_zero fun j _ => ?_
+      simp [hs]
+    · intro h
+      exact absurd (Finset.mem_univ s₀) h
+  -- the functionals inherit independence from the weights
+  have hφli : LinearIndependent Fq φ := by
+    rw [linearIndependent_iff']
+    intro t g hsum r hr
+    have hW : ∑ i ∈ t, g i • rowWeights P Fq Dom ch i = 0 := by
+      funext s₀ j₀
+      have happ := congrArg (fun f : (Cube P.k₀ → Fin 2 → Fq) →ₗ[Fq] Fq =>
+        f (fun s' j' => if s' = s₀ ∧ j' = j₀ then 1 else 0)) hsum
+      simp only [LinearMap.coe_sum, Finset.sum_apply, LinearMap.smul_apply,
+        smul_eq_mul, LinearMap.zero_apply] at happ
+      calc (∑ i ∈ t, g i • rowWeights P Fq Dom ch i) s₀ j₀
+          = ∑ i ∈ t, g i * rowWeights P Fq Dom ch i s₀ j₀ := by
+            simp [Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
+        _ = ∑ i ∈ t, g i * φ i (fun s' j' =>
+              if s' = s₀ ∧ j' = j₀ then 1 else 0) := by
+            refine Finset.sum_congr rfl fun i _ => ?_
+            rw [heval]
+        _ = 0 := happ
+
+    exact linearIndependent_iff'.mp hli t g hW r hr
+  -- solve
+  intro tood tm1 tm2
+  obtain ⟨n, hn⟩ := exists_preimage_of_linearIndependent_dual φ hφli
+    (Sum.elim tood fun p : Fin P.k₀ × Fin 2 =>
+      if p.2 = 0 then tm1 p.1 else tm2 p.1)
+  -- the `ood` rows
+  have hood_eq : ∀ (j : Fin 2) (n' : Cube P.k₀ → Fin 2 → Fq),
+      φ (Sum.inl j) n' = oodRow P Fq Dom ch j n' := by
+    intro j n'
+    show (∑ s, ∑ j', rowWeights P Fq Dom ch (Sum.inl j) s j' * n' s j') = _
+    refine Finset.sum_congr rfl fun s _ => ?_
+    show (∑ j', (if j' = j then eqPoly (powSeq (ch.z j) P.k₀) s else 0) *
+      n' s j') = _
+    rw [Finset.sum_eq_single j]
+    · simp
+    · intro j' _ hj'
+      simp [hj']
+    · intro h
+      exact absurd (Finset.mem_univ j) h
+  -- the message rows
+  have hmsg_eq : ∀ (ℓ : Fin P.k₀) (y : Fin 2)
+      (n' : Cube P.k₀ → Fin 2 → Fq),
+      φ (Sum.inr (ℓ, y)) n' =
+        msgRow P Fq Dom ch ℓ (((y : ℕ) + 1 : ℕ) : Fq) n' := by
+    intro ℓ y n'
+    show (∑ s, ∑ j', rowWeights P Fq Dom ch (Sum.inr (ℓ, y)) s j' *
+      n' s j') = _
+    unfold msgRow
+    rw [Finset.mul_sum, Finset.mul_sum, Finset.mul_sum,
+      ← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl fun s _ => ?_
+    rw [Fin.sum_univ_two (f := fun j' =>
+      rowWeights P Fq Dom ch (Sum.inr (ℓ, y)) s j' * n' s j')]
+    have h0 : rowWeights P Fq Dom ch (Sum.inr (ℓ, y)) s 0 =
+        prefixFactor P Fq Dom ch ℓ (((y : ℕ) + 1 : ℕ) : Fq)
+            (powSeq (ch.z 0) P.k₀) *
+          eqPoly (mixedPoint P Fq Dom ch ℓ (((y : ℕ) + 1 : ℕ) : Fq)
+            (powSeq (ch.z 0) P.k₀)) s := by
+      simp [rowWeights]
+    have h1 : rowWeights P Fq Dom ch (Sum.inr (ℓ, y)) s 1 =
+        ch.γ * (prefixFactor P Fq Dom ch ℓ (((y : ℕ) + 1 : ℕ) : Fq)
+            (powSeq (ch.z 1) P.k₀) *
+          eqPoly (mixedPoint P Fq Dom ch ℓ (((y : ℕ) + 1 : ℕ) : Fq)
+            (powSeq (ch.z 1) P.k₀)) s) := by
+      simp [rowWeights]
+    rw [h0, h1]
+    ring
+  refine ⟨n, ?_, ?_, ?_⟩
+  · intro j
+    have h := hn (Sum.inl j)
+    rw [hood_eq j n] at h
+    simpa using h
+  · intro ℓ
+    have h := hn (Sum.inr (ℓ, 0))
+    rw [hmsg_eq ℓ 0 n] at h
+    simpa using h
+  · intro ℓ
+    have h := hn (Sum.inr (ℓ, 1))
+    rw [hmsg_eq ℓ 1 n] at h
+    have h2 : (((1 : Fin 2) : ℕ) + 1 : ℕ) = 2 := rfl
+    rw [h2] at h
+    simpa [one_add_one_eq_two] using h
 
 /-- **`prop:uniform`, primal form**: the node and rank conditions, the mask
 budget, the nonzero domain, and `MaskFree` make the masked view a section —
@@ -249,5 +399,64 @@ theorem maskViewSection_of_rowSurj [FiniteDimensional (Fp P) Fq]
     intro j
     rw [mle_fold_eq_sum_classes P Fq Dom (assemble P δ (-μ)) ch]
     simp [hzfull]
+
+/-- **The good-set assembly**: `GoodSetAbsorption` follows from probability
+bounds for the three remaining structural conditions — node genericity, row
+independence, and pinning — summing below `εZK`. This isolates the three
+probability targets of the campaign exactly. -/
+theorem goodSetAbsorption_of_bounds [FiniteDimensional (Fp P) Fq]
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (ε₁ ε₂ ε₃ : ℝ≥0∞)
+    (hA : (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ NodeHyp P Fq Dom ch} ≤ ε₁)
+    (hB : (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)} ≤ ε₂)
+    (hC : (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ Pinning P Fq Dom S ch} ≤ ε₃)
+    (hsum : ε₁ + ε₂ + ε₃ ≤ εZK P Fq) :
+    GoodSetAbsorption P Fq Dom S := by
+  refine goodSetAbsorption_of_predicates P Fq Dom S h2 hmf
+    {ch | NodeHyp P Fq Dom ch ∧
+      LinearIndependent Fq (rowWeights P Fq Dom ch) ∧
+      Pinning P Fq Dom S ch} ?_ ?_
+  · have hsubset : {ch : Challenges P Fq Dom | NodeHyp P Fq Dom ch ∧
+        LinearIndependent Fq (rowWeights P Fq Dom ch) ∧
+        Pinning P Fq Dom S ch}ᶜ ⊆
+        ({ch | ¬ NodeHyp P Fq Dom ch} ∪
+          {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)}) ∪
+        {ch | ¬ Pinning P Fq Dom S ch} := by
+      intro ch hch
+      simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_and_or] at hch
+      rcases hch with h | h | h
+      · exact Or.inl (Or.inl h)
+      · exact Or.inl (Or.inr h)
+      · exact Or.inr h
+    calc (challengePMF P Fq Dom).toOuterMeasure _
+        ≤ (challengePMF P Fq Dom).toOuterMeasure
+          (({ch | ¬ NodeHyp P Fq Dom ch} ∪
+            {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)}) ∪
+          {ch | ¬ Pinning P Fq Dom S ch}) :=
+          MeasureTheory.measure_mono hsubset
+      _ ≤ (challengePMF P Fq Dom).toOuterMeasure
+            ({ch | ¬ NodeHyp P Fq Dom ch} ∪
+              {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)}) +
+          (challengePMF P Fq Dom).toOuterMeasure
+            {ch | ¬ Pinning P Fq Dom S ch} := MeasureTheory.measure_union_le _ _
+      _ ≤ ((challengePMF P Fq Dom).toOuterMeasure
+            {ch | ¬ NodeHyp P Fq Dom ch} +
+          (challengePMF P Fq Dom).toOuterMeasure
+            {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)}) +
+          (challengePMF P Fq Dom).toOuterMeasure
+            {ch | ¬ Pinning P Fq Dom S ch} := by
+          gcongr
+          exact MeasureTheory.measure_union_le _ _
+      _ ≤ (ε₁ + ε₂) + ε₃ := by gcongr
+      _ ≤ εZK P Fq := hsum
+  · intro ch hch
+    obtain ⟨hnode, hli, hpin⟩ := hch
+    exact ⟨maskViewSection_of_rowSurj P Fq Dom S ch hmf hdom hbudget hnode
+      (rowSurj_of_rowsLI P Fq Dom ch hli), hpin⟩
 
 end ZkWhir

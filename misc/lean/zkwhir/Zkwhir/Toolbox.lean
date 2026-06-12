@@ -174,6 +174,21 @@ theorem span_top_solve_algebra {ι : Type*} [Fintype ι] {E : Type*}
   obtain ⟨lam, hlam⟩ := span_top_solve v hspan t
   exact ⟨lam, by simpa [Algebra.smul_def] using hlam⟩
 
+/-- **Independence from an invertible minor**: a family of vectors indexed
+by coordinates is linearly independent as soon as *some* square selection of
+coordinates has invertible determinant. This is how the staircase
+independence certificate is consumed. -/
+theorem linearIndependent_of_minor {ι κ : Type*} [Fintype ι] [DecidableEq ι]
+    (v : ι → κ → F) (g : ι → κ)
+    (hdet : IsUnit (Matrix.of (fun i i' : ι => v i (g i'))).det) :
+    LinearIndependent F v := by
+  refine LinearIndependent.of_comp (LinearMap.funLeft F F g) ?_
+  have hrows : LinearIndependent F
+      (fun i => (Matrix.of (fun i i' : ι => v i (g i'))) i) :=
+    Matrix.linearIndependent_rows_of_isUnit
+      ((Matrix.isUnit_iff_isUnit_det _).mpr hdet)
+  exact hrows
+
 /-- **Joint surjectivity from independent functionals**: a finite, linearly
 independent family of linear forms reaches every target tuple. This is how
 the full row rank of the node system (`thm:twopoint`) is consumed by the

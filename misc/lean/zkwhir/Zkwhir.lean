@@ -7,3 +7,4 @@ import Zkwhir.Blocks
 import Zkwhir.Absorption
 import Zkwhir.ViewSolve
 import Zkwhir.ProbBounds
+import Zkwhir.Staircase
