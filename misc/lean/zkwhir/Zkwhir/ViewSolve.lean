@@ -76,6 +76,18 @@ structure NodeHyp : Prop where
     minpoly (Fp P) (nodes P Fq Dom ch j) ≠
     minpoly (Fp P) (nodes P Fq Dom ch j')
 
+/-- For a prime extension degree, the generation condition of `NodeHyp` is
+implied by the not-in-base condition: the node package reduces to two
+events. -/
+theorem nodeHyp_of_not_in_base [FiniteDimensional (Fp P) Fq]
+    (hd : (Module.finrank (Fp P) Fq).Prime)
+    (ha : ∀ j, nodes P Fq Dom ch j ∉ Set.range (algebraMap (Fp P) Fq))
+    (hc : ∀ j j', j ≠ j' →
+      minpoly (Fp P) (nodes P Fq Dom ch j) ≠
+      minpoly (Fp P) (nodes P Fq Dom ch j')) :
+    NodeHyp P Fq Dom ch :=
+  ⟨ha, fun j => minpoly_natDegree_eq_finrank_of_prime hd _ (ha j), hc⟩
+
 /-- The weight table of the node-system rows: every row functional is the
 pairing against its weight vector. The index `y : Fin 2` encodes the
 evaluation point `y + 1 ∈ {1, 2}`. -/

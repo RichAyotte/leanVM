@@ -8,3 +8,4 @@ import Zkwhir.Absorption
 import Zkwhir.ViewSolve
 import Zkwhir.ProbBounds
 import Zkwhir.Staircase
+import Zkwhir.NodeProb
