@@ -15,16 +15,19 @@
 \newcommand{\pow}{\mathsf{pow}}
 \newcommand{\fold}{\mathsf{fold}}
 
-\newtheorem{lemma}{Lemma}
-\newtheorem{theorem}{Theorem}
-\newtheorem{proposition}{Proposition}
-\newtheorem{corollary}{Corollary}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
 \theoremstyle{definition}
-\newtheorem{definition}{Definition}
-\newtheorem{remark}{Remark}
-\newtheorem{condition}{Condition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{construction}[theorem]{Construction}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{condition}[theorem]{Condition}
 \crefname{condition}{condition}{conditions}
 \Crefname{condition}{Condition}{Conditions}
+\crefname{construction}{construction}{constructions}
+\Crefname{construction}{Construction}{Constructions}
 
 \title{LeanVM: Zero-Knowledge}
 \author{draft (Work In Progress, not implemented)}
@@ -35,41 +38,137 @@
 
 \section{Introduction}
 
-This document is a companion to \texttt{minimal\_zkVM.tex}. It makes the LeanVM proving system zero-knowledge. Notation, the WHIR protocol, the stacking, and the constants are as defined there.
+This document is a companion to \texttt{minimal\_zkVM.tex}. It makes the LeanVM proving system zero-knowledge. Notation, the WHIR protocol~\cite{whir}, the stacking, and the constants are as defined there.
 
-\paragraph{Goal.} Statistical honest-verifier zero-knowledge at $\lambda$ bits: a simulator, given only the statement, must produce transcripts at statistical distance at most $2^{-\lambda}$ from those of the honest prover. We treat the \emph{interactive} protocol. TODO make \emph{BCS transform}~\cite{BCS} (compilation it into a non-interactive argument via Merkle commitments and Fiat--Shamir) ZK.
+\paragraph{Goal.} Statistical honest-verifier zero-knowledge of the \emph{interactive} protocol, in the following sense. TODO make the \emph{BCS transform}~\cite{BCS} (compilation into a non-interactive argument via Merkle commitments and Fiat--Shamir) ZK.
 
-\paragraph{Result.} The WHIR opening leaks: its sumcheck messages, query answers, and final polynomial are linear in the committed data. We mask the commitment (\Cref{sec:zk-whir}) at a prover cost slightly above $2\times$, with no new prover-side check and no change for the verifier beyond the requirement $s_0 \geq 2$ on the number of out-of-domain samples at commitment. \Cref{sec:zk-proof} proves that the masked opening is zero-knowledge: on an explicit \emph{good set} of challenge tuples, determined by the challenges and the statement alone, the simulation is \emph{perfect} --- the simulator is the honest prover run on substitute data computed from the statement (\Cref{thm:simulator}) --- and the complement of the good set has probability
+\begin{definition}[honest-verifier zero-knowledge]\label{def:hvzk}
+The \emph{transcript} of an execution is everything the verifier sees: its challenges, the prover's non-oracle messages, and the answers to its queries into the prover's oracles. A protocol is \emph{honest-verifier zero-knowledge with error $\varepsilon$} if some simulator, given the statement but not the witness, outputs a random variable at statistical distance at most $\varepsilon$ from the transcript of the honest prover.
+\end{definition}
+
+\paragraph{Result.} The WHIR opening leaks: its sumcheck messages, query answers, and final polynomial are linear in the committed data. We mask the commitment (\Cref{con:masked}) and prove:
+
+\begin{theorem}[informal; see \Cref{thm:simulator,cor:statzk}]\label{thm:main}
+The masked WHIR opening is honest-verifier zero-knowledge with error
 \[
-\Pr[\text{degenerate challenges}] \;\leq\; \big(s_0 + s_1 + 1\big)\, \frac{p}{q} \;+\; O\big(2^{k_0+7}\big)\frac{1}{q} \;\approx\; 2^{-122} \quad \text{for KoalaBear}
+\varepsilon \;\leq\; \big(s_0 + s_1 + 1\big)\, \frac{p}{q} \;+\; O\big(2^{k_0+7}\big)\frac{1}{q} \;\approx\; 2^{-122} \quad \text{for KoalaBear} .
 \]
-(\Cref{cor:restart,cor:statzk}). The claimed value $c$, input of the opening, must be made zero-knowledge separately; this is the subject of \Cref{sec:zk-logup-gkr,sec:zk-air-sumcheck,sec:zk-column-evals}, partly open.
+\begin{itemize}
+    \item \emph{Prover:} cost slightly above $2\times$ (the committed polynomial doubles), and no new prover-side check.
+    \item \emph{Verifier:} unchanged, beyond the requirement $s_0 \geq 2$ on the number of out-of-domain samples at commitment.
+    \item \emph{Simulation:} on an explicit \emph{good set} of challenge tuples, determined by the challenges and the statement alone, the simulation is \emph{perfect} --- the simulator is the honest prover run on substitute data computed from the statement --- and $\varepsilon$ bounds the probability of the complement.
+\end{itemize}
+\end{theorem}
+
+The claimed value $c$, input of the opening, must be made zero-knowledge separately; this is the subject of \Cref{sec:zk-logup-gkr,sec:zk-air-sumcheck,sec:zk-column-evals}, partly open.
+
+\paragraph{Related work.} Chiesa, Fenzi, and Weissenberg~\cite{CFW26} obtain honest-verifier zero-knowledge for any constrained interleaved code with a zero-knowledge encoding --- WHIR included --- at overhead $1 + o(1)$, at the cost of additional conceptual complexity in the protocol.
 
 \section{The masked WHIR}\label{sec:zk-whir}
 
+\begin{construction}[masked WHIR]\label{con:masked}
 Three changes to the protocol.
-
-\paragraph{1. Folding order.} We use the folding ordering $(X_1, X_n, X_{n-1}, \dots, X_2)$: round 0 folds $X_1$ first, then $X_n, X_{n-1}, \dots, X_{n-k_0+2}$; the later rounds continue downward; the $m_M$ variables surviving to the final polynomial are $(X_2, \dots, X_{m_M + 1})$.
-
-\paragraph{2. Layout.} Two uniformly random \emph{masks} are committed next to the data:
-\[
-P \;=\; \underbrace{\,\text{stacking} \;\Vert\; 0 \cdots 0 \;\Vert\; R_{\mathsf{in}}\,}_{P(0,\, \cdot\,) \text{ : the data half}} \;\Big\Vert\; \underbrace{\,R_{\mathsf{out}}\,}_{P(1,\, \cdot\,)}
-\]
-\begin{itemize}
-    \item The stacking part (containing the secret data) is unchanged: we simply commit to a bigger polynomial, to fit $R_{\mathsf{in}}$ and $R_{\mathsf{out}}$.
-    \item The mask $R_{\mathsf{out}}$ fills the second half with i.i.d. uniform $\Fp$ cells.
-    \item The mask $R_{\mathsf{in}}$ is a uniformly random segment occupying the \emph{last} $2^{k_0 - 1 + a}$ cells of the first half of the polynomial, with $2^a \geq t_0 + \extdeg \cdot (s_0 + s_1)$ (a negligible size in practice).
-\end{itemize}
-
-\paragraph{3. Out-of-domain count.} We require $s_0 \geq 2$ out-of-domain points at commitment. This is a zero-knowledge requirement, not necessarily a soundness one: with $s_0 = 1$, the round-0 sumcheck messages can never be masked, whatever the size of the masks (\Cref{rem:identities}).
+\begin{enumerate}
+    \item \emph{Folding order.} We use the folding ordering $(X_1, X_n, X_{n-1}, \dots, X_2)$: round 0 folds $X_1$ first, then $X_n, X_{n-1}, \dots, X_{n-k_0+2}$; the later rounds continue downward; the $m_M$ variables surviving to the final polynomial are $(X_2, \dots, X_{m_M + 1})$.
+    \item \emph{Layout.} Two uniformly random \emph{masks} are committed next to the data:
+    \[
+    P \;=\; \underbrace{\,\text{stacking} \;\Vert\; 0 \cdots 0 \;\Vert\; R_{\mathsf{in}}\,}_{P(0,\, \cdot\,) \text{ : the data half}} \;\Big\Vert\; \underbrace{\,R_{\mathsf{out}}\,}_{P(1,\, \cdot\,)}
+    \]
+    The stacking part (containing the secret data) is unchanged: we simply commit to a bigger polynomial, to fit $R_{\mathsf{in}}$ and $R_{\mathsf{out}}$. The mask $R_{\mathsf{out}}$ fills the second half with i.i.d. uniform $\Fp$ cells. The mask $R_{\mathsf{in}}$ is a uniformly random segment occupying the \emph{last} $2^{k_0 - 1 + a}$ cells of the first half of the polynomial, with $2^a \geq t_0 + \extdeg \cdot (s_0 + s_1)$ (a negligible size in practice).
+    \item \emph{Out-of-domain count.} We require $s_0 \geq 2$ out-of-domain points at commitment. This is a zero-knowledge requirement, not necessarily a soundness one: with $s_0 = 1$, the round-0 sumcheck messages can never be masked, whatever the size of the masks (\Cref{rem:identities}).
+\end{enumerate}
+\end{construction}
 
 There is no further change. In particular, the prover performs no check, and soundness is unaffected: the masks occupy cells where every claim weight vanishes.
 
 \section{Zero-knowledge of the masked WHIR}\label{sec:zk-proof}
 
+\subsection{Toolbox}\label{sec:toolbox}
+
+The proof rests on the following elementary lemmas --- tensor algebra, linear algebra, polynomials, and field extensions; nothing in them is specific to WHIR. Their proofs, together with three auxiliary lemmas, are in \Cref{app:toolbox}. Throughout, $F$ is an arbitrary field, $\Fq = \mathbb{F}_{p^{\extdeg}}$ is the extension of $\Fp$ of prime degree $\extdeg$, $\mathrm{tr} := \mathrm{tr}_{\Fq/\Fp}$, and $\langle \cdot, \cdot \rangle$ is the coordinatewise pairing.
+
+\begin{lemma}[staircase independence]\label{lem:staircase}
+For each slot $i \in \{1, \dots, k\}$, let $\{c_i, d_i\}$ be a basis of $F^2$ and $a_i := c_i + \lambda_i d_i$ for an arbitrary scalar $\lambda_i$. Then the $k + 1$ tensors
+\[
+\omega := c_1 \otimes \cdots \otimes c_k , \qquad \tau_m := a_1 \otimes \cdots \otimes a_{m-1} \otimes d_m \otimes c_{m+1} \otimes \cdots \otimes c_k \quad (1 \leq m \leq k)
+\]
+are linearly independent in $(F^2)^{\otimes k}$.
+\end{lemma}
+
+\begin{lemma}[chain matrices]\label{lem:chain}
+Let $\omega, \tau_1, \dots, \tau_k$ be linearly independent vectors over $F$, let $\lambda_\ell, A_\ell, B_\ell, C_\ell$ be scalars with $A_\ell, C_\ell \neq 0$, and set $\rho_\ell := \omega + \sum_{i < \ell} \lambda_i\, \tau_i$. The $2k + 1$ rows
+\[
+\omega , \qquad \mathrm{row}(\ell, 1) := A_\ell\, \rho_\ell + B_\ell\, \tau_\ell , \qquad \mathrm{row}(\ell, 2) := C_\ell\, \tau_\ell \qquad (1 \leq \ell \leq k)
+\]
+span $\mathrm{span}\{\omega, \tau_1, \dots, \tau_k\}$, of dimension $k + 1$, and their left kernel has dimension $k$, with basis
+\[
+\kappa_\ell : \qquad 1 \ \text{on } (\ell, 1) , \qquad -\,\frac{B_\ell}{C_\ell} \ \text{on } (\ell, 2) , \qquad -\,A_\ell \ \text{on } \omega , \qquad -\,\frac{A_\ell\, \lambda_i}{C_i} \ \text{on } (i, 2) \ \ (i < \ell) .
+\]
+\end{lemma}
+
+\begin{proposition}[coupled chains]\label{lem:coupled}
+For $j = 1, 2$, take chain data as in \Cref{lem:chain} --- vectors $\omega^{(j)}, \tau^{(j)}_1, \dots, \tau^{(j)}_k$ on disjoint column blocks, scalars $(\lambda^{(j)}_\ell, A^{(j)}_\ell, B^{(j)}_\ell, C^{(j)}_\ell)$ --- and let $\gamma \neq 0$. Consider the $2k + 2$ \emph{coupled rows}
+\[
+(\omega^{(1)} \mid 0) , \qquad (0 \mid \omega^{(2)}) , \qquad \big(\mathrm{row}(\ell, r)^{(1)} \;\big|\; \gamma\, \mathrm{row}(\ell, r)^{(2)}\big) \qquad (\ell \leq k,\ r \in \{1, 2\}) ,
+\]
+and assume the \emph{diagonal differences} $\delta_\ell := B^{(1)}_\ell / C^{(1)}_\ell - B^{(2)}_\ell / C^{(2)}_\ell$ are nonzero for every $\ell$. Then:
+\begin{itemize}
+\item[(i)] the coupled rows are linearly independent and span $\bigoplus_{j} \mathrm{span}\{\omega^{(j)}, \tau^{(j)}_1, \dots, \tau^{(j)}_k\}$, of dimension $2(k+1)$; in particular, the span contains $(\rho^{(1)}_{k+1} \mid 0)$ and $(0 \mid \rho^{(2)}_{k+1})$;
+\item[(ii)] if $\lambda^{(1)}_\ell = 0$ for all $\ell \geq 2$, the representation of $(\rho^{(1)}_{k+1} \mid 0)$ in the coupled rows --- coefficients $\mu_1, \mu_2$ on the $\omega$-rows, $\nu_{\ell, r}$ on the rows $(\ell, r)$ --- is explicit:
+\[
+\begin{gathered}
+\nu_{\ell, r} = 0 \ \ (\ell \geq 2) , \qquad \nu_{1,1} = \frac{\lambda^{(1)}_1}{C^{(1)}_1\, \delta_1} , \qquad \nu_{1,2} = -\,\frac{B^{(2)}_1}{C^{(2)}_1}\, \nu_{1,1} , \\
+\mu_1 = 1 - A^{(1)}_1\, \nu_{1,1} , \qquad \mu_2 = -\,\gamma\, A^{(2)}_1\, \nu_{1,1} .
+\end{gathered}
+\]
+\end{itemize}
+\end{proposition}
+
+\begin{lemma}[rigidity]\label{lem:rigidity}
+In the setting of \Cref{lem:staircase} with $k \geq 2$, for $r = 0, 1, \dots, R$ let $a^{(r)}_i$ be scalars and $v^{(r)} := \bigotimes_{i=1}^{k} \big(c_i + a^{(r)}_i d_i\big)$, and let $\omega, \tau_1, \dots, \tau_k$ be the tensors of \Cref{lem:staircase} with $\lambda_i := a^{(0)}_i$. If $\sum_{r=1}^{R} y_r\, v^{(r)} \in \mathrm{span}\{\omega, \tau_1, \dots, \tau_k\}$, then
+\[
+\sum_{r=1}^{R} y_r\, \big(a^{(r)}_1 - a^{(0)}_1\big)\, a^{(r)}_m \;=\; 0 \qquad \text{for every } m \in \{2, \dots, k\} .
+\]
+\end{lemma}
+
+\begin{lemma}[binary powers]\label{lem:binpow}
+Let $Q$ be a nonzero multilinear polynomial in $\zeta_1, \dots, \zeta_k$ over $F$. Then the substitution $\zeta_i := z^{2^{i-1}}$ yields a nonzero polynomial $Q\big(z, z^2, z^4, \dots, z^{2^{k-1}}\big)$ in $z$.
+\end{lemma}
+
+\begin{lemma}[Chinese remaindering]\label{lem:crt}
+Let $x_1, \dots, x_{t} \in \Fp$ be distinct and $\nu_1, \dots, \nu_e \in \Fq \setminus \Fp$ be pairwise distinct and pairwise non-conjugate under the Frobenius $y \mapsto y^p$, with $t + \extdeg\, e \leq N$. For a uniform $g \in \Fp^{N}$, viewed as a univariate polynomial of degree $< N$, the tuple
+\[
+\big(g(x_1), \dots, g(x_{t}),\; g(\nu_1), \dots, g(\nu_e)\big) \quad \text{is uniform on } \Fp^{t} \times \Fq^{e} .
+\]
+\end{lemma}
+
+\begin{lemma}[multiplicative span]\label{lem:span}
+Let $\alpha_1, \dots, \alpha_k \in \Fq$, and write $\hat{eq}(\alpha, 0) := 1 - \alpha$, $\hat{eq}(\alpha, 1) := \alpha$. (i) The families $\big\{\prod_{i \leq k} \hat{eq}(\alpha_i, s_i) : s \in \{0,1\}^k\big\}$ and $\big\{\prod_{i \in S} \alpha_i : S \subseteq \{1, \dots, k\}\big\}$ have the same $\Fp$-span. (ii) If at least $\extdeg - 1$ of the $\alpha_i$ lie outside $\Fp$, this span is all of $\Fq$.
+\end{lemma}
+
+\begin{lemma}[trace orthogonality]\label{lem:traceorth}
+Let $f_1, \dots, f_t \in \Fp^N$ be linearly independent, $K := \{v \in \Fp^N : \langle f_i, v \rangle = 0 \ \forall i\}$, and $\phi \in \Fq^N$. If $\mathrm{tr}\big(\lambda \langle \phi, v \rangle\big) = 0$ for every $v \in K$ and every $\lambda$ in a set spanning $\Fq$ over $\Fp$, then $\phi \in \mathrm{span}_{\Fq}\{f_1, \dots, f_t\}$.
+\end{lemma}
+
+\begin{lemma}[$\Fp$-linear maps of $\Fq$]\label{lem:linearized}
+Fix an $\Fp$-basis $(\beta_r)_{1 \leq r \leq \extdeg}$ of $\Fq$. (i) Every $\Fp$-linear map of $\Fq$ is $T(x) = \sum_{r=0}^{\extdeg-1} t_r\, x^{p^r}$ for a unique \emph{linearized polynomial}, and also $T_b(x) := \sum_{r} \mathrm{tr}(x\, b_r)\, \beta_r$ for a unique $b \in \Fq^{\extdeg}$, with $\mathrm{tr}\big(T_b(\lambda)\, V\big) = \sum_r \mathrm{tr}(\lambda\, b_r)\, \mathrm{tr}(\beta_r V)$ for all $\lambda, V \in \Fq$. (ii) For $1 \leq r \leq \extdeg - 1$, $x^{p^r} = x$ only for $x \in \Fp$. (iii) A nonzero linearized polynomial of degree $p^e$ takes each value of $\Fq$ at most $p^e$ times.
+\end{lemma}
+
+\begin{lemma}[masking criterion]\label{lem:mask}
+Let $L = (L_1, L_2) : \Fp^C \to \Fp^V \times \Fp^W$ be linear, $M \subseteq \Fp^C$ a subspace with $L_1|_M$ surjective, $U$ uniform on $M$, and $W' := L_2\big(\ker(L_1) \cap M\big)$. For all $x, \delta \in \Fp^C$, the laws of $L(x + U)$ and $L(x + \delta + U)$ coincide if and only if
+\[
+\varphi\big(L_2(\delta)\big) \;=\; \varphi\big(L_2(\varrho(L_1(\delta)))\big) \qquad \text{for every } \varphi \in \mathrm{ann}(W') ,
+\]
+where $\varrho$ is any linear section of $L_1|_M$ and $\mathrm{ann}(W')$ is the space of linear forms on $\Fp^W$ vanishing on $W'$.
+\end{lemma}
+
+\begin{lemma}[uniformity transfer]\label{lem:transfer}
+Let $S : \Fp^B \to \Fp^V$ be linear and surjective, $X$ uniform on $\Fp^B$, and $Z$ any random variable on $\Fp^V$ independent of $X$. Then $S(X) + Z$ is uniform on $\Fp^V$, whatever the law of $Z$.
+\end{lemma}
+
 \subsection{Setting}\label{sec:setting}
 
-\paragraph{Cells and classes.} The committed vector $P \in \Fp^{2^n}$ is indexed by $u \in \{0,1\}^n$, the coordinates listed in folding order: first the $k_0$ \emph{round-0 coordinates}, then the $n - k_0$ \emph{position coordinates}. For $s \in \{0,1\}^{k_0}$, the \emph{class} $u_s \in \Fp^{2^{n - k_0}}$ is the vector of cells with round-0 coordinates $s$, indexed by position. The layout of \Cref{sec:zk-whir} reads as follows on the classes: a class with $s_1 = 1$ lies entirely inside $R_{\mathsf{out}}$; a class with $s_1 = 0$ contains the data and the zero padding, and ends with $2^a$ cells of $R_{\mathsf{in}}$, at its last $2^a$ positions. By locality of the fold, the $2^{k_0}$ values of $f_0$ opened at a STIR query $x$ carry the same information as the per-class evaluations $\big(\hat{u}_s(\pow(x, n - k_0))\big)_s$; we work with the latter throughout. The round-0 fold acts classwise: at every position $c$,
+\paragraph{Cells and classes.} The committed vector $P \in \Fp^{2^n}$ is indexed by $u \in \{0,1\}^n$, the coordinates listed in folding order: first the $k_0$ \emph{round-0 coordinates}, then the $n - k_0$ \emph{position coordinates}. For $s \in \{0,1\}^{k_0}$, the \emph{class} $u_s \in \Fp^{2^{n - k_0}}$ is the vector of cells with round-0 coordinates $s$, indexed by position. The layout of \Cref{con:masked} reads as follows on the classes: a class with $s_1 = 1$ lies entirely inside $R_{\mathsf{out}}$; a class with $s_1 = 0$ contains the data and the zero padding, and ends with $2^a$ cells of $R_{\mathsf{in}}$, at its last $2^a$ positions. By locality of the fold, the $2^{k_0}$ values of $f_0$ opened at a STIR query $x$ carry the same information as the per-class evaluations $\big(\hat{u}_s(\pow(x, n - k_0))\big)_s$; we work with the latter throughout. The round-0 fold acts classwise: at every position $c$,
 \[
 \hat{f}_1[c] \;=\; \sum_{s \in \{0,1\}^{k_0}} \hat{eq}(\vec{\alpha}_0, s)\, u_s[c] ,
 \]
@@ -159,30 +258,20 @@ By \cref{eq:acd}, replacing $\tilde{a}_\ell$ by $c_\ell + (\alpha_\ell - z^{2^{\
 
 \subsection{Rank and kernel at one point}\label{sec:rank}
 
-This subsection is the per-point engine of the two-point analysis: \Cref{thm:twopoint} consumes the rank and the explicit kernel basis of \Cref{prop:rank} (per point), \Cref{cor:twopointprob} consumes \Cref{cor:rankprob}, and the twist-rigidity argument (\Cref{cond:twist}) uses $\eta \in \mathrm{span}\{\omega, \tau_1, \dots, \tau_{k_0}\}$.
+This subsection instantiates the chain machinery of \Cref{lem:chain} at one point: \Cref{thm:twopoint} consumes \Cref{prop:rank} per point, \Cref{cor:twopointprob} consumes \Cref{cor:rankprob}, and the twist-rigidity argument (\Cref{cond:twist}) uses $\eta \in \mathrm{span}\{\omega, \tau_1, \dots, \tau_{k_0}\}$.
 
-\begin{lemma}\label{lem:tau}
-The $k_0 + 1$ tensors $\omega, \tau_1, \dots, \tau_{k_0}$ are linearly independent, for all values of the variables.
-\end{lemma}
-
-\begin{proof}
-Induction on $k_0$. For $k_0 = 1$: $\omega = c_1$ and $\tau_1 = d$ are independent by \cref{eq:cd}. For $k_0 \ge 2$, let $\omega', \tau'_1, \dots, \tau'_{k_0 - 1}$ be the corresponding tensors on the slots $2, \dots, k_0$. Then
-\[
-\omega = c_1 \otimes \omega', \qquad \tau_1 = d \otimes \omega', \qquad \tau_m = \tilde{a}_1 \otimes \tau'_{m - 1} \ (m \ge 2) .
-\]
-Suppose $\lambda_\omega \omega + \sum_m \lambda_m \tau_m = 0$. Using \cref{eq:acd} to express $\tilde{a}_1$ in the basis $\{c_1, d\}$ and collecting the two basis components, with $Y := \sum_{m \ge 2} \lambda_m \tau'_{m-1}$:
-\[
-\lambda_\omega\, \omega' + Y = 0 \qquad \text{and} \qquad \lambda_1\, \omega' + (\alpha_1 - z)\, Y = 0 .
-\]
-By the induction hypothesis, $\omega', \tau'_1, \dots, \tau'_{k_0-1}$ are independent; since $Y$ has no $\omega'$ component, the first equation forces $\lambda_\omega = 0$ and $\lambda_m = 0$ for $m \ge 2$, and then the second forces $\lambda_1 = 0$.
-\end{proof}
+By \cref{eq:cd}, $\{c_i, d\}$ is a basis of the slot plane for every $i$, and by \cref{eq:acd}, $\tilde{a}_i = c_i + (\alpha_i - z^{2^{i-1}})\, d$: the tensors $\omega, \tau_1, \dots, \tau_{k_0}$ form a staircase in the sense of \Cref{lem:staircase}, and are therefore linearly independent, for all values of the variables.
 
 \begin{proposition}\label{prop:rank}
 Assume $z^{2^{\ell-1}} \neq 1/2$ for $\ell \le k_0$ and $\hat{eq}(\alpha_i, z^{2^{i-1}}) \neq 0$ for $i \le k_0 - 1$. Then the node matrix has rank exactly $k_0 + 1$: its row space equals $\mathrm{span}\{\omega, \tau_1, \dots, \tau_{k_0}\}$, and a basis of it is given by the rows $\omega, \mathrm{row}(1,2), \dots, \mathrm{row}(k_0, 2)$. The $k_0 + 1$ remaining rows satisfy the explicit dependencies obtained from \cref{eq:rows,eq:telescope}: for each $\ell$, $\mathrm{row}(\ell, 1)$ lies in the span of $\omega$ and $\mathrm{row}(1,2), \dots, \mathrm{row}(\ell, 2)$, and $\eta = \omega + \sum_{\ell \le k_0} (\alpha_\ell - z^{2^{\ell-1}})\, \tau_\ell$.
 \end{proposition}
 
 \begin{proof}
-By \cref{eq:rows}, $\mathrm{row}(\ell, 2) = P_\ell (2z^{2^{\ell-1}} - 1) \tau_\ell$ with $P_\ell(2z^{2^{\ell-1}} - 1) \neq 0$ under the assumptions, so $\{\omega, \mathrm{row}(\ell,2)_\ell\}$ spans $\mathrm{span}\{\omega, \tau_1, \dots, \tau_{k_0}\}$, which has dimension $k_0 + 1$ by \Cref{lem:tau}. Iterating \cref{eq:telescope} from $\rho_1 = \omega$ gives $\rho_\ell = \omega + \sum_{i < \ell}(\alpha_i - z^{2^{i-1}})\tau_i$ for every $\ell \le k_0 + 1$; in particular every $\rho_\ell$, hence every $\mathrm{row}(\ell, 1)$ by \cref{eq:rows}, and $\eta = \rho_{k_0+1}$, lie in that same span.
+Iterating \cref{eq:telescope} from $\rho_1 = \omega$ gives $\rho_\ell = \omega + \sum_{i < \ell}(\alpha_i - z^{2^{i-1}})\, \tau_i$: with \cref{eq:rows}, the node matrix is the chain matrix of \Cref{lem:chain}, with parameters
+\[
+\lambda_\ell = \alpha_\ell - z^{2^{\ell-1}} , \qquad A_\ell = C_\ell = P_\ell\, \big(2 z^{2^{\ell-1}} - 1\big) , \qquad B_\ell = P_\ell\, \big(1 - 2 z^{2^{\ell}}\big) ,
+\]
+and the assumptions say exactly $A_\ell, C_\ell \neq 0$. \Cref{lem:chain} gives the rank and the span; the dependencies are the kernel vectors $\kappa_\ell$ (for $\mathrm{row}(\ell, 1)$) and the telescoping itself (for $\eta = \rho_{k_0+1}$).
 \end{proof}
 
 \begin{corollary}[failure probability]\label{cor:rankprob}
@@ -211,30 +300,15 @@ Then the $2k_0 + 2$ value rows are linearly independent. Moreover, their span co
 \end{theorem}
 
 \begin{proof}
-Suppose $\mu_1 \omega_1 + \mu_2 \omega_2 + \sum_{\ell, r} \nu_{\ell,r}\, (\text{value row } (\ell,r)) = 0$. Restricting to the columns of block $j$:
+Per block $j$, the one-point rows form the chain matrix of \Cref{lem:chain}, with the parameters of \Cref{prop:rank} at $z = z_j$; the diagonal ratio is
 \[
-\mu_j\, \omega^{(j)} + \gamma^{j-1} \sum_{\ell, r} \nu_{\ell,r}\, \mathrm{row}(\ell, r)^{(j)} \;=\; 0 .
+\frac{B^{(j)}_\ell}{C^{(j)}_\ell} \;=\; \frac{1 - 2 z_j^{2^{\ell}}}{2 z_j^{2^{\ell-1}} - 1} \;=\; g\big(z_j^{2^{\ell-1}}\big) .
 \]
-Consider the left kernel $K^{(j)}$ of the $(2k_0+1)$-row one-point matrix $\big[\omega^{(j)}; \mathrm{row}(\ell,r)^{(j)}\big]$. By \Cref{prop:rank} its rank is $k_0 + 1$, so $\dim K^{(j)} = k_0$, and \cref{eq:rows,eq:telescope} give an explicit basis $\{k^{(j)}_\ell\}_{\ell \leq k_0}$: writing $\tau^{(j)}_\ell = \mathrm{row}(\ell,2)^{(j)} / (P^{(j)}_\ell (2z_j^{2^{\ell-1}} - 1))$ and substituting the telescoped $\rho^{(j)}_\ell$ into $\mathrm{row}(\ell,1)^{(j)}$,
-\[
-\begin{aligned}
-k^{(j)}_\ell : \quad & 1 \ \text{on } (\ell,1), \qquad -\,g\big(z_j^{2^{\ell-1}}\big) \ \text{on } (\ell,2), \qquad -\,P^{(j)}_\ell \big(2z_j^{2^{\ell-1}} - 1\big) \ \text{on } \omega , \\
-& -\,\frac{P^{(j)}_\ell \big(2z_j^{2^{\ell-1}} - 1\big)\big(\alpha_i - z_j^{2^{i-1}}\big)}{P^{(j)}_i \big(2z_j^{2^{i-1}} - 1\big)} \ \text{on } (i,2) \ \text{for } i < \ell .
-\end{aligned}
-\]
-The projection $\pi$ dropping the $\omega$-coordinate is injective on $K^{(j)}$: an element with all $(\ell,r)$-coordinates zero has $\mu\, \omega^{(j)} = 0$, and $\omega^{(j)} \neq 0$. The two block restrictions say $(\mu_1, \nu) \in K^{(1)}$ and $(\mu_2, \gamma \nu) \in K^{(2)}$; since $\gamma \neq 0$ and $\pi(K^{(2)})$ is a subspace, $\nu \in \pi(K^{(1)}) \cap \pi(K^{(2)})$.
-
-Write $\nu = \sum_\ell \lambda_\ell\, \pi(k^{(1)}_\ell) = \sum_\ell \lambda'_\ell\, \pi(k^{(2)}_\ell)$. The $(\ell, 1)$-coordinates give $\lambda_\ell = \lambda'_\ell$ for every $\ell$. The $(i, 2)$-coordinates then give, for each $i$,
-\[
-\lambda_i \, \big( g(z_1^{2^{i-1}}) - g(z_2^{2^{i-1}}) \big) \;=\; \sum_{\ell > i} \lambda_\ell \, \Big( c^{(2)}_{\ell, i} - c^{(1)}_{\ell, i} \Big) ,
-\]
-with $c^{(j)}_{\ell,i}$ the $(i,2)$-coefficients above: an upper-triangular homogeneous system with diagonal $d_i := g(z_1^{2^{i-1}}) - g(z_2^{2^{i-1}})$. A direct computation gives
+The value rows are exactly the coupled rows of \Cref{lem:coupled}, with coupling scalar $\gamma \neq 0$ and per-block staircases independent by \Cref{lem:staircase}. A direct computation gives
 \[
 g(x) - g(y) \;=\; \frac{(y - x)\,\big[(2x-1)(2y-1) + 1\big]}{(2x-1)(2y-1)} ,
 \]
-so the assumptions say exactly $d_i \neq 0$ for all $i$. Back-substitution from $i = k_0$ downward gives $\lambda = 0$, hence $\nu = 0$, hence $\mu_j\, \omega^{(j)} = 0$ and $\mu_j = 0$.
-
-For the extension rows: by \Cref{lem:tau} applied per block, the forms $\{\omega^{(j)}, \tau^{(j)}_1, \dots, \tau^{(j)}_{k_0}\}_{j = 1,2}$ span a space of dimension exactly $2(k_0+1)$, which contains all value rows. The $2k_0 + 2$ independent value rows therefore span it entirely; and $\eta_j = \rho^{(j)}_{k_0+1}$ lies in it by \Cref{prop:rank}.
+so the assumptions say exactly that every diagonal difference $d_\ell := g(z_1^{2^{\ell-1}}) - g(z_2^{2^{\ell-1}})$ is nonzero. \Cref{lem:coupled}\,(i) gives the independence and the span $\bigoplus_j \mathrm{span}\{\omega^{(j)}, \tau^{(j)}_1, \dots, \tau^{(j)}_{k_0}\}$, of dimension $2(k_0+1)$, which contains the extension rows $\eta_j = \rho^{(j)}_{k_0+1}$.
 \end{proof}
 
 \begin{corollary}\label{cor:twopointprob}
@@ -250,7 +324,7 @@ At $k_0 = 7$ with random challenges in the KoalaBear field: the $16$ value rows 
 \end{remark}
 
 \begin{remark}[$s_0 > 2$]\label{rem:s0}
-The analysis is written for $s_0 = 2$, the minimal and tightest case: the $2k_0 + 2$ value rows then span the full space $\bigoplus_j \mathrm{span}\{\omega_j, \tau_{1,j}, \dots, \tau_{k_0,j}\}$, of dimension exactly $2(k_0 + 1)$, which is what pins the extension rows (the second part of \Cref{thm:twopoint}) and shapes \Cref{cond:cross2,prop:pinbound}. For $s_0 > 2$ the masking only gains channels. (i) Joint independence of the $s_0 + 2k_0$ value rows holds under the conditions of \Cref{thm:twopoint} applied to any \emph{single pair} of points: restricting a vanishing combination to the two corresponding blocks gives $\nu \in \pi(K^{(1)}) \cap \pi(K^{(2)}) = 0$ as in the proof, and the remaining blocks force $\mu_j\, \omega^{(j)} = 0$; \Cref{prop:uniform} and the budget $2^a \geq t_0 + \extdeg(s_0 + s_1)$ are already stated for general $s_0$. (ii) The value rows now span a \emph{proper} subspace, of codimension $(s_0 - 2)\, k_0$: the extension rows are no longer automatically in their span, and a generic dimension count suggests that the only pinned combination $\sum_j \theta_j \eta_j$ is the terminal one, which the terminal protocol direction accounts for; \Cref{cond:cross2,prop:pinbound} would simplify accordingly, at the cost of a genericity lemma quantifying that count. We do not pursue this: $s_0 = 2$ suffices for zero-knowledge, and extra points only add prover and proof cost.
+The analysis is written for $s_0 = 2$, the minimal and tightest case: the $2k_0 + 2$ value rows then span the full space $\bigoplus_j \mathrm{span}\{\omega_j, \tau_{1,j}, \dots, \tau_{k_0,j}\}$, of dimension exactly $2(k_0 + 1)$, which is what pins the extension rows (the second part of \Cref{thm:twopoint}) and shapes \Cref{cond:cross2,prop:pinbound}. For $s_0 > 2$ the masking only gains channels. (i) Joint independence of the $s_0 + 2k_0$ value rows holds under the conditions of \Cref{thm:twopoint} applied to any \emph{single pair} of points: the coupled-chains argument (proof of \Cref{lem:coupled}) applies to the two corresponding blocks, and the remaining blocks force $\mu_j\, \omega^{(j)} = 0$; \Cref{prop:uniform} and the budget $2^a \geq t_0 + \extdeg(s_0 + s_1)$ are already stated for general $s_0$. (ii) The value rows now span a \emph{proper} subspace, of codimension $(s_0 - 2)\, k_0$: the extension rows are no longer automatically in their span, and a generic dimension count suggests that the only pinned combination $\sum_j \theta_j \eta_j$ is the terminal one, which the terminal protocol direction accounts for; \Cref{cond:cross2,prop:pinbound} would simplify accordingly, at the cost of a genericity lemma quantifying that count. We do not pursue this: $s_0 = 2$ suffices for zero-knowledge, and extra points only add prover and proof cost.
 \end{remark}
 
 \subsection{Cross-free blocks and joint uniformity}\label{sec:uniform}
@@ -269,23 +343,12 @@ For every round $\ell$ and every cell $u$ of a block, the cross-term weight vani
 The partial evaluation is the multilinear extension, in the folded coordinates, of the values of $\hat{w}$ at the boolean completions of $u$. A completion changes only round-0 coordinates, hence preserves the position of $u$ inside its class, which lies in the last $2^a$ range: $\hat{w}$ vanishes at every completion, and the multilinear extension of zeros is zero.
 \end{proof}
 
-\begin{lemma}[Chinese remaindering]\label{lem:crt}
-Let $x_1, \dots, x_{t} \in \Fp \setminus \{0\}$ be distinct and $\nu_1, \dots, \nu_e \in \Fq \setminus \Fp$ be pairwise distinct and pairwise non-conjugate under the Frobenius $y \mapsto y^p$, with $t + \extdeg\, e \leq 2^a$. For a uniform $g \in \Fp^{2^a}$, viewed as a univariate polynomial of degree $< 2^a$, the tuple
-\[
-\big(g(x_1), \dots, g(x_{t}),\; g(\nu_1), \dots, g(\nu_e)\big) \quad \text{is uniform on } \Fp^{t} \times \Fq^{e} .
-\]
-\end{lemma}
-
-\begin{proof}
-The tuple is the reduction of $g$ modulo $\prod_i (X - x_i) \cdot \prod_j m_j$, where $m_j$ is the minimal polynomial of $\nu_j$ over $\Fp$: indeed $\Fp[X]/(X - x_i) \cong \Fp$ by evaluation at $x_i$, and $\Fp[X]/(m_j) \cong \Fq$ by evaluation at $\nu_j$, with $\deg m_j = \extdeg$ ($\nu_j$ generates $\Fq$, since $\extdeg$ is prime and $\nu_j \notin \Fp$). The moduli are pairwise coprime: the $x_i$ are distinct, the $m_j$ are distinct irreducibles by non-conjugacy, and no $m_j$ has a root in $\Fp$. Their degree sum is $t + \extdeg\, e \leq 2^a$, so the reduction is surjective by Chinese remaindering. A surjective linear image of a uniform variable is uniform.
-\end{proof}
-
 \begin{proposition}[joint uniformity of the round-0 view]\label{prop:uniform}
 Take $s_0 = 2$ and assume: the conditions of \Cref{thm:twopoint}; and that the $s_0 + s_1$ nodes (the commitment nodes $z_j^{2^{k_0}}$ and the out-of-domain points of $\hat{f}_1$) lie outside $\Fp$, are pairwise distinct and pairwise non-conjugate. Let $x_1, \dots, x_{t_0}$ be the distinct queried points (they lie in $\Fp \setminus \{0\}$, hence are automatically distinct from the nodes). Then the round-0 revealed values, namely the per-class evaluations $\hat{u}_s(\pow(x_t, n - k_0))$, the two commitment out-of-domain answers, the $2k_0$ fresh sumcheck coefficients, and the $s_1$ out-of-domain answers on $\hat{f}_1$, are jointly uniform, each on its natural space. In particular their joint law does not depend on the data.
 \end{proposition}
 
 \begin{proof}
-Restrict every value, as an $\Fp$-linear form on the cells, to the union of the blocks. By \Cref{lem:blocks} the cross-terms vanish there, so each restricted form factors through the blockwise evaluations: the fiber value of class $s$ at $x_t$ reads the evaluation of the block univariate of $s$ at $x_t$, times the nonzero prefactor $x_t^{2^{n - k_0} - 2^a}$ (the blocks sit at the end of their classes), and the out-of-domain and sumcheck values apply the node matrix to the block evaluations at the nodes, by the computation of \Cref{sec:master}. The blockwise evaluation map is $\Fp$-surjective: per class by \Cref{lem:crt}, with the budget $t_0 + \extdeg(s_0 + s_1) \leq 2^a$, and jointly because the blocks are disjoint. The assembling map is $\Fq$-linear and surjective: the fiber coordinates pass through unchanged; the commitment out-of-domain and sumcheck values are the node matrix, of full row rank by \Cref{thm:twopoint}; and each $\hat{f}_1$ out-of-domain answer adds one row supported on the columns of its own node, where it is the nonzero vector $(\hat{eq}(\vec{\alpha}_0, s))_s$, so the extended matrix keeps full row rank. The values equal this composition applied to the uniform block cells, plus a contribution of the remaining cells (data and non-block mask cells): conditionally on the latter, they are a shifted surjective image of a uniform variable, hence uniform; so they are uniform unconditionally, with a law independent of the shift, hence of the data.
+Restrict every value, as an $\Fp$-linear form on the cells, to the union of the blocks. By \Cref{lem:blocks} the cross-terms vanish there, so each restricted form factors through the blockwise evaluations: the fiber value of class $s$ at $x_t$ reads the evaluation of the block univariate of $s$ at $x_t$, times the nonzero prefactor $x_t^{2^{n - k_0} - 2^a}$ (the blocks sit at the end of their classes), and the out-of-domain and sumcheck values apply the node matrix to the block evaluations at the nodes, by the computation of \Cref{sec:master}. The blockwise evaluation map is $\Fp$-surjective: per class by \Cref{lem:crt}, with the budget $t_0 + \extdeg(s_0 + s_1) \leq 2^a$, and jointly because the blocks are disjoint. The assembling map is $\Fq$-linear and surjective: the fiber coordinates pass through unchanged; the commitment out-of-domain and sumcheck values are the node matrix, of full row rank by \Cref{thm:twopoint}; and each $\hat{f}_1$ out-of-domain answer adds one row supported on the columns of its own node, where it is the nonzero vector $(\hat{eq}(\vec{\alpha}_0, s))_s$, so the extended matrix keeps full row rank. The values are therefore $S(X) + Z$, with $S$ the composed surjection, $X$ the uniform block cells, and $Z$ the independent contribution of the remaining cells (data and non-block mask cells): by \Cref{lem:transfer}, they are uniform, with a law independent of $Z$, hence of the data.
 \end{proof}
 
 \begin{lemma}[node genericity]\label{lem:nodeprob}
@@ -305,7 +368,11 @@ The round-0 messages are the view together with deterministic completions (dupli
 \end{proof}
 
 \begin{lemma}[exactness criterion]\label{lem:criterion}
-Assume the conditions of \Cref{prop:uniform}. Let $W' := L_{\mathrm{fold}}\big(\ker(L_{\mathrm{view}}) \cap \mathrm{masks}\big)$. The transcripts produced with two data assignments differing by $\delta$ are identically distributed if and only if
+Assume the conditions of \Cref{prop:uniform}, and set
+\[
+W' \;:=\; L_{\mathrm{fold}}\big(\ker(L_{\mathrm{view}}) \cap \mathrm{masks}\big) .
+\]
+The transcripts produced with two data assignments differing by $\delta$ are identically distributed if and only if
 \[
 \varphi\big(L_{\mathrm{fold}}(\delta)\big) \;=\; \varphi\big(L_{\mathrm{fold}}(\varrho(L_{\mathrm{view}}(\delta)))\big) \qquad \text{for every } \varphi \in \mathrm{ann}(W') ,
 \]
@@ -313,7 +380,7 @@ where $\varrho$ is any $\Fp$-linear section of $L_{\mathrm{view}}|_{\mathrm{mask
 \end{lemma}
 
 \begin{proof}
-By \Cref{lem:reduction} it suffices to compare the laws of $L(\mathrm{cells})$. With uniform masks, $L(\mathrm{cells})$ is uniform on a coset of the subspace $\mathcal{I} := L(\mathrm{masks})$, shifted by $L$ of the data; the two laws coincide if and only if $L(\delta) \in \mathcal{I}$. Since $L_{\mathrm{view}}|_{\mathrm{masks}}$ is surjective, $\mathcal{I} = \{(v, f) : f - L_{\mathrm{fold}}(\varrho(v)) \in W'\}$: for $(v,f) = L(m)$, the mask $m - \varrho(v)$ lies in $\ker(L_{\mathrm{view}}) \cap \mathrm{masks}$, and conversely. So $L(\delta) \in \mathcal{I}$ if and only if $L_{\mathrm{fold}}(\delta) - L_{\mathrm{fold}}(\varrho(L_{\mathrm{view}}(\delta))) \in W'$, which is the stated condition.
+By \Cref{lem:reduction} it suffices to compare the laws of $L(\mathrm{cells}) = L(\mathrm{data} + \mathrm{masks})$, with the masks uniform on the mask space: this is \Cref{lem:mask}, with $L_1 := L_{\mathrm{view}}$, $L_2 := L_{\mathrm{fold}}$, $M := \mathrm{masks}$, and surjectivity of $L_1|_M$ from \Cref{prop:uniform}.
 \end{proof}
 
 \begin{lemma}[protocol directions]\label{lem:protocoldirs}
@@ -337,7 +404,7 @@ By \Cref{lem:criterion} it suffices to verify the criterion for $\delta := D - D
 \end{proof}
 
 \begin{corollary}[statistical zero-knowledge]\label{cor:statzk}
-For uniform challenges (the interactive setting), and for every data assignment $D$, the honest transcript with data $D$ is at statistical distance at most $\varepsilon$ from the output of the simulator (the honest prover run on $D^*$), with no prover-side check, where $\varepsilon := \Pr[\text{degenerate challenges}] \approx 2^{-122}$ (\Cref{cor:restart}).
+For uniform challenges, the masked opening is honest-verifier zero-knowledge (\Cref{def:hvzk}) with error $\varepsilon := \Pr[\text{degenerate challenges}] \approx 2^{-122}$ (\Cref{cor:restart}): for every data assignment $D$, the honest transcript with data $D$ is at statistical distance at most $\varepsilon$ from the output of the simulator (the honest prover run on $D^*$), with no prover-side check.
 \end{corollary}
 
 \begin{proof}
@@ -365,17 +432,7 @@ which is at most $2/q$ for the practical parameters ($k_0 = 7$, $\extdeg = 5$: t
 \end{lemma}
 
 \begin{proof}
-Since $\hat{eq}(\alpha, 0) = 1 - \alpha$ and $\hat{eq}(\alpha, 1) = \alpha$, writing $A := \{i \geq 2 : s'_i = 1\}$ and expanding the factors $(1 - \alpha_i)$ gives
-\[
-\lambda_{(1, s')} \;=\; \alpha_1 \prod_{i \in A} \alpha_i \;+\; \text{($\pm 1$)-combination of the monomials } \alpha_1 \!\prod_{i \in S} \alpha_i \text{ with } S \supsetneq A .
-\]
-By downward induction on $|A|$, each monomial $\alpha_1 \prod_{i \in S} \alpha_i$, $S \subseteq \{2, \dots, k_0\}$, is in turn an integer combination of the family $\{\lambda_{(1, s')}\}_{s'}$: the two families have the same $\Fp$-span. If $\alpha_1 = 0$ (probability $1/q$) the span is $\{0\}$; otherwise multiplication by $\alpha_1$ preserves spanning, so it suffices to study $V_{k_0}$, where
-\[
-V_j \;:=\; \mathrm{span}_{\Fp}\Big\{ \prod_{i \in S} \alpha_i \;:\; S \subseteq \{2, \dots, j\} \Big\} , \qquad \text{so that } V_1 = \Fp \text{ and } V_j = V_{j-1} + \alpha_j V_{j-1} .
-\]
-We claim: if an $\Fp$-subspace $V$ satisfies $1 \in V$ and $V \neq \Fq$, then $T := \{x \in \Fq : xV \subseteq V\}$ equals $\Fp$. Indeed $T$ contains $\Fp$ and is closed under addition and multiplication; for $x \in T \setminus \{0\}$, multiplication by $x$ is injective on the finite set $T$, hence surjective, so $x^{-1} \in T$: $T$ is a subfield of $\Fq$ containing $\Fp$. Since $\extdeg$ is prime, $T = \Fp$ or $T = \Fq$, and the latter would give $V \supseteq \Fq \cdot 1 = \Fq$. So $T = \Fp$.
-
-Consequently, whenever $V_{j-1} \neq \Fq$ and $\alpha_j \notin \Fp$, we have $\alpha_j V_{j-1} \not\subseteq V_{j-1}$, hence $\dim_{\Fp} V_j \geq \dim_{\Fp} V_{j-1} + 1$. Starting from $\dim_{\Fp} V_1 = 1$, if at least $\extdeg - 1$ of $\alpha_2, \dots, \alpha_{k_0}$ lie outside $\Fp$, then $V_{k_0} = \Fq$. Failure therefore requires at least $(k_0 - 1) - (\extdeg - 2) = k_0 - \extdeg + 1$ of them to lie in $\Fp$; each does so independently with probability $p/q$, and a union bound over the $\binom{k_0 - 1}{k_0 - \extdeg + 1}$ choices concludes.
+The multipliers factor: $\lambda_{(1, s')} = \alpha_1 \prod_{i \geq 2} \hat{eq}(\alpha_i, s'_i)$. By \Cref{lem:span}\,(i), applied to $\alpha_2, \dots, \alpha_{k_0}$, their span is $\alpha_1 V$ with $V$ the span of the monomials $\prod_{i \in S} \alpha_i$, $S \subseteq \{2, \dots, k_0\}$; it equals $\Fq$ if and only if $\alpha_1 \neq 0$ and $V = \Fq$, and by \Cref{lem:span}\,(ii), $V = \Fq$ as soon as at least $\extdeg - 1$ of $\alpha_2, \dots, \alpha_{k_0}$ lie outside $\Fp$. Failure therefore requires $\alpha_1 = 0$ (probability $1/q$) or at least $(k_0 - 1) - (\extdeg - 2) = k_0 - \extdeg + 1$ of them in $\Fp$; each lies in $\Fp$ independently with probability $p/q$, and a union bound over the $\binom{k_0 - 1}{k_0 - \extdeg + 1}$ choices concludes.
 \end{proof}
 
 Throughout the rest of the subsection, fix challenges satisfying \textsc{spread}, $\alpha_1 \notin \{0, 1\}$, and the conditions of \Cref{prop:uniform}. Notation: by trace duality, an $\Fp$-form $\varphi$ on the $\hat{f}_1$-space $\Fq^{2^m}$ ($m := n - k_0$) has a unique representative $\phi \in \Fq^{2^m}$ with $\varphi(g) = \mathrm{tr}\,\langle \phi, g \rangle$, where $\langle \cdot, \cdot \rangle$ is the coordinatewise $\Fq$-pairing and $\mathrm{tr} = \mathrm{tr}_{\Fq/\Fp}$. Write $w^{(t)} \in \Fp^{2^m}$ for the weight vector of the evaluation at the queried point $x_t$, and $u^{(\nu)} \in \Fq^{2^m}$ for the weight vector of the evaluation at a node $\nu$ (the commitment nodes $\nu_1, \nu_2$ and the $s_1$ out-of-domain points of $\hat{f}_1$).
@@ -389,7 +446,7 @@ where $\mathrm{slice}_r(u) := (\mathrm{tr}(\beta_r u_c))_c \in \Fp^{2^m}$ for a 
 \end{lemma}
 
 \begin{proof}
-Let $K \subseteq \Fp^{2^a}$ be the common kernel, inside the block coordinates, of the evaluation forms at the queried points and the nodes; by \Cref{lem:crt}, $\dim_{\Fp} K = 2^a - t_0 - \extdeg(s_0 + s_1)$. For any class $s$ and any $v \in K$, the perturbation placing $v$ on the block of class $s$ (and zero elsewhere) is invisible to the view: its fiber, out-of-domain, and $\hat{f}_1$-answer contributions vanish because all its point and node evaluations do, and its cross-term contributions vanish by \Cref{lem:blocks}. Its image under the fold is $\lambda_s v$ (placed at the block coordinates), so $\lambda_s v \in W'$ and $\mathrm{tr}(\lambda_s \langle \phi, v \rangle) = 0$. The multipliers $\lambda_s$ span $\Fq$ over $\Fp$: for the classes inside $R_{\mathsf{out}}$ this is \textsc{spread}, and it transfers to all classes since $\lambda_{(0, s')} = \frac{1 - \alpha_1}{\alpha_1}\, \lambda_{(1, s')}$ with $\alpha_1 \notin \{0, 1\}$. By nondegeneracy of the trace, $\langle \phi, v \rangle = 0$ for every $v \in K$. The vectors of an $\Fp$-basis of $K$ stay independent over $\Fq$, so the $\Fq$-orthogonal of $K$ in $\Fq^{2^a}$ has $\Fq$-dimension $t_0 + \extdeg(s_0 + s_1)$; it contains the stated span, whose generators are exactly an independent family of that size ($\Fp$-forms cutting $K$ out). The two spaces coincide, and $\phi|_{\mathrm{blk}}$ lies in them.
+The generators of the stated span are $t_0 + \extdeg(s_0 + s_1)$ $\Fp$-forms on the block coordinates $\Fp^{2^a}$, linearly independent by \Cref{lem:crt} (their joint evaluation map is surjective); let $K$ be their common kernel. For any class $s$ and any $v \in K$, the perturbation placing $v$ on the block of class $s$ (and zero elsewhere) is invisible to the view: its fiber, out-of-domain, and $\hat{f}_1$-answer contributions vanish because all its point and node evaluations do, and its cross-term contributions vanish by \Cref{lem:blocks}. Its image under the fold is $\lambda_s v$ (placed at the block coordinates), so $\lambda_s v \in W'$ and $\mathrm{tr}(\lambda_s \langle \phi, v \rangle) = 0$. The multipliers $\lambda_s$ span $\Fq$ over $\Fp$: for the classes inside $R_{\mathsf{out}}$ this is \textsc{spread}, and it transfers to all classes since $\lambda_{(0, s')} = \frac{1 - \alpha_1}{\alpha_1}\, \lambda_{(1, s')}$ with $\alpha_1 \notin \{0, 1\}$. \Cref{lem:traceorth} concludes.
 \end{proof}
 
 \begin{lemma}[node channel]\label{lem:nodechannel}
@@ -401,17 +458,17 @@ Define $B_{s, j} := \sum_r \mathrm{tr}(\lambda_s\, b_{j,r})\, \beta_r \in \Fq$. 
 \end{lemma}
 
 \begin{proof}
-For any assignment $V = (V_{s,j})$ in the $\Fq$-kernel of the node matrix, build the perturbation that realizes, on the block of each class $s$, the node values $(V_{s,1}, V_{s,2})$ and zero evaluations at the queried points and the $\hat{f}_1$ points: possible within the blocks by \Cref{lem:crt}. It is invisible to the view: fibers and $\hat{f}_1$ answers vanish by construction, cross-terms vanish on blocks, and the out-of-domain and sumcheck values vanish because $V$ kills their node combinations. Its fold image lies in $W'$, and pairing with $\varphi$ gives, using $\langle \mathrm{slice}_r(u^{(\nu_j)}), \delta_s \rangle = \mathrm{tr}(\beta_r V_{s,j})$ and $\mathrm{tr}(x\, \mathrm{tr}(y)) = \mathrm{tr}(x)\mathrm{tr}(y)$:
+For any assignment $V = (V_{s,j})$ in the $\Fq$-kernel of the node matrix, build the perturbation that realizes, on the block of each class $s$, the node values $(V_{s,1}, V_{s,2})$ and zero evaluations at the queried points and the $\hat{f}_1$ points: possible within the blocks by \Cref{lem:crt}. It is invisible to the view: fibers and $\hat{f}_1$ answers vanish by construction, cross-terms vanish on blocks, and the out-of-domain and sumcheck values vanish because $V$ kills their node combinations. Its fold image lies in $W'$, and pairing with $\varphi$ gives, using $\langle \mathrm{slice}_r(u^{(\nu_j)}), \delta_s \rangle = \mathrm{tr}(\beta_r V_{s,j})$ and the identity of \Cref{lem:linearized}\,(i):
 \[
 0 \;=\; \varphi\Big(\sum_s \lambda_s \delta_s\Big) \;=\; \sum_{s, j, r} \mathrm{tr}(\lambda_s b_{j,r})\; \mathrm{tr}(\beta_r V_{s,j}) \;=\; \mathrm{tr}\Big( \sum_{s,j} B_{s,j} V_{s,j} \Big) .
 \]
 The kernel of the node matrix is an $\Fq$-subspace: replacing $V$ by $\theta V$ and varying $\theta \in \Fq$, nondegeneracy of the trace gives $\sum_{s,j} B_{s,j} V_{s,j} = 0$ for every kernel element $V$, that is, $B$ lies in the row space.
 \end{proof}
 
-The row space is spanned by the tensors $\{\omega_j, \tau_{\ell, j}\}$ (\Cref{thm:twopoint}), while $B$ ranges, as the $b_{j,r}$ vary, over the \emph{trace twists} of the extension rows: $B_{s,j} = T_{b_j}(\lambda_s)$ with $T_b(x) := \sum_r \mathrm{tr}(x\, b_r) \beta_r$, an arbitrary $\Fp$-linear map of $\Fq$. The untwisted case $T_b = (\text{multiplication by } \theta)$ corresponds to $\sum_j \theta_j \eta_j$, which does lie in the row space. The next two lemmas show that, generically, nothing else does, and that no untwisted combination is in turn pinned on its own: even the terminal combination carries a nonzero cross form, supplied, within the terminal protocol direction, by the input weight (\Cref{cond:cross2}).
+The row space is spanned by the tensors $\{\omega_j, \tau_{\ell, j}\}$ (\Cref{thm:twopoint}), while $B$ ranges, as the $b_{j,r}$ vary, over the \emph{trace twists} of the extension rows: $B_{s,j} = T_{b_j}(\lambda_s)$ with $T_b(x) := \sum_r \mathrm{tr}(x\, b_r) \beta_r$, an arbitrary $\Fp$-linear map of $\Fq$ (\Cref{lem:linearized}\,(i)). The untwisted case $T_b = (\text{multiplication by } \theta)$ corresponds to $\sum_j \theta_j \eta_j$, which does lie in the row space. The next two lemmas show that, generically, nothing else does, and that no untwisted combination is in turn pinned on its own: even the terminal combination carries a nonzero cross form, supplied, within the terminal protocol direction, by the input weight (\Cref{cond:cross2}).
 
 \begin{lemma}[twist rigidity]\label{cond:twist}
-Every $\Fp$-linear map of $\Fq$ is a linearized polynomial $T(x) = \sum_{r=0}^{\extdeg-1} t_r\, x^{p^r}$, and correspondingly $(T(\lambda_s))_s = \sum_r t_r\, \eta^{[r]}$, where $\eta^{[r]} := \bigotimes_i \big(1 - \alpha_i^{p^r},\; \alpha_i^{p^r}\big)$ is the extension row at the Frobenius-conjugated challenges (so $\eta^{[0]} = \eta$). Assume $\alpha_1 \notin \Fp$ and that, for each point $j$, the $(k_0 - 1) \times (\extdeg - 1)$ matrix
+Any $\Fp$-linear map of $\Fq$ is a linearized polynomial $T(x) = \sum_{r=0}^{\extdeg-1} t_r\, x^{p^r}$ (\Cref{lem:linearized}), and correspondingly $(T(\lambda_s))_s = \sum_r t_r\, \eta^{[r]}$, where $\eta^{[r]} := \bigotimes_i \big(1 - \alpha_i^{p^r},\; \alpha_i^{p^r}\big)$ is the extension row at the Frobenius-conjugated challenges (so $\eta^{[0]} = \eta$). Assume $\alpha_1 \notin \Fp$ and that, for each point $j$, the $(k_0 - 1) \times (\extdeg - 1)$ matrix
 \[
 M^{(j)} := \Big( \alpha_m^{p^r} - z_j^{2^{m-1}} \Big)_{m = 2..k_0,\; r = 1..\extdeg - 1}
 \]
@@ -419,13 +476,13 @@ has rank $\extdeg - 1$. Then the only maps $T_{b_1}, T_{b_2}$ with $(T_{b_j}(\la
 \end{lemma}
 
 \begin{proof}
-The first claim: linearized polynomials are $\Fp$-linear, and they form a space of dimension $\extdeg^2$ over $\Fp$, equal to the dimension of all $\Fp$-linear maps, with no nonzero map represented twice (a nonzero linearized polynomial of degree $\leq p^{\extdeg - 1}$ has at most $p^{\extdeg-1} < q$ roots). For the tensor form: $\lambda_s^{p^r} = \prod_i \hat{eq}(\alpha_i, s_i)^{p^r} = \prod_i \hat{eq}(\alpha_i^{p^r}, s_i)$, since the Frobenius fixes the boolean values.
+The tensor form: $\lambda_s^{p^r} = \prod_i \hat{eq}(\alpha_i, s_i)^{p^r} = \prod_i \hat{eq}(\alpha_i^{p^r}, s_i)$, since the Frobenius fixes the boolean values.
 
-The row-space condition splits per point (the families $\{\omega_j, \tau_{\ell,j}\}$ are supported on their own blocks): for each $j$, $\sum_{r \geq 1} t_r\, \eta^{[r]} \in \mathrm{span}\{\omega, \tau_1, \dots, \tau_{k_0}\}$ at the point-$j$ slot values (the $r = 0$ term is absorbed by $\eta \in \mathrm{span}$, \Cref{prop:rank}). Fix $j$ and drop it. Expand all tensors in the per-slot basis $\{c_i, d\}$ (\cref{eq:cd}), with monomials indexed by the set $S$ of slots carrying $d$: writing $A^{[r]}_i := \alpha_i^{p^r} - z^{2^{i-1}}$, the coefficient of $\eta^{[r]}$ on $S$ is $\prod_{i \in S} A^{[r]}_i$ (\cref{eq:acd}); the coefficient of $\tau_m$ on $S$ is $\prod_{i \in S \setminus \{m\}} A^{[0]}_i$ if $m = \max S$, else $0$; the coefficient of $\omega$ is $1$ on $S = \emptyset$, else $0$. Suppose $\sum_{r \geq 1} y_r \eta^{[r]} = x_\omega \omega + \sum_m x_m \tau_m$. The singleton sets give $x_m = \sum_r y_r A^{[r]}_m$. The pairs $S = \{1, m\}$, $m \geq 2$, give $x_m A^{[0]}_1 = \sum_r y_r A^{[r]}_1 A^{[r]}_m$; substituting,
+The row-space condition splits per point (the families $\{\omega_j, \tau_{\ell,j}\}$ are supported on their own blocks): for each $j$, $\sum_{r \geq 1} t_r\, \eta^{[r]} \in \mathrm{span}\{\omega, \tau_1, \dots, \tau_{k_0}\}$ at the point-$j$ slot values (the $r = 0$ term is absorbed by $\eta \in \mathrm{span}$, \Cref{prop:rank}). Fix $j$ and drop it. Writing $A^{[r]}_i := \alpha_i^{p^r} - z^{2^{i-1}}$, the computation of \cref{eq:acd} applied at $\alpha_i^{p^r}$ gives $\eta^{[r]} = \bigotimes_i \big(c_i + A^{[r]}_i\, d\big)$, while $\{\omega, \tau_1, \dots, \tau_{k_0}\}$ is the staircase of $A^{[0]}$ (\Cref{sec:slot}). \Cref{lem:rigidity} then gives
 \[
-\sum_{r \geq 1} \big( y_r\, D_r \big)\, A^{[r]}_m \;=\; 0 \qquad \text{for } m = 2, \dots, k_0 , \qquad D_r := A^{[r]}_1 - A^{[0]}_1 = \alpha_1^{p^r} - \alpha_1 .
+\sum_{r \geq 1} \big( t_r\, D_r \big)\, A^{[r]}_m \;=\; 0 \qquad \text{for } m = 2, \dots, k_0 , \qquad D_r := A^{[r]}_1 - A^{[0]}_1 = \alpha_1^{p^r} - \alpha_1 .
 \]
-This says the vector $(y_r D_r)_r$ is in the kernel of $M^{(j)}$, which is trivial by the rank assumption. Since $\alpha_1 \notin \Fp$ and $\extdeg$ is prime, $D_r \neq 0$ for $1 \leq r \leq \extdeg - 1$ (the fixed field of the $r$-th Frobenius power inside $\Fq$ is $\Fp$). So $y_r = 0$ for all $r \geq 1$, and $T_{b_j}$ is the multiplication by its $t_0$-coefficient.
+This says the vector $(t_r D_r)_r$ is in the kernel of $M^{(j)}$, which is trivial by the rank assumption. Since $\alpha_1 \notin \Fp$, \Cref{lem:linearized} gives $D_r \neq 0$ for $1 \leq r \leq \extdeg - 1$. So $t_r = 0$ for all $r \geq 1$, and $T_{b_j}$ is the multiplication by its $t_0$-coefficient.
 \end{proof}
 
 \begin{corollary}\label{cor:twistprob}
@@ -437,7 +494,7 @@ For uniform challenges, the assumptions of \Cref{cond:twist} fail with probabili
 \end{corollary}
 
 \begin{proof}
-$\Pr[\alpha_1 \in \Fp] = p/q$. For the rank, fix $j$ and process the rows of $M^{(j)}$ (one per $m$, each depending on its own $\alpha_m$) in order, tracking the span of the rows seen so far. Rank $< \extdeg - 1$ after $k_0 - 1$ rows requires at least $(k_0 - 1) - (\extdeg - 2) = k_0 - \extdeg + 1$ rows to fall into the span of their predecessors. A proper subspace of $\Fq^{\extdeg - 1}$ lies in a hyperplane $\{x : \sum_r v_r x_r = 0\}$ with $v \neq 0$, and the row of $\alpha_m$ falls in it only if $L_v(\alpha_m) = \sum_r v_r z^{2^{m-1}}$, where $L_v(x) := \sum_{r=1}^{\extdeg-1} v_r x^{p^r}$. Writing $L_v = \mathrm{Frob} \circ M_v$ with $M_v(x) = \sum_r v_r^{1/p} x^{p^{r-1}}$, a nonzero linearized polynomial of degree $\leq p^{\extdeg - 2}$, the solution set is empty or a coset of $\ker M_v$, of size at most $p^{\extdeg - 2}$. The rows are independent across $m$, so each fall costs at most $p^{\extdeg-2}/q$; a union bound over the choice of falling rows and over the two points gives the second term.
+$\Pr[\alpha_1 \in \Fp] = p/q$. For the rank, fix $j$ and process the rows of $M^{(j)}$ (one per $m$, each depending on its own $\alpha_m$) in order, tracking the span of the rows seen so far. Rank $< \extdeg - 1$ after $k_0 - 1$ rows requires at least $(k_0 - 1) - (\extdeg - 2) = k_0 - \extdeg + 1$ rows to fall into the span of their predecessors. A proper subspace of $\Fq^{\extdeg - 1}$ lies in a hyperplane $\{x : \sum_r v_r x_r = 0\}$ with $v \neq 0$, and the row of $\alpha_m$ falls in it only if $L_v(\alpha_m) = \sum_r v_r z^{2^{m-1}}$, where $L_v(x) := \sum_{r=1}^{\extdeg-1} v_r x^{p^r}$. Writing $L_v = \mathrm{Frob} \circ M_v$ with $M_v(x) = \sum_r v_r^{1/p} x^{p^{r-1}}$, a nonzero linearized polynomial of degree $\leq p^{\extdeg - 2}$, \Cref{lem:linearized}\,(iii) bounds the solution set by $p^{\extdeg - 2}$. The rows are independent across $m$, so each fall costs at most $p^{\extdeg-2}/q$; a union bound over the choice of falling rows and over the two points gives the second term.
 \end{proof}
 
 \begin{lemma}[kernel surjectivity]\label{lem:kersurj}
@@ -469,7 +526,7 @@ F_{\theta^{\mathrm{term}}} \;=\; \gamma^2\, T_{\hat{w}} \big|_{\text{non-block m
 \]
 (No contradiction with $\eta = \rho_{k_0+1}$: the \emph{pure} node combination $\sum_j \theta^{\mathrm{term}}_j \hat{f}(\nu_j\text{-point})$ is not in $\mathrm{ann}(W')$; the terminal \emph{protocol} direction is, because its input-weight component contributes exactly the missing cross form $\gamma^2 T_{\hat{w}}$. The control experiment $\hat{w} = 0$ of the numerical remarks is the degenerate case where $T_{\hat{w}}$, and every cross vector, vanishes.)
 
-Injectivity. Since $\theta^{\mathrm{term}}_2 = \gamma P^{(2)}_{k_0+1} \neq 0$ under the standing conditions, the pair $\{(1,0),\, \theta^{\mathrm{term}}\}$ is a basis of $\Fq^2$: it suffices that $F_{(1,0)}$ and $F_{\theta^{\mathrm{term}}} = \gamma^2 T_{\hat{w}}$ be linearly independent over $\Fq$, which we witness on two cells. After clearing the denominators of the $c^{(1)}_v$ (Cramer over the value-row system, determinant nonzero under the standing conditions), each entry of $F_{(1,0)}$, and each $2 \times 2$ minor of the pair $(F_{(1,0)}, T_{\hat{w}})$, is a polynomial in the challenges of total degree at most $2^{k_0 + 7}$ (entries of the system have degree at most $2^{k_0}$ in each $z_j$, $k_0 + 1$ in the $\alpha$'s, $2$ in $\gamma$; a $16 \times 16$ determinant multiplies these by $16$; the entries of $T_{\hat{w}}$ add at most $2 k_0$). We exhibit a nonvanishing minor: specialize $\alpha_i := z_1^{2^{i-1}}$ for $i \geq 2$. Then $\rho^{(1)}_\ell = \omega^{(1)} + (\alpha_1 - z_1)\tau^{(1)}_1$ for every $\ell \geq 2$, and the system for $\eta_1$ solves explicitly: the block-1 equations for $\tau^{(1)}_m$, $m \geq 2$, give $\nu_{m,2} = -g(z_1^{2^{m-1}})\, \nu_{m,1}$; substituting into the block-2 equations for $\tau^{(2)}_m$ gives an upper-triangular system with diagonal $P^{(2)}_m (2z_2^{2^{m-1}} - 1)\, d_m \neq 0$, so $\nu_{m,1} = \nu_{m,2} = 0$ for all $m \geq 2$ by descent; the two remaining equations give
+Injectivity. Since $\theta^{\mathrm{term}}_2 = \gamma P^{(2)}_{k_0+1} \neq 0$ under the standing conditions, the pair $\{(1,0),\, \theta^{\mathrm{term}}\}$ is a basis of $\Fq^2$: it suffices that $F_{(1,0)}$ and $F_{\theta^{\mathrm{term}}} = \gamma^2 T_{\hat{w}}$ be linearly independent over $\Fq$, which we witness on two cells. After clearing the denominators of the $c^{(1)}_v$ (Cramer over the value-row system, determinant nonzero under the standing conditions), each entry of $F_{(1,0)}$, and each $2 \times 2$ minor of the pair $(F_{(1,0)}, T_{\hat{w}})$, is a polynomial in the challenges of total degree at most $2^{k_0 + 7}$ (entries of the system have degree at most $2^{k_0}$ in each $z_j$, $k_0 + 1$ in the $\alpha$'s, $2$ in $\gamma$; a $16 \times 16$ determinant multiplies these by $16$; the entries of $T_{\hat{w}}$ add at most $2 k_0$). We exhibit a nonvanishing minor: specialize $\alpha_i := z_1^{2^{i-1}}$ for $i \geq 2$, so that the block-1 chain parameters $\lambda^{(1)}_\ell = \alpha_\ell - z_1^{2^{\ell-1}}$ vanish for $\ell \geq 2$. \Cref{lem:coupled}\,(ii) solves the representation of $\eta_1 = (\rho^{(1)}_{k_0+1} \mid 0)$ in the value rows explicitly --- coefficients $\mu_j$ on $\omega_j$, $\nu_{\ell,r}$ on the rows $(\ell, r)$ --- giving $\nu_{\ell,r} = 0$ for $\ell \geq 2$ and, translating its parameters ($\lambda^{(1)}_1 = \alpha_1 - z_1$, $C^{(1)}_1 = 2z_1 - 1$, $\delta_1 = d_1$, $B^{(2)}_1/C^{(2)}_1 = g(z_2)$),
 \[
 \nu_{1,1} = \frac{\alpha_1 - z_1}{(2 z_1 - 1)\, d_1} , \qquad \nu_{1,2} = -\, g(z_2)\, \nu_{1,1} .
 \]
@@ -485,7 +542,7 @@ since, at the specialization, $\lambda_{(1, s')} = \alpha_1\, e_{s'}$ and $\hat{
 \[
 F_{(1,0)}(u)\, T_{\hat{w}}(u'') - F_{(1,0)}(u'')\, T_{\hat{w}}(u) \;=\; \gamma^2\, \nu_{1,1} \big(1 + g(z_2)\big)\; \alpha_1 (1 - \alpha_1)\; A_{c^*} \Big[ \hat{w}_0(s^*, c^*)\, e_{s''} \;-\; \hat{w}_0(s'', c^*)\, e_{s^*} \Big] .
 \]
-Every factor is nonzero as a rational function of $(\alpha_1, z_1, z_2, \gamma)$: the first by the closed form above, the second trivially. For $A_{c^*}$ and the bracket, view them as multilinear polynomials in independent variables $\zeta_2, \dots, \zeta_{k_0}$: the evaluation at $\zeta := s^*$ gives $A_{c^*} = \hat{w}_0(s^*, c^*) \neq 0$, the evaluation at $\zeta := s''$ gives the bracket $= \hat{w}_0(s^*, c^*) \neq 0$; and a nonzero multilinear polynomial in $\zeta_2, \dots, \zeta_{k_0}$ stays nonzero under the substitution $\zeta_i := z_1^{2^{i-1}}$, since distinct multilinear monomials $\prod_{i \in S} \zeta_i$ land on distinct powers $z_1^{\sum_{i \in S} 2^{i-1}}$ (binary expansion). Schwartz--Zippel on the cleared minor concludes: the pair is independent, and $F_\theta \neq 0$ for every $\theta \neq 0$.
+Every factor is nonzero as a rational function of $(\alpha_1, z_1, z_2, \gamma)$: the first by the closed form above, the second trivially. For $A_{c^*}$ and the bracket, view them as multilinear polynomials in independent variables $\zeta_2, \dots, \zeta_{k_0}$: the evaluation at $\zeta := s^*$ gives $A_{c^*} = \hat{w}_0(s^*, c^*) \neq 0$, the evaluation at $\zeta := s''$ gives the bracket $= \hat{w}_0(s^*, c^*) \neq 0$; and a nonzero multilinear polynomial in $\zeta_2, \dots, \zeta_{k_0}$ stays nonzero under the substitution $\zeta_i := z_1^{2^{i-1}}$ (\Cref{lem:binpow}). Schwartz--Zippel on the cleared minor concludes: the pair is independent, and $F_\theta \neq 0$ for every $\theta \neq 0$.
 \end{proof}
 
 \begin{remark}[slice level]\label{rem:slice}
@@ -536,6 +593,114 @@ Strategy:
 \end{itemize}
 
 \textit{No protocol changes.}
+
+\appendix
+
+\section{Proofs of the toolbox lemmas}\label{app:toolbox}
+
+\begin{proof}[Proof of \Cref{lem:staircase} (staircase independence)]
+Induction on $k$. For $k = 1$: $\omega = c_1$ and $\tau_1 = d_1$ are a basis. For $k \geq 2$, let $\omega', \tau'_1, \dots, \tau'_{k-1}$ be the corresponding tensors on the slots $2, \dots, k$. Then
+\[
+\omega = c_1 \otimes \omega', \qquad \tau_1 = d_1 \otimes \omega', \qquad \tau_m = a_1 \otimes \tau'_{m-1} = c_1 \otimes \tau'_{m-1} + \lambda_1\, d_1 \otimes \tau'_{m-1} \quad (m \geq 2) .
+\]
+Suppose $\mu_\omega \omega + \sum_m \mu_m \tau_m = 0$. Collecting the components on the basis $\{c_1, d_1\}$ of the first slot, with $Y := \sum_{m \geq 2} \mu_m \tau'_{m-1}$:
+\[
+\mu_\omega\, \omega' + Y = 0 \qquad \text{and} \qquad \mu_1\, \omega' + \lambda_1\, Y = 0 .
+\]
+By the induction hypothesis, $\omega', \tau'_1, \dots, \tau'_{k-1}$ are independent; since $Y$ has no $\omega'$ component, the first equation forces $\mu_\omega = 0$ and $\mu_m = 0$ for $m \geq 2$, and then the second forces $\mu_1 = 0$.
+\end{proof}
+
+\begin{proof}[Proof of \Cref{lem:chain} (chain matrices)]
+Span: $\tau_\ell = \mathrm{row}(\ell, 2)/C_\ell$ and $\rho_\ell \in \mathrm{span}\{\omega, \tau_i\}$, so every row lies in $\mathrm{span}\{\omega, \tau_1, \dots, \tau_k\}$, which $\omega, \mathrm{row}(1,2), \dots, \mathrm{row}(k,2)$ already span; its dimension is $k + 1$ by hypothesis. Kernel: each $\kappa_\ell$ annihilates the rows,
+\[
+\mathrm{row}(\ell,1) - \frac{B_\ell}{C_\ell}\, \mathrm{row}(\ell,2) - A_\ell\, \omega - \sum_{i<\ell} \frac{A_\ell\, \lambda_i}{C_i}\, \mathrm{row}(i,2) \;=\; A_\ell \Big( \rho_\ell - \omega - \sum_{i<\ell} \lambda_i\, \tau_i \Big) \;=\; 0 ,
+\]
+the $\kappa_\ell$ are linearly independent (leading coordinates $(\ell,1)$), and the left kernel has dimension $(2k+1) - (k+1) = k$.
+\end{proof}
+
+Two auxiliary lemmas prepare the proof of \Cref{lem:coupled}.
+
+\begin{lemma}[triangular pencils]\label{lem:pencil}
+In $F^{2k}$, with standard basis $\big(e_{(\ell, r)}\big)$ indexed by $\ell \in \{1, \dots, k\}$ and $r \in \{1, 2\}$, let $U$ and $U'$ be spanned by $k$ vectors each, of the form
+\[
+u_\ell \;=\; e_{(\ell,1)} \,-\, g_\ell\, e_{(\ell,2)} \,+ \sum_{i < \ell} (\ast)\, e_{(i,2)} , \qquad
+u'_\ell \;=\; e_{(\ell,1)} \,-\, g'_\ell\, e_{(\ell,2)} \,+ \sum_{i < \ell} (\ast)\, e_{(i,2)} ,
+\]
+with arbitrary scalars $(\ast)$. If $g_\ell \neq g'_\ell$ for every $\ell$, then $U \cap U' = 0$.
+\end{lemma}
+
+\begin{proof}
+Let $x \in U \cap U'$ and write $x = \sum_\ell \lambda_\ell u_\ell = \sum_\ell \lambda'_\ell u'_\ell$. The $(\ell, 1)$-coordinates give $\lambda_\ell = \lambda'_\ell$ for every $\ell$. The $(\ell, 2)$-coordinates then give $\lambda_\ell (g'_\ell - g_\ell) = \sum_{i > \ell} \lambda_i \cdot (\ast)$: a homogeneous triangular system with nonzero diagonal. Back-substitution from $\ell = k$ downward gives $\lambda = 0$, hence $x = 0$.
+\end{proof}
+
+\begin{lemma}[coupled blocks]\label{lem:blockrank}
+Let $A_1, A_2$ be $t \times n_1$ and $t \times n_2$ matrices over $F$, let $\omega_1 \in F^{n_1}$ and $\omega_2 \in F^{n_2}$ be nonzero rows, and let $\gamma \neq 0$. For $j = 1, 2$, set $K_j := \{(\mu, \nu) \in F^{1 + t} : \mu\, \omega_j + \nu^{\mathsf{T}} A_j = 0\}$ and $\pi(\mu, \nu) := \nu$. If $\pi(K_1) \cap \pi(K_2) = 0$, then the $t + 2$ rows $(\omega_1 \mid 0)$, $(0 \mid \omega_2)$, $(A_1 \mid \gamma A_2)$ of the two-block matrix are linearly independent.
+\end{lemma}
+
+\begin{proof}
+Suppose $\mu_1 (\omega_1 \mid 0) + \mu_2 (0 \mid \omega_2) + \nu^{\mathsf{T}} (A_1 \mid \gamma A_2) = 0$. Restricting to the columns of block $j$: $(\mu_1, \nu) \in K_1$ and $(\mu_2, \gamma \nu) \in K_2$. Hence $\nu \in \pi(K_1)$ and $\gamma \nu \in \pi(K_2)$; since $\pi(K_2)$ is a subspace and $\gamma \neq 0$, $\nu \in \pi(K_1) \cap \pi(K_2) = 0$. Then $(\mu_j, 0) \in K_j$ reads $\mu_j\, \omega_j = 0$, and $\omega_j \neq 0$ forces $\mu_j = 0$.
+\end{proof}
+
+\begin{proof}[Proof of \Cref{lem:coupled} (coupled chains)]
+(i) A vanishing combination of the coupled rows restricts, on each block $j$, to an element of the left kernel $K^{(j)}$ of the stacked matrix $\big[\omega^{(j)}; \mathrm{row}(\ell,r)^{(j)}\big]$. By \Cref{lem:chain}, $K^{(j)}$ has basis $\kappa^{(j)}_\ell$; dropping the $\omega$-coordinate, this basis has the triangular shape of \Cref{lem:pencil}, with diagonals $-B^{(j)}_\ell / C^{(j)}_\ell$, which differ in every slot since $\delta_\ell \neq 0$. \Cref{lem:pencil} gives $\pi(K^{(1)}) \cap \pi(K^{(2)}) = 0$, and \Cref{lem:blockrank} gives the independence. The $2k + 2$ independent rows lie in $\bigoplus_j \mathrm{span}\{\omega^{(j)}, \tau^{(j)}_\ell\}$, of dimension $2(k+1)$ by the per-block independence: they span it; and $\rho^{(j)}_{k+1} \in \mathrm{span}\{\omega^{(j)}, \tau^{(j)}_\ell\}$ by definition.
+
+(ii) Expand the identity
+\[
+(\rho^{(1)}_{k+1} \mid 0) \;=\; \mu_1\, (\omega^{(1)} \mid 0) + \mu_2\, (0 \mid \omega^{(2)}) + \sum_{\ell, r} \nu_{\ell, r}\, \big(\mathrm{row}(\ell,r)^{(1)} \mid \gamma\, \mathrm{row}(\ell,r)^{(2)}\big)
+\]
+in the coordinates $(\omega^{(j)}, \tau^{(j)}_\ell)$ of each block. The $\tau^{(j)}_\ell$-coordinates give, after dividing the block-2 equations by $\gamma$,
+\[
+B^{(1)}_\ell \nu_{\ell,1} + C^{(1)}_\ell \nu_{\ell,2} + \lambda^{(1)}_\ell \!\sum_{m > \ell}\! A^{(1)}_m \nu_{m,1} \;=\; \lambda^{(1)}_\ell , \qquad
+B^{(2)}_\ell \nu_{\ell,1} + C^{(2)}_\ell \nu_{\ell,2} + \lambda^{(2)}_\ell \!\sum_{m > \ell}\! A^{(2)}_m \nu_{m,1} \;=\; 0 ,
+\]
+and the $\omega^{(j)}$-coordinates give $\mu_1 = 1 - \sum_\ell A^{(1)}_\ell \nu_{\ell,1}$ and $\mu_2 = -\gamma \sum_\ell A^{(2)}_\ell \nu_{\ell,1}$. With $\lambda^{(1)}_\ell = 0$ for $\ell \geq 2$, the block-1 equations give $\nu_{\ell,2} = -(B^{(1)}_\ell / C^{(1)}_\ell)\, \nu_{\ell,1}$; substituting into the block-2 equations leaves $-\,C^{(2)}_\ell\, \delta_\ell\, \nu_{\ell,1} + \lambda^{(2)}_\ell \sum_{m>\ell} A^{(2)}_m \nu_{m,1} = 0$, a triangular system with nonzero diagonal: descent from $\ell = k$ gives $\nu_{\ell, r} = 0$ for $\ell \geq 2$. The two slot-$1$ equations then read $B^{(1)}_1 \nu_{1,1} + C^{(1)}_1 \nu_{1,2} = \lambda^{(1)}_1$ and $B^{(2)}_1 \nu_{1,1} + C^{(2)}_1 \nu_{1,2} = 0$, giving the displayed values of $\nu_{1,1}, \nu_{1,2}$; the $\mu$'s follow.
+\end{proof}
+
+\begin{proof}[Proof of \Cref{lem:rigidity} (rigidity)]
+A basis of $(F^2)^{\otimes k}$ is indexed by the subsets $S \subseteq \{1, \dots, k\}$ of slots carrying $d_i$ (the others carrying $c_i$). On this basis: the coefficient of $v^{(r)}$ at $S$ is $\prod_{i \in S} a^{(r)}_i$; the coefficient of $\omega$ is $1$ at $S = \emptyset$ and $0$ elsewhere; the coefficient of $\tau_m$ at $S$ is $\prod_{i \in S \setminus \{m\}} a^{(0)}_i$ if $\max S = m$, and $0$ otherwise. Write $\sum_{r \geq 1} y_r v^{(r)} = x_\omega\, \omega + \sum_m x_m \tau_m$ and compare coefficients: the singletons $S = \{m\}$ give $x_m = \sum_r y_r\, a^{(r)}_m$; the pairs $S = \{1, m\}$, $m \geq 2$, give $\sum_r y_r\, a^{(r)}_1 a^{(r)}_m = x_m\, a^{(0)}_1$. Substituting the former into the latter gives the claim.
+\end{proof}
+
+\begin{proof}[Proof of \Cref{lem:binpow} (binary powers)]
+The substitution maps distinct multilinear monomials $\prod_{i \in S} \zeta_i$ to distinct powers $z^{\sum_{i \in S} 2^{i-1}}$, by uniqueness of the binary expansion: the monomials of $Q$ cannot cancel.
+\end{proof}
+
+\begin{proof}[Proof of \Cref{lem:crt} (Chinese remaindering)]
+The tuple is the reduction of $g$ modulo $\prod_i (X - x_i) \cdot \prod_j m_j$, where $m_j$ is the minimal polynomial of $\nu_j$ over $\Fp$: indeed $\Fp[X]/(X - x_i) \cong \Fp$ by evaluation at $x_i$, and $\Fp[X]/(m_j) \cong \Fq$ by evaluation at $\nu_j$, with $\deg m_j = \extdeg$ ($\nu_j$ generates $\Fq$, since $\extdeg$ is prime and $\nu_j \notin \Fp$). The moduli are pairwise coprime: the $x_i$ are distinct, the $m_j$ are distinct irreducibles by non-conjugacy, and no $m_j$ has a root in $\Fp$. Their degree sum is $t + \extdeg\, e \leq N$, so the reduction is surjective by Chinese remaindering. A surjective linear image of a uniform variable is uniform.
+\end{proof}
+
+The next auxiliary lemma prepares the proof of \Cref{lem:span}.
+
+\begin{lemma}[subfield stabilizer]\label{lem:stabilizer}
+Let $V$ be an $\Fp$-subspace of $\Fq$ with $1 \in V$ and $V \neq \Fq$. Then $\{x \in \Fq : x V \subseteq V\} = \Fp$. In particular, $V + \alpha V \supsetneq V$ for every $\alpha \notin \Fp$.
+\end{lemma}
+
+\begin{proof}
+$T := \{x \in \Fq : xV \subseteq V\}$ contains $\Fp$, is closed under addition, and under multiplication: for $x, y \in T$, $(xy)V = x(yV) \subseteq xV \subseteq V$. For $x \in T \setminus \{0\}$, multiplication by $x$ is injective on the finite set $T$, hence surjective, so $x^{-1} \in T$: $T$ is a subfield of $\Fq$ containing $\Fp$. Since $\extdeg$ is prime, $T = \Fp$ or $T = \Fq$, and the latter would give $V \supseteq \Fq \cdot 1 = \Fq$. So $T = \Fp$. In particular, for $\alpha \notin \Fp$, $\alpha V \not\subseteq V$, hence $V + \alpha V \supsetneq V$.
+\end{proof}
+
+\begin{proof}[Proof of \Cref{lem:span} (multiplicative span)]
+(i) Writing $A := \{i : s_i = 1\}$ and expanding the factors $(1 - \alpha_i)$,
+\[
+\prod_{i} \hat{eq}(\alpha_i, s_i) \;=\; \prod_{i \in A} \alpha_i \;+\; \text{($\pm 1$)-combination of the monomials } \prod_{i \in S} \alpha_i \text{ with } S \supsetneq A ,
+\]
+so the $\hat{eq}$-family lies in the span of the monomials, and, by downward induction on $|A|$, each monomial is in turn an integer combination of the $\hat{eq}$-family. (ii) Let $V_j$ be the $\Fp$-span of the monomials over $S \subseteq \{1, \dots, j\}$, so that $V_0 = \Fp$ and $V_j = V_{j-1} + \alpha_j V_{j-1}$. By \Cref{lem:stabilizer} ($1 \in V_{j-1}$), whenever $V_{j-1} \neq \Fq$ and $\alpha_j \notin \Fp$, $\dim_{\Fp} V_j \geq \dim_{\Fp} V_{j-1} + 1$: applying this at the $\geq \extdeg - 1$ indices with $\alpha_j \notin \Fp$, the dimension reaches $\extdeg$.
+\end{proof}
+
+\begin{proof}[Proof of \Cref{lem:traceorth} (trace orthogonality)]
+By linearity in $\lambda$, $\mathrm{tr}(\lambda \langle \phi, v \rangle) = 0$ extends from the spanning set to every $\lambda \in \Fq$, and the trace form $(x, y) \mapsto \mathrm{tr}(xy)$ is nondegenerate on $\Fq$: $\langle \phi, v \rangle = 0$ for every $v \in K$. Vectors with entries in $\Fp$ that are independent over $\Fp$ remain independent over $\Fq$ (independence is the nonvanishing of a minor, unchanged under field extension): the $\Fq$-span of $K$ has dimension $N - t$, so its orthogonal $\{\psi \in \Fq^N : \langle \psi, v \rangle = 0 \ \forall v \in K\}$ has dimension $t$ and contains the $\Fq$-independent family $f_1, \dots, f_t$: it equals $\mathrm{span}_{\Fq}\{f_1, \dots, f_t\}$, and $\phi$ lies in it.
+\end{proof}
+
+\begin{proof}[Proof of \Cref{lem:linearized} ($\Fp$-linear maps of $\Fq$)]
+(i) The two parametrizations are injective: a nonzero polynomial of degree at most $p^{\extdeg - 1} < q$ cannot vanish on all of $\Fq$; and $T_b = 0$ forces $\mathrm{tr}(x\, b_r) = 0$ for all $x$ (the $\beta_r$ are independent), hence $b = 0$ by nondegeneracy of the trace. Both are $\Fp$-linear from a space of $\Fp$-dimension $\extdeg^2$, equal to the dimension of all $\Fp$-linear maps of $\Fq$: both are bijective. The identity is linearity: the scalars $\mathrm{tr}(\lambda\, b_r) \in \Fp$ pass through $\mathrm{tr}$. (ii) The solutions of $x^{p^r} = x$ form the subfield $\mathbb{F}_{p^{\gcd(r, \extdeg)}} = \Fp$, since $\extdeg$ is prime and $1 \leq r \leq \extdeg - 1$. (iii) If $T(x) = c$ has a solution $x_0$, the solution set is $x_0 + \ker T$, and $\ker T$ consists of the roots of a nonzero polynomial of degree $p^e$.
+\end{proof}
+
+\begin{proof}[Proof of \Cref{lem:mask} (masking criterion)]
+$L(x + U)$ is uniform on the coset $L(x) + \mathcal{I}$, $\mathcal{I} := L(M)$, so the two laws coincide if and only if $L(\delta) \in \mathcal{I}$. Since $L_1|_M$ is surjective, $\mathcal{I} = \{(v, f) : f - L_2(\varrho(v)) \in W'\}$: for $(v, f) = L(m)$ with $m \in M$, the mask $m - \varrho(v)$ lies in $\ker(L_1) \cap M$, and conversely. So $L(\delta) \in \mathcal{I}$ if and only if $L_2(\delta) - L_2(\varrho(L_1(\delta))) \in W'$, which is the stated condition.
+\end{proof}
+
+\begin{proof}[Proof of \Cref{lem:transfer} (uniformity transfer)]
+Conditionally on $Z = z$, $S(X) + z$ is uniform: a surjective linear map has all fibers of size $|\ker S|$, so $S(X)$ is uniform, and adding $z$ is a bijection. The conditional law is the same for every $z$; averaging concludes.
+\end{proof}
 
 \bibliographystyle{IEEEtran}
 \bibliography{bibliography}
