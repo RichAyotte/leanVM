@@ -102,6 +102,19 @@ theorem uniform_toOuterMeasure_le {α : Type*} [Fintype α] [Nonempty α]
       ≤ (k : ℝ≥0∞) * (Fintype.card α : ℝ≥0∞)⁻¹ := by gcongr
     _ = (k : ℝ≥0∞) / Fintype.card α := rfl
 
+/-- Any finite set of roots of a nonzero polynomial is bounded by its
+degree. -/
+theorem card_roots_le {F : Type*} [Field F] (g : Polynomial F) (hg : g ≠ 0)
+    (s : Finset F) (hs : ∀ a ∈ s, g.eval a = 0) : s.card ≤ g.natDegree := by
+  classical
+  have hsub : s ⊆ g.roots.toFinset := by
+    intro a ha
+    rw [Multiset.mem_toFinset, Polynomial.mem_roots hg]
+    exact hs a ha
+  calc s.card ≤ g.roots.toFinset.card := Finset.card_le_card hsub
+    _ ≤ Multiset.card g.roots := g.roots.toFinset_card_le
+    _ ≤ g.natDegree := g.card_roots'
+
 /-- **Univariate Schwartz–Zippel**: a nonzero polynomial of degree at most
 `d` vanishes at a uniform point with probability at most `d / |F|`. -/
 theorem uniform_root_bound {F : Type*} [Field F] [Fintype F] [Nonempty F]

@@ -333,4 +333,272 @@ theorem challenge_node_in_base_le [Nonempty Fq]
     exact uniform_pi_coord_le j₁ _ P.p fun s hs =>
       card_base_range_le P Fq s hs
 
+/-! ## Conjugate node pairs -/
+
+section Conjugacy
+
+variable [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+
+/-- The mapped minimal polynomial is monic, hence nonzero. -/
+theorem minpoly_map_ne_zero (ν : Fq) :
+    (minpoly (Fp P) ν).map (algebraMap (Fp P) Fq) ≠ 0 :=
+  ((minpoly.monic (IsIntegral.of_finite _ ν)).map _).ne_zero
+
+theorem minpoly_map_natDegree_le (ν : Fq) :
+    ((minpoly (Fp P) ν).map (algebraMap (Fp P) Fq)).natDegree ≤
+      Module.finrank (Fp P) Fq := by
+  rw [(minpoly.monic (IsIntegral.of_finite _ ν)).natDegree_map]
+  exact minpoly.natDegree_le ν
+
+/-- Equal minimal polynomials make the second node a root of the first's
+mapped minimal polynomial. -/
+theorem eval_minpoly_map_eq_zero {ν ν' : Fq}
+    (h : minpoly (Fp P) ν = minpoly (Fp P) ν') :
+    ((minpoly (Fp P) ν).map (algebraMap (Fp P) Fq)).eval ν' = 0 := by
+  have haev := minpoly.aeval (Fp P) ν'
+  rw [← h] at haev
+  rwa [Polynomial.aeval_def, Polynomial.eval₂_eq_eval_map] at haev
+
+/-- A finite set of points whose `N`-th powers are roots of the mapped
+minimal polynomial has at most `d·N` elements. -/
+theorem card_pow_conj_le (ν : Fq) (s : Finset Fq)
+    (hs : ∀ w' ∈ s, minpoly (Fp P) ν = minpoly (Fp P) (w' ^ 2 ^ P.k₀)) :
+    s.card ≤ Module.finrank (Fp P) Fq * 2 ^ P.k₀ := by
+  set g := ((minpoly (Fp P) ν).map (algebraMap (Fp P) Fq)).comp
+    (Polynomial.X ^ 2 ^ P.k₀) with hg
+  have hgmonic : g.Monic :=
+    ((minpoly.monic (IsIntegral.of_finite _ ν)).map _).comp
+      (Polynomial.monic_X_pow _)
+      (by rw [Polynomial.natDegree_X_pow]; positivity)
+  have hgdeg : g.natDegree ≤ Module.finrank (Fp P) Fq * 2 ^ P.k₀ := by
+    rw [hg, Polynomial.natDegree_comp, Polynomial.natDegree_X_pow]
+    exact Nat.mul_le_mul_right _ (minpoly_map_natDegree_le P Fq ν)
+  refine (card_roots_le g hgmonic.ne_zero s fun w' hw' => ?_).trans hgdeg
+  rw [hg, Polynomial.eval_comp, Polynomial.eval_pow, Polynomial.eval_X]
+  exact eval_minpoly_map_eq_zero P Fq (hs w' hw')
+
+/-- A finite set of roots of the mapped minimal polynomial has at most `d·N`
+elements. -/
+theorem card_conj_le (ν : Fq) (s : Finset Fq)
+    (hs : ∀ w' ∈ s, minpoly (Fp P) ν = minpoly (Fp P) w') :
+    s.card ≤ Module.finrank (Fp P) Fq * 2 ^ P.k₀ := by
+  have hd : ((minpoly (Fp P) ν).map (algebraMap (Fp P) Fq)).natDegree ≤
+      Module.finrank (Fp P) Fq * 2 ^ P.k₀ :=
+    (minpoly_map_natDegree_le P Fq ν).trans
+      (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _))
+  refine (card_roots_le _ (minpoly_map_ne_zero P Fq ν) s
+    fun w' hw' => ?_).trans hd
+  exact eval_minpoly_map_eq_zero P Fq (hs w' hw')
+
+/-- **Per-pair conjugacy bound** (`lem:nodeprob`, second count): two distinct
+nodes share a minimal polynomial with probability at most `d·2^k₀ / q`. -/
+theorem challenge_node_conj_le (j j' : Fin (2 + P.s₁)) (hne : j ≠ j') :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom |
+        minpoly (Fp P) (nodes P Fq Dom ch j) =
+        minpoly (Fp P) (nodes P Fq Dom ch j')} ≤
+      ((Module.finrank (Fp P) Fq * 2 ^ P.k₀ : ℕ) : ℝ≥0∞) /
+        Fintype.card Fq := by
+  classical
+  induction j using Fin.addCases with
+  | left j₀ =>
+    induction j' using Fin.addCases with
+    | left j₀' =>
+      have hne' : j₀ ≠ j₀' := fun h => hne (by rw [h])
+      have hev : {ch : Challenges P Fq Dom |
+          minpoly (Fp P) (nodes P Fq Dom ch (Fin.castAdd P.s₁ j₀)) =
+          minpoly (Fp P) (nodes P Fq Dom ch (Fin.castAdd P.s₁ j₀'))} =
+          {ch : Challenges P Fq Dom | ch.z ∈
+            {z : Fin 2 → Fq | (z j₀, z j₀') ∈
+              {ww : Fq × Fq | minpoly (Fp P) (ww.1 ^ 2 ^ P.k₀) =
+                minpoly (Fp P) (ww.2 ^ 2 ^ P.k₀)}}} := by
+        ext ch
+        simp only [Set.mem_setOf_eq, nodes, Fin.append_left]
+      rw [hev]
+      refine challenge_z_event_le P Fq Dom _ _ ?_
+      refine uniform_pi_pair_le hne' _ _ fun w => ?_
+      refine card_pow_conj_le P Fq (w ^ 2 ^ P.k₀) _ fun w' hw' => ?_
+      exact (Finset.mem_filter.mp hw').2
+    | right j₁ =>
+      have hev : {ch : Challenges P Fq Dom |
+          minpoly (Fp P) (nodes P Fq Dom ch (Fin.castAdd P.s₁ j₀)) =
+          minpoly (Fp P) (nodes P Fq Dom ch (Fin.natAdd 2 j₁))} =
+          {ch : Challenges P Fq Dom | (ch.z, ch.zf) ∈
+            {zzf : (Fin 2 → Fq) × (Fin P.s₁ → Fq) |
+              minpoly (Fp P) (zzf.1 j₀ ^ 2 ^ P.k₀) =
+              minpoly (Fp P) (zzf.2 j₁)}} := by
+        ext ch
+        simp only [Set.mem_setOf_eq, nodes, Fin.append_left,
+          Fin.append_right]
+      rw [hev]
+      refine challenge_z_zf_event_le P Fq Dom _ _ fun z => ?_
+      refine uniform_pi_coord_le j₁
+        {w' : Fq | minpoly (Fp P) (z j₀ ^ 2 ^ P.k₀) = minpoly (Fp P) w'}
+        _ fun s hs => ?_
+      exact card_conj_le P Fq _ s hs
+  | right j₁ =>
+    induction j' using Fin.addCases with
+    | left j₀' =>
+      have hev : {ch : Challenges P Fq Dom |
+          minpoly (Fp P) (nodes P Fq Dom ch (Fin.natAdd 2 j₁)) =
+          minpoly (Fp P) (nodes P Fq Dom ch (Fin.castAdd P.s₁ j₀'))} =
+          {ch : Challenges P Fq Dom | (ch.z, ch.zf) ∈
+            {zzf : (Fin 2 → Fq) × (Fin P.s₁ → Fq) |
+              minpoly (Fp P) (zzf.1 j₀' ^ 2 ^ P.k₀) =
+              minpoly (Fp P) (zzf.2 j₁)}} := by
+        ext ch
+        simp only [Set.mem_setOf_eq, nodes, Fin.append_left,
+          Fin.append_right, eq_comm]
+      rw [hev]
+      refine challenge_z_zf_event_le P Fq Dom _ _ fun z => ?_
+      refine uniform_pi_coord_le j₁
+        {w' : Fq | minpoly (Fp P) (z j₀' ^ 2 ^ P.k₀) = minpoly (Fp P) w'}
+        _ fun s hs => ?_
+      exact card_conj_le P Fq _ s hs
+    | right j₁' =>
+      have hne' : j₁ ≠ j₁' := fun h => hne (by rw [h])
+      have hev : {ch : Challenges P Fq Dom |
+          minpoly (Fp P) (nodes P Fq Dom ch (Fin.natAdd 2 j₁)) =
+          minpoly (Fp P) (nodes P Fq Dom ch (Fin.natAdd 2 j₁'))} =
+          {ch : Challenges P Fq Dom | ch.zf ∈
+            {zf : Fin P.s₁ → Fq | (zf j₁, zf j₁') ∈
+              {ww : Fq × Fq | minpoly (Fp P) ww.1 =
+                minpoly (Fp P) ww.2}}} := by
+        ext ch
+        simp only [Set.mem_setOf_eq, nodes, Fin.append_right]
+      rw [hev]
+      refine challenge_zf_event_le P Fq Dom _ _ ?_
+      refine uniform_pi_pair_le hne' _ _ fun w => ?_
+      refine card_conj_le P Fq w _ fun w' hw' => ?_
+      exact (Finset.mem_filter.mp hw').2
+
+end Conjugacy
+
+/-! ## The node-genericity bound -/
+
+/-- The strict upper triangle of `Fin n × Fin n` has `n.choose 2` elements. -/
+theorem card_triangle (n : ℕ) :
+    (Finset.univ.filter (fun pr : Fin n × Fin n => pr.1 < pr.2)).card =
+      n.choose 2 := by
+  classical
+  rw [Finset.card_eq_sum_card_fiberwise
+    (f := Prod.snd) (t := Finset.univ) (fun pr _ => Finset.mem_univ _)]
+  have hfiber : ∀ j' : Fin n,
+      ((Finset.univ.filter (fun pr : Fin n × Fin n => pr.1 < pr.2)).filter
+        (fun pr => pr.2 = j')).card = (j' : ℕ) := by
+    intro j'
+    have hset : (Finset.univ.filter
+        (fun pr : Fin n × Fin n => pr.1 < pr.2)).filter
+          (fun pr => pr.2 = j') =
+        (Finset.Iio j').image (fun i => (i, j')) := by
+      ext pr
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and,
+        Finset.mem_image, Finset.mem_Iio]
+      constructor
+      · rintro ⟨h1, h2⟩
+        subst h2
+        exact ⟨pr.1, h1, rfl⟩
+      · rintro ⟨i, hi, rfl⟩
+        exact ⟨hi, rfl⟩
+    rw [hset, Finset.card_image_of_injective _
+      (fun a b hab => (Prod.mk.injEq _ _ _ _).mp hab |>.1),
+      Fin.card_Iio]
+  rw [Finset.sum_congr rfl fun j' _ => hfiber j',
+    Fin.sum_univ_eq_sum_range (fun i => i), Finset.sum_range_id,
+    Nat.choose_two_right]
+
+/-- **The node-genericity failure bound** (`lem:nodeprob`): the probability
+that `NodeHyp` fails is at most `(2+s₁)·p/q + C(2+s₁,2)·d·2^k₀/q`. -/
+theorem nodeHyp_failure_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    (hd : (Module.finrank (Fp P) Fq).Prime)
+    (hpdvd : (P.p - 1) ∣ (Fintype.card Fq - 1))
+    (hcop : Nat.Coprime (2 ^ P.k₀) ((Fintype.card Fq - 1) / (P.p - 1))) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ¬ NodeHyp P Fq Dom ch} ≤
+      ((2 + P.s₁ : ℕ) : ℝ≥0∞) * P.p / Fintype.card Fq +
+      (((2 + P.s₁).choose 2 : ℕ) : ℝ≥0∞) *
+        ((Module.finrank (Fp P) Fq * 2 ^ P.k₀ : ℕ) : ℝ≥0∞) /
+        Fintype.card Fq := by
+  classical
+  -- failure is covered by the elementary events
+  have hsubset : {ch : Challenges P Fq Dom | ¬ NodeHyp P Fq Dom ch} ⊆
+      (⋃ j ∈ (Finset.univ : Finset (Fin (2 + P.s₁))),
+        {ch : Challenges P Fq Dom |
+          nodes P Fq Dom ch j ∈ Set.range (algebraMap (Fp P) Fq)}) ∪
+      (⋃ pr ∈ Finset.univ.filter
+          (fun pr : Fin (2 + P.s₁) × Fin (2 + P.s₁) => pr.1 < pr.2),
+        {ch : Challenges P Fq Dom |
+          minpoly (Fp P) (nodes P Fq Dom ch pr.1) =
+          minpoly (Fp P) (nodes P Fq Dom ch pr.2)}) := by
+    intro ch hch
+    simp only [Set.mem_setOf_eq] at hch
+    by_cases ha : ∀ j, nodes P Fq Dom ch j ∉
+        Set.range (algebraMap (Fp P) Fq)
+    · by_cases hc : ∀ j j', j ≠ j' →
+          minpoly (Fp P) (nodes P Fq Dom ch j) ≠
+          minpoly (Fp P) (nodes P Fq Dom ch j')
+      · exact absurd (nodeHyp_of_not_in_base P Fq Dom ch hd ha hc) hch
+      · push_neg at hc
+        obtain ⟨j, j', hjj', hmin⟩ := hc
+        refine Set.mem_union_right _ ?_
+        rcases lt_or_gt_of_ne hjj' with hlt | hgt
+        · exact Set.mem_biUnion (Finset.mem_filter.mpr
+            ⟨Finset.mem_univ ((j, j') : _ × _), hlt⟩) hmin
+        · exact Set.mem_biUnion (Finset.mem_filter.mpr
+            ⟨Finset.mem_univ ((j', j) : _ × _), hgt⟩) hmin.symm
+    · push_neg at ha
+      obtain ⟨j, hj⟩ := ha
+      exact Set.mem_union_left _ (Set.mem_biUnion (Finset.mem_univ j) hj)
+  refine (MeasureTheory.measure_mono hsubset).trans ?_
+  refine (MeasureTheory.measure_union_le _ _).trans ?_
+  have hb1 : (challengePMF P Fq Dom).toOuterMeasure
+      (⋃ j ∈ (Finset.univ : Finset (Fin (2 + P.s₁))),
+        {ch : Challenges P Fq Dom |
+          nodes P Fq Dom ch j ∈ Set.range (algebraMap (Fp P) Fq)}) ≤
+      ((2 + P.s₁ : ℕ) : ℝ≥0∞) * P.p / Fintype.card Fq := by
+    refine (MeasureTheory.measure_biUnion_finset_le _ _).trans ?_
+    calc ∑ j : Fin (2 + P.s₁), (challengePMF P Fq Dom).toOuterMeasure
+          {ch : Challenges P Fq Dom |
+            nodes P Fq Dom ch j ∈ Set.range (algebraMap (Fp P) Fq)}
+        ≤ ∑ _j : Fin (2 + P.s₁), (P.p : ℝ≥0∞) / Fintype.card Fq :=
+          Finset.sum_le_sum fun j _ =>
+            challenge_node_in_base_le P Fq Dom hpdvd hcop j
+      _ = ((2 + P.s₁ : ℕ) : ℝ≥0∞) * ((P.p : ℝ≥0∞) / Fintype.card Fq) := by
+          rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin,
+            nsmul_eq_mul]
+      _ = ((2 + P.s₁ : ℕ) : ℝ≥0∞) * P.p / Fintype.card Fq := by
+          rw [mul_div_assoc]
+  have hb2 : (challengePMF P Fq Dom).toOuterMeasure
+      (⋃ pr ∈ Finset.univ.filter
+          (fun pr : Fin (2 + P.s₁) × Fin (2 + P.s₁) => pr.1 < pr.2),
+        {ch : Challenges P Fq Dom |
+          minpoly (Fp P) (nodes P Fq Dom ch pr.1) =
+          minpoly (Fp P) (nodes P Fq Dom ch pr.2)}) ≤
+      (((2 + P.s₁).choose 2 : ℕ) : ℝ≥0∞) *
+        ((Module.finrank (Fp P) Fq * 2 ^ P.k₀ : ℕ) : ℝ≥0∞) /
+        Fintype.card Fq := by
+    refine (MeasureTheory.measure_biUnion_finset_le _ _).trans ?_
+    calc ∑ pr ∈ Finset.univ.filter
+          (fun pr : Fin (2 + P.s₁) × Fin (2 + P.s₁) => pr.1 < pr.2),
+          (challengePMF P Fq Dom).toOuterMeasure
+            {ch : Challenges P Fq Dom |
+              minpoly (Fp P) (nodes P Fq Dom ch pr.1) =
+              minpoly (Fp P) (nodes P Fq Dom ch pr.2)}
+        ≤ ∑ pr ∈ Finset.univ.filter
+            (fun pr : Fin (2 + P.s₁) × Fin (2 + P.s₁) => pr.1 < pr.2),
+            ((Module.finrank (Fp P) Fq * 2 ^ P.k₀ : ℕ) : ℝ≥0∞) /
+              Fintype.card Fq :=
+          Finset.sum_le_sum fun pr hpr =>
+            challenge_node_conj_le P Fq Dom pr.1 pr.2
+              (Fin.ne_of_lt (Finset.mem_filter.mp hpr).2)
+      _ = (((2 + P.s₁).choose 2 : ℕ) : ℝ≥0∞) *
+            (((Module.finrank (Fp P) Fq * 2 ^ P.k₀ : ℕ) : ℝ≥0∞) /
+              Fintype.card Fq) := by
+          rw [Finset.sum_const, card_triangle, nsmul_eq_mul]
+      _ = (((2 + P.s₁).choose 2 : ℕ) : ℝ≥0∞) *
+            ((Module.finrank (Fp P) Fq * 2 ^ P.k₀ : ℕ) : ℝ≥0∞) /
+            Fintype.card Fq := by
+          rw [mul_div_assoc]
+  exact add_le_add hb1 hb2
+
 end ZkWhir
