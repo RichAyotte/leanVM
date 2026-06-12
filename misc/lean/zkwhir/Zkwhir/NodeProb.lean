@@ -7,6 +7,7 @@ Part of the `GoodSetAbsorption` formalization campaign.
 import Mathlib
 import Zkwhir.Statement
 import Zkwhir.ProbBounds
+import Zkwhir.ViewSolve
 
 set_option linter.style.header false
 set_option linter.unusedSectionVars false
@@ -266,5 +267,70 @@ theorem uniform_mem_base_le [Nonempty Fq] :
     _ = P.p := by
         rw [Finset.card_univ]
         exact ZMod.card P.p
+
+/-- The base-field elements form a `p`-element set. -/
+theorem card_base_range_le [DecidableEq Fq] (s : Finset Fq)
+    (hs : ∀ a ∈ s, a ∈ Set.range (algebraMap (Fp P) Fq)) :
+    s.card ≤ P.p := by
+  have hsub : s ⊆ Finset.univ.image (algebraMap (Fp P) Fq) := by
+    intro a ha
+    obtain ⟨b, hb⟩ := hs a ha
+    exact Finset.mem_image.mpr ⟨b, Finset.mem_univ b, hb⟩
+  calc s.card ≤ (Finset.univ.image (algebraMap (Fp P) Fq)).card :=
+        Finset.card_le_card hsub
+    _ ≤ (Finset.univ : Finset (Fp P)).card := Finset.card_image_le
+    _ = P.p := by
+        rw [Finset.card_univ]
+        exact ZMod.card P.p
+
+/-- **Per-node base-field bound** (`lem:nodeprob`, first count): each of the
+`2 + s₁` nodes lands in the base field with probability at most `p/q`. -/
+theorem challenge_node_in_base_le [Nonempty Fq]
+    (hpdvd : (P.p - 1) ∣ (Fintype.card Fq - 1))
+    (hcop : Nat.Coprime (2 ^ P.k₀) ((Fintype.card Fq - 1) / (P.p - 1)))
+    (j : Fin (2 + P.s₁)) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom |
+        nodes P Fq Dom ch j ∈ Set.range (algebraMap (Fp P) Fq)} ≤
+      (P.p : ℝ≥0∞) / Fintype.card Fq := by
+  classical
+  induction j using Fin.addCases with
+  | left j₀ =>
+    have hev : {ch : Challenges P Fq Dom |
+        nodes P Fq Dom ch (Fin.castAdd P.s₁ j₀) ∈
+          Set.range (algebraMap (Fp P) Fq)} =
+        {ch : Challenges P Fq Dom | ch.z ∈
+          {z : Fin 2 → Fq | z j₀ ^ 2 ^ P.k₀ ∈
+            Set.range (algebraMap (Fp P) Fq)}} := by
+      ext ch
+      simp only [Set.mem_setOf_eq, nodes, Fin.append_left]
+    rw [hev]
+    refine challenge_z_event_le P Fq Dom _ _ ?_
+    have hshape : {z : Fin 2 → Fq | z j₀ ^ 2 ^ P.k₀ ∈
+        Set.range (algebraMap (Fp P) Fq)} =
+        {z : Fin 2 → Fq | z j₀ ∈
+          {w : Fq | w ^ 2 ^ P.k₀ ∈ Set.range (algebraMap (Fp P) Fq)}} := by
+      ext z
+      simp only [Set.mem_setOf_eq]
+    rw [hshape]
+    refine uniform_pi_coord_le j₀ _ P.p fun s hs => ?_
+    have hsub : s ⊆ Finset.univ.filter (fun w : Fq => w ^ 2 ^ P.k₀ ∈
+        Set.range (algebraMap (Fp P) Fq)) :=
+      fun a ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a, hs a ha⟩
+    exact (Finset.card_le_card hsub).trans
+      (card_pow_mem_base P Fq _ (Nat.two_pow_pos _) hpdvd hcop).le
+  | right j₁ =>
+    have hev : {ch : Challenges P Fq Dom |
+        nodes P Fq Dom ch (Fin.natAdd 2 j₁) ∈
+          Set.range (algebraMap (Fp P) Fq)} =
+        {ch : Challenges P Fq Dom | ch.zf ∈
+          {zf : Fin P.s₁ → Fq | zf j₁ ∈
+            Set.range (algebraMap (Fp P) Fq)}} := by
+      ext ch
+      simp only [Set.mem_setOf_eq, nodes, Fin.append_right]
+    rw [hev]
+    refine challenge_zf_event_le P Fq Dom _ _ ?_
+    exact uniform_pi_coord_le j₁ _ P.p fun s hs =>
+      card_base_range_le P Fq s hs
 
 end ZkWhir

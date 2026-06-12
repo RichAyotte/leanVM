@@ -123,15 +123,18 @@ theorem uniform_root_bound {F : Type*} [Field F] [Fintype F] [Nonempty F]
 `ι → β`, the event that one fixed coordinate lands in a `k`-element set has
 probability at most `k / |β|`. -/
 theorem uniform_pi_coord_le {ι β : Type*} [Fintype ι] [DecidableEq ι]
-    [Fintype β] [Nonempty β] (i : ι) (B : Set β) [DecidablePred (· ∈ B)]
-    (k : ℕ) (hB : B.toFinset.card ≤ k) :
+    [Fintype β] [Nonempty β] (i : ι) (B : Set β)
+    (k : ℕ) (hB : ∀ s : Finset β, (∀ a ∈ s, a ∈ B) → s.card ≤ k) :
     (PMF.uniformOfFintype (ι → β)).toOuterMeasure {f | f i ∈ B} ≤
       (k : ℝ≥0∞) / Fintype.card β := by
   classical
-  have hcount : (Finset.univ.filter (fun f : ι → β => f i ∈ B)).card =
-      B.toFinset.card * Fintype.card β ^ (Fintype.card ι - 1) := by
+  set Bf : Finset β := Finset.univ.filter (fun b => b ∈ B) with hBf
+  have hBfk : Bf.card ≤ k :=
+    hB Bf fun a ha => (Finset.mem_filter.mp ha).2
+  have hcount : (Finset.univ.filter (fun f : ι → β => f i ∈ B)).card ≤
+      k * Fintype.card β ^ (Fintype.card ι - 1) := by
     have hset : Finset.univ.filter (fun f : ι → β => f i ∈ B) =
-        Fintype.piFinset (fun j => if j = i then B.toFinset
+        Fintype.piFinset (fun j => if j = i then Bf
           else Finset.univ) := by
       ext f
       simp only [Finset.mem_filter, Finset.mem_univ, true_and,
@@ -140,34 +143,34 @@ theorem uniform_pi_coord_le {ι β : Type*} [Fintype ι] [DecidableEq ι]
       · intro hf j
         by_cases hj : j = i
         · subst hj
-          rw [if_pos rfl, Set.mem_toFinset]
-          exact hf
+          rw [if_pos rfl, hBf, Finset.mem_filter]
+          exact ⟨Finset.mem_univ _, hf⟩
         · rw [if_neg hj]
           exact Finset.mem_univ _
       · intro hf
-        have := hf i
-        rw [if_pos rfl, Set.mem_toFinset] at this
-        exact this
+        have h := hf i
+        rw [if_pos rfl, hBf, Finset.mem_filter] at h
+        exact h.2
     rw [hset, Fintype.card_piFinset,
       ← Finset.prod_erase_mul _ _ (Finset.mem_univ i), if_pos rfl]
     have hprod : ∏ j ∈ Finset.univ.erase i,
-        (if j = i then B.toFinset else Finset.univ).card =
+        (if j = i then Bf else Finset.univ).card =
         Fintype.card β ^ (Fintype.card ι - 1) := by
       rw [Finset.prod_congr rfl (fun j hj => by
         rw [if_neg (Finset.mem_erase.mp hj).1, Finset.card_univ]),
         Finset.prod_const, Finset.card_erase_of_mem (Finset.mem_univ i),
         Finset.card_univ]
     rw [hprod, mul_comm]
+    exact Nat.mul_le_mul_right _ hBfk
   have hβpos : 0 < Fintype.card β := Fintype.card_pos
   have hιcard : Fintype.card (ι → β) =
       Fintype.card β ^ Fintype.card ι := Fintype.card_fun
   refine (uniform_toOuterMeasure_le _
-    (B.toFinset.card * Fintype.card β ^ (Fintype.card ι - 1))
+    (k * Fintype.card β ^ (Fintype.card ι - 1))
     (fun s hs => ?_)).trans ?_
   · have hsub : s ⊆ Finset.univ.filter (fun f : ι → β => f i ∈ B) :=
       fun a ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a, hs a ha⟩
-    calc s.card ≤ _ := Finset.card_le_card hsub
-      _ = _ := hcount
+    exact (Finset.card_le_card hsub).trans hcount
   · rw [hιcard]
     have hi' : Fintype.card ι ≠ 0 := by
       intro hι
@@ -183,16 +186,123 @@ theorem uniform_pi_coord_le {ι β : Type*} [Fintype ι] [DecidableEq ι]
       pow_ne_zero _ (by exact_mod_cast hβpos.ne')
     have hqtop : (Fintype.card β : ℝ≥0∞) ^ (Fintype.card ι - 1) ≠ ⊤ :=
       ENNReal.pow_ne_top (ENNReal.natCast_ne_top _)
-    calc ((B.toFinset.card : ℝ≥0∞) *
+    calc ((k : ℝ≥0∞) *
           (Fintype.card β : ℝ≥0∞) ^ (Fintype.card ι - 1)) /
           ((Fintype.card β : ℝ≥0∞) ^ (Fintype.card ι - 1) *
             (Fintype.card β : ℝ≥0∞)) =
-        (B.toFinset.card : ℝ≥0∞) / (Fintype.card β : ℝ≥0∞) := by
+        (k : ℝ≥0∞) / (Fintype.card β : ℝ≥0∞) := by
           rw [mul_comm ((Fintype.card β : ℝ≥0∞) ^ (Fintype.card ι - 1))
             (Fintype.card β : ℝ≥0∞)]
           exact ENNReal.mul_div_mul_right _ _ hq hqtop
-      _ ≤ (k : ℝ≥0∞) / (Fintype.card β : ℝ≥0∞) := by
-          gcongr
+      _ ≤ (k : ℝ≥0∞) / (Fintype.card β : ℝ≥0∞) := le_rfl
+
+/-- **Pair bound for uniform functions**: under a uniform function `ι → β`,
+a joint event on two fixed distinct coordinates whose every first-coordinate
+fiber has at most `k` outcomes has probability at most `k / |β|`. -/
+theorem uniform_pi_pair_le {ι β : Type*} [Fintype ι] [DecidableEq ι]
+    [Fintype β] [Nonempty β] [DecidableEq β] {i i' : ι} (hne : i ≠ i')
+    (A : Set (β × β)) [DecidablePred (· ∈ A)] (k : ℕ)
+    (hA : ∀ b : β, (Finset.univ.filter (fun b' => (b, b') ∈ A)).card ≤ k) :
+    (PMF.uniformOfFintype (ι → β)).toOuterMeasure
+      {f | (f i, f i') ∈ A} ≤ (k : ℝ≥0∞) / Fintype.card β := by
+  classical
+  have hn2 : 2 ≤ Fintype.card ι := by
+    have : Nontrivial ι := ⟨i, i', hne⟩
+    exact Fintype.one_lt_card
+  have hβpos : 0 < Fintype.card β := Fintype.card_pos
+  -- count the event fiberwise over the first coordinate
+  have hcount : (Finset.univ.filter
+      (fun f : ι → β => (f i, f i') ∈ A)).card ≤
+      Fintype.card β * (k * Fintype.card β ^ (Fintype.card ι - 2)) := by
+    rw [Finset.card_eq_sum_card_fiberwise
+      (f := fun f : ι → β => f i) (t := Finset.univ)
+      (fun f _ => Finset.mem_univ _)]
+    refine (Finset.sum_le_card_nsmul _ _
+      (k * Fintype.card β ^ (Fintype.card ι - 2)) fun b _ => ?_).trans
+      (by rw [Finset.card_univ, smul_eq_mul])
+    -- each fiber embeds in a product set
+    have hsub : (Finset.univ.filter
+        (fun f : ι → β => (f i, f i') ∈ A)).filter
+          (fun f => f i = b) ⊆
+        Fintype.piFinset (fun j => if j = i then {b}
+          else if j = i' then Finset.univ.filter (fun b' => (b, b') ∈ A)
+          else Finset.univ) := by
+      intro f hf
+      obtain ⟨hf1, hf2⟩ := Finset.mem_filter.mp hf
+      have hfA : (f i, f i') ∈ A := (Finset.mem_filter.mp hf1).2
+      rw [Fintype.mem_piFinset]
+      intro j
+      by_cases hj : j = i
+      · subst hj
+        rw [if_pos rfl, Finset.mem_singleton]
+        exact hf2
+      · rw [if_neg hj]
+        by_cases hj' : j = i'
+        · subst hj'
+          rw [if_pos rfl, Finset.mem_filter]
+          rw [hf2] at hfA
+          exact ⟨Finset.mem_univ _, hfA⟩
+        · rw [if_neg hj']
+          exact Finset.mem_univ _
+    refine (Finset.card_le_card hsub).trans ?_
+    rw [Fintype.card_piFinset,
+      ← Finset.prod_erase_mul _ _ (Finset.mem_univ i), if_pos rfl,
+      Finset.card_singleton, mul_one]
+    have hi'mem : i' ∈ Finset.univ.erase i :=
+      Finset.mem_erase.mpr ⟨hne.symm, Finset.mem_univ _⟩
+    rw [← Finset.prod_erase_mul _ _ hi'mem, if_neg hne.symm, if_pos rfl]
+    have hrest : ∏ j ∈ (Finset.univ.erase i).erase i',
+        (if j = i then ({b} : Finset β)
+          else if j = i' then Finset.univ.filter (fun b' => (b, b') ∈ A)
+          else Finset.univ).card = Fintype.card β ^ (Fintype.card ι - 2) := by
+      rw [Finset.prod_congr rfl (fun j hj => by
+        obtain ⟨hj2, hj1⟩ := Finset.mem_erase.mp hj
+        rw [if_neg (Finset.mem_erase.mp hj1).1, if_neg hj2,
+          Finset.card_univ]), Finset.prod_const,
+        Finset.card_erase_of_mem hi'mem,
+        Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ]
+      all_goals exact congrArg (Fintype.card β ^ ·) (by omega)
+    rw [hrest, mul_comm]
+    exact Nat.mul_le_mul_right _ (hA b)
+  -- convert to the probability bound
+  refine (uniform_toOuterMeasure_le _
+    (Fintype.card β * (k * Fintype.card β ^ (Fintype.card ι - 2)))
+    (fun s hs => ?_)).trans ?_
+  · have hsub : s ⊆ Finset.univ.filter
+        (fun f : ι → β => (f i, f i') ∈ A) :=
+      fun a ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a, hs a ha⟩
+    exact (Finset.card_le_card hsub).trans hcount
+  · rw [Fintype.card_fun]
+    have hsplit : Fintype.card β ^ Fintype.card ι =
+        (Fintype.card β * Fintype.card β ^ (Fintype.card ι - 2)) *
+          Fintype.card β := by
+      rw [mul_comm (Fintype.card β) _, ← pow_succ, ← pow_succ]
+      congr 1
+      omega
+    rw [hsplit]
+    push_cast
+    have hq : (Fintype.card β : ℝ≥0∞) *
+        (Fintype.card β : ℝ≥0∞) ^ (Fintype.card ι - 2) ≠ 0 :=
+      mul_ne_zero (by exact_mod_cast hβpos.ne')
+        (pow_ne_zero _ (by exact_mod_cast hβpos.ne'))
+    have hqtop : (Fintype.card β : ℝ≥0∞) *
+        (Fintype.card β : ℝ≥0∞) ^ (Fintype.card ι - 2) ≠ ⊤ :=
+      ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
+        (ENNReal.pow_ne_top (ENNReal.natCast_ne_top _))
+    calc (Fintype.card β : ℝ≥0∞) *
+          ((k : ℝ≥0∞) * (Fintype.card β : ℝ≥0∞) ^ (Fintype.card ι - 2)) /
+          ((Fintype.card β : ℝ≥0∞) *
+            (Fintype.card β : ℝ≥0∞) ^ (Fintype.card ι - 2) *
+            (Fintype.card β : ℝ≥0∞)) =
+        (k : ℝ≥0∞) * ((Fintype.card β : ℝ≥0∞) *
+            (Fintype.card β : ℝ≥0∞) ^ (Fintype.card ι - 2)) /
+          ((Fintype.card β : ℝ≥0∞) *
+            ((Fintype.card β : ℝ≥0∞) *
+              (Fintype.card β : ℝ≥0∞) ^ (Fintype.card ι - 2))) := by
+          congr 1 <;> ring
+      _ = (k : ℝ≥0∞) / (Fintype.card β : ℝ≥0∞) :=
+          ENNReal.mul_div_mul_right _ _ hq hqtop
+      _ ≤ (k : ℝ≥0∞) / (Fintype.card β : ℝ≥0∞) := le_rfl
 
 end ZkWhir
 
