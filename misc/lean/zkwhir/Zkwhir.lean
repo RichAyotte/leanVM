@@ -15,3 +15,4 @@ import Zkwhir.SlotProb
 import Zkwhir.Linearized
 import Zkwhir.Twist
 import Zkwhir.Pinning
+import Zkwhir.Pinprob
