@@ -1146,4 +1146,68 @@ theorem mem_confineKer_iff_slices [FiniteDimensional (Fp P) Fq]
     · exact (eq_zero_iff_trace_basis b _).mpr (hn j)
     · exact (eq_zero_iff_trace_basis b _).mpr (hz j)
 
+/-- **The confinement generator functionals** on `Cube m → Fp`: the non-block
+coordinate projections (forcing block-support), the queried-point fiber
+evaluations, and the trace slices of the commitment-node and `f̂₁`-node
+evaluations. Their common kernel is exactly `confineKer`. -/
+def confineGen {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq) :
+    (Cube P.m) ⊕ (Fin P.t₀) ⊕ (Fin 2 × ιβ) ⊕ (Fin P.s₁ × ιβ) →
+      Module.Dual (Fp P) (Cube P.m → Fp P)
+  | Sum.inl c => if IsBlockPos P c then 0 else LinearMap.proj c
+  | Sum.inr (Sum.inl t) => dotFunc (fun c => eqPoly (powSeq (ch.qs t : Fp P) P.m) c)
+  | Sum.inr (Sum.inr (Sum.inl (j, i))) =>
+      dotFunc (fun c => Algebra.trace (Fp P) Fq
+        (b i * eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) c))
+  | Sum.inr (Sum.inr (Sum.inr (k, i))) =>
+      dotFunc (fun c => Algebra.trace (Fp P) Fq
+        (b i * eqPoly (powSeq (ch.zf k) P.m) c))
+
+/-- **Confinement span membership** (`lem:confine`, slice form, full): for each
+trace twist `β`, the slice functional of the trace-dual `w` lies in the span of
+the confinement generators. This is `mem_span_of_forall_ker` applied to the
+generator family, whose common kernel is `confineKer` (where the slice vanishes
+by `confine_sliceVec_vanishes`). -/
+theorem confine_slice_in_genSpan [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
+    ∃ w : Cube P.m → Fq,
+      (∀ g, φ g = Algebra.trace (Fp P) Fq (∑ c, w c * g c)) ∧
+      ∀ β : Fq, dotFunc (fun c => Algebra.trace (Fp P) Fq (β * w c)) ∈
+        Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b)) := by
+  obtain ⟨w, hw, hslice⟩ :=
+    confine_sliceVec_vanishes P Fq Dom S ch h2 hmf hspread φ hφ
+  refine ⟨w, hw, fun β => ?_⟩
+  apply mem_span_of_forall_ker (confineGen P Fq Dom ch b)
+  intro v hv
+  have hvker : v ∈ confineKer P Fq Dom ch := by
+    rw [mem_confineKer_iff_slices P Fq Dom ch b]
+    refine ⟨fun c hc => ?_, fun t => ?_, fun j i => ?_, fun k i => ?_⟩
+    · by_contra hblk
+      have hgc := hv (Sum.inl c)
+      simp only [confineGen, if_neg hblk, LinearMap.proj_apply] at hgc
+      exact hc hgc
+    · have hgt := hv (Sum.inr (Sum.inl t))
+      simp only [confineGen, dotFunc_apply] at hgt
+      rw [mle]; exact hgt
+    · have hgji := hv (Sum.inr (Sum.inr (Sum.inl (j, i))))
+      simp only [confineGen, dotFunc_apply] at hgji
+      rw [show mle (fun c => algebraMap (Fp P) Fq (v c))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) =
+          ∑ c, eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) c * algebraMap (Fp P) Fq (v c)
+          from rfl, trace_smul_pairing]
+      rw [Finset.sum_congr rfl fun c _ => mul_comm (v c) _]
+      exact hgji
+    · have hgki := hv (Sum.inr (Sum.inr (Sum.inr (k, i))))
+      simp only [confineGen, dotFunc_apply] at hgki
+      rw [show mle (fun c => algebraMap (Fp P) Fq (v c)) (powSeq (ch.zf k) P.m) =
+          ∑ c, eqPoly (powSeq (ch.zf k) P.m) c * algebraMap (Fp P) Fq (v c)
+          from rfl, trace_smul_pairing]
+      rw [Finset.sum_congr rfl fun c _ => mul_comm (v c) _]
+      exact hgki
+  rw [dotFunc_apply, Finset.sum_congr rfl fun c _ => mul_comm _ (v c)]
+  exact hslice β v hvker
+
 end ZkWhir
