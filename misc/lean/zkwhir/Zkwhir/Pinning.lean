@@ -1871,11 +1871,17 @@ theorem nodechannel_in_staircaseSpan [FiniteDimensional (Fp P) Fq]
     {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ (Fp P) Fq)
     (φ : Module.Dual (Fp P) (Cube P.m → Fq))
     (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
-    ∃ T : Fin 2 → (Fq →ₗ[Fp P] Fq), ∀ j : Fin 2,
-      (fun s => T j (eqPoly ch.α s)) ∈
-        Submodule.span Fq (insert (ptensor (czData P Fq (ch.z j)))
-          (Set.range (fun m' => ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
-            (lamData P Fq Dom ch (ch.z j)) m')))) := by
+    ∃ T : Fin 2 → (Fq →ₗ[Fp P] Fq),
+      (∀ V : Cube P.k₀ → Fin 2 → Fq,
+        (∀ j, oodRow P Fq Dom ch j V = 0) →
+        (∀ ℓ, msgRow P Fq Dom ch ℓ 1 V = 0) →
+        (∀ ℓ, msgRow P Fq Dom ch ℓ 2 V = 0) →
+        (∑ s, ∑ j, T j (eqPoly ch.α s) * V s j) = 0) ∧
+      ∀ j : Fin 2,
+        (fun s => T j (eqPoly ch.α s)) ∈
+          Submodule.span Fq (insert (ptensor (czData P Fq (ch.z j)))
+            (Set.range (fun m' => ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+              (lamData P Fq Dom ch (ch.z j)) m')))) := by
   obtain ⟨T, hT⟩ :=
     nodechannel_rowspace P Fq Dom S ch h2 hmf hdom hbudget hnode hspread b φ hφ
   -- the node functional `B' (s,j) = T j (êq α s)` pairs to zero with `ker`
@@ -1892,7 +1898,7 @@ theorem nodechannel_in_staircaseSpan [FiniteDimensional (Fp P) Fq]
       simp only [Matrix.cons_val_one, Matrix.head_cons] at h; exact h
   obtain ⟨c, hc⟩ := mem_rowspan_of_pairing_vanishes (nodeRowVec P Fq Dom ch)
     (fun p => T p.2 (eqPoly ch.α p.1)) hpair
-  refine ⟨T, fun j => ?_⟩
+  refine ⟨T, hT, fun j => ?_⟩
   -- write the weight-evaluation as a combination of the row vectors at component `j`
   have hfun : (fun s => T j (eqPoly ch.α s)) =
       ∑ a, c a • (fun s => nodeRowVec P Fq Dom ch a (s, j)) := by
