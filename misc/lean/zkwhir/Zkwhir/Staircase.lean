@@ -526,6 +526,42 @@ theorem block_slot_chain (j : Fin 2) (μ : Fq) (ν : Fin P.k₀ × Fin 2 → Fq)
   rw [chanTauW_sum_split, slotMass_above, slotDiag_eq] at hc
   exact hc
 
+/-- **`lem:coupled` (ii), block-1 explicit representation** (tex:117–120). Under
+the specialization `λ^{(1)}_ℓ = 0` for `ℓ ≥ 2` (so `ρ^{(1)}_{k+1} = ω + λ₁·τ₁`),
+the coefficients `ν₁₁ = λ₁·C₂/(B₁C₂ − B₂C₁)`, `ν₁₂ = −(B₂/C₂)·ν₁₁`,
+`μ₁ = 1 − A₁·ν₁₁` reproduce `ρ^{(1)}_{k+1}` from the block-1 coupled rows
+`ω`, `row(1,1) = A₁·ω + B₁·τ₁`, `row(1,2) = C₁·τ₁` (using `ρ^{(1)}_1 = ω`). Pure
+linear algebra; the denominator `B₁C₂ − B₂C₁ = C₁C₂·δ₁` is the diagonal
+difference. -/
+theorem coupled_repr_block1 {F : Type*} [Field F] {V : Type*} [AddCommGroup V]
+    [Module F V] (ω τ1 : V) (lam1 A1 B1 C1 B2 C2 ν11 ν12 μ1 : F)
+    (hden : C2 * B1 - B2 * C1 ≠ 0) (hC2 : C2 ≠ 0)
+    (hν11 : ν11 = lam1 * C2 / (C2 * B1 - B2 * C1))
+    (hν12 : ν12 = -(B2 / C2) * ν11)
+    (hμ1 : μ1 = 1 - A1 * ν11) :
+    μ1 • ω + ν11 • (A1 • ω + B1 • τ1) + ν12 • (C1 • τ1) = ω + lam1 • τ1 := by
+  subst hμ1 hν12 hν11
+  match_scalars
+  · ring
+  · field_simp
+    ring
+
+/-- **`lem:coupled` (ii), block-2 vanishing** (tex:117, 121). With
+`ν₁₂ = −(B₂/C₂)·ν₁₁` and `μ₂ = −γ·A₂·ν₁₁`, the same coefficients (coupled by
+`γ`) reproduce `0` on block 2, so the representation of `(ρ^{(1)}_{k+1} ∣ 0)` is
+exactly the stated one. Pure linear algebra. -/
+theorem coupled_repr_block2 {F : Type*} [Field F] {V : Type*} [AddCommGroup V]
+    [Module F V] (ω2 τ2 : V) (A2 B2 C2 γ ν11 ν12 μ2 : F)
+    (hC2 : C2 ≠ 0)
+    (hν12 : ν12 = -(B2 / C2) * ν11)
+    (hμ2 : μ2 = -(γ * A2 * ν11)) :
+    μ2 • ω2 + (γ * ν11) • (A2 • ω2 + B2 • τ2) + (γ * ν12) • (C2 • τ2) = 0 := by
+  subst hμ2 hν12
+  match_scalars
+  · ring
+  · field_simp
+    ring
+
 /-- **The coupled-chains kernel condition** (`lem:coupled`, consumable form).
 A weight family `ν` over the `k₀ × {1,2}` slot/eval pairs that is killed on
 *both* blocks — each combined with that block's out-of-domain vector — must
