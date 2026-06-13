@@ -1210,4 +1210,83 @@ theorem confine_slice_in_genSpan [FiniteDimensional (Fp P) Fq]
   rw [dotFunc_apply, Finset.sum_congr rfl fun c _ => mul_comm _ (v c)]
   exact hslice β v hvker
 
+/-- **Confinement coefficients** (`lem:confine`, explicit form): for each trace
+twist `β`, the slice values `tr(β · w_c)` at block positions are an explicit
+`Fp`-combination of the queried-fiber and node-slice values. Extracts the span
+coefficients of `confine_slice_in_genSpan` and evaluates at block indicators
+(where the non-block coordinate generators vanish). -/
+theorem confine_slice_coeffs [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
+    ∃ w : Cube P.m → Fq,
+      (∀ g, φ g = Algebra.trace (Fp P) Fq (∑ c, w c * g c)) ∧
+      ∀ β : Fq, ∃ (cq : Fin P.t₀ → Fp P) (cn : Fin 2 → ιβ → Fp P)
+          (cz : Fin P.s₁ → ιβ → Fp P),
+        ∀ c0, IsBlockPos P c0 →
+          Algebra.trace (Fp P) Fq (β * w c0) =
+            (∑ t, cq t * eqPoly (powSeq (ch.qs t : Fp P) P.m) c0)
+            + (∑ j, ∑ i, cn j i * Algebra.trace (Fp P) Fq
+                (b i * eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) c0))
+            + (∑ k, ∑ i, cz k i * Algebra.trace (Fp P) Fq
+                (b i * eqPoly (powSeq (ch.zf k) P.m) c0)) := by
+  obtain ⟨w, hw, hspan⟩ :=
+    confine_slice_in_genSpan P Fq Dom S ch h2 hmf hspread b φ hφ
+  refine ⟨w, hw, fun β => ?_⟩
+  obtain ⟨c, hc⟩ :=
+    (Submodule.mem_span_range_iff_exists_fun (Fp P)).mp (hspan β)
+  refine ⟨fun t => c (Sum.inr (Sum.inl t)),
+    fun j i => c (Sum.inr (Sum.inr (Sum.inl (j, i)))),
+    fun k i => c (Sum.inr (Sum.inr (Sum.inr (k, i)))), fun c0 hc0 => ?_⟩
+  have happ := congrFun (congrArg DFunLike.coe hc) (Pi.single c0 1)
+  rw [dotFunc_single] at happ
+  rw [LinearMap.sum_apply] at happ
+  rw [Fintype.sum_sum_type, Fintype.sum_sum_type, Fintype.sum_sum_type] at happ
+  -- the non-block coordinate part vanishes at the block indicator c0
+  have hinl : (∑ x : Cube P.m, (c (Sum.inl x) • confineGen P Fq Dom ch b (Sum.inl x))
+      (Pi.single c0 1)) = 0 := by
+    refine Finset.sum_eq_zero fun x _ => ?_
+    rw [LinearMap.smul_apply]
+    show c (Sum.inl x) • (if IsBlockPos P x then (0 : Module.Dual (Fp P) (Cube P.m → Fp P))
+      else LinearMap.proj x) (Pi.single c0 1) = 0
+    by_cases hx : IsBlockPos P x
+    · rw [if_pos hx]; simp
+    · have hxne : x ≠ c0 := fun heq => hx (by rw [heq]; exact hc0)
+      rw [if_neg hx, LinearMap.proj_apply, Pi.single_eq_of_ne hxne, smul_zero]
+  -- the queried / node / zf indicator evaluations
+  have hq' : (∑ t : Fin P.t₀, (c (Sum.inr (Sum.inl t)) •
+        confineGen P Fq Dom ch b (Sum.inr (Sum.inl t))) (Pi.single c0 1)) =
+      ∑ t, c (Sum.inr (Sum.inl t)) * eqPoly (powSeq (ch.qs t : Fp P) P.m) c0 := by
+    refine Finset.sum_congr rfl fun t _ => ?_
+    rw [LinearMap.smul_apply]
+    show c (Sum.inr (Sum.inl t)) • (dotFunc
+      (fun c' => eqPoly (powSeq (ch.qs t : Fp P) P.m) c')) (Pi.single c0 1) = _
+    rw [dotFunc_single, smul_eq_mul]
+  have hn' : (∑ x : Fin 2 × ιβ, (c (Sum.inr (Sum.inr (Sum.inl x))) •
+        confineGen P Fq Dom ch b (Sum.inr (Sum.inr (Sum.inl x)))) (Pi.single c0 1)) =
+      ∑ j, ∑ i, c (Sum.inr (Sum.inr (Sum.inl (j, i)))) * Algebra.trace (Fp P) Fq
+        (b i * eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) c0) := by
+    rw [Fintype.sum_prod_type]
+    refine Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun i _ => ?_
+    rw [LinearMap.smul_apply]
+    show c (Sum.inr (Sum.inr (Sum.inl (j, i)))) • (dotFunc
+      (fun c' => Algebra.trace (Fp P) Fq
+        (b i * eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) c'))) (Pi.single c0 1) = _
+    rw [dotFunc_single, smul_eq_mul]
+  have hz' : (∑ x : Fin P.s₁ × ιβ, (c (Sum.inr (Sum.inr (Sum.inr x))) •
+        confineGen P Fq Dom ch b (Sum.inr (Sum.inr (Sum.inr x)))) (Pi.single c0 1)) =
+      ∑ k, ∑ i, c (Sum.inr (Sum.inr (Sum.inr (k, i)))) * Algebra.trace (Fp P) Fq
+        (b i * eqPoly (powSeq (ch.zf k) P.m) c0) := by
+    rw [Fintype.sum_prod_type]
+    refine Finset.sum_congr rfl fun k _ => Finset.sum_congr rfl fun i _ => ?_
+    rw [LinearMap.smul_apply]
+    show c (Sum.inr (Sum.inr (Sum.inr (k, i)))) • (dotFunc
+      (fun c' => Algebra.trace (Fp P) Fq
+        (b i * eqPoly (powSeq (ch.zf k) P.m) c'))) (Pi.single c0 1) = _
+    rw [dotFunc_single, smul_eq_mul]
+  rw [hinl, hq', hn', hz', zero_add] at happ
+  rw [← happ]; ring
+
 end ZkWhir
