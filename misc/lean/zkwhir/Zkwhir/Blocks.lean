@@ -459,6 +459,19 @@ theorem cellPoly_combo_natDegree_lt (T : Cube j → R) :
     · rw [hcz, Polynomial.natDegree_zero]; omega
   omega
 
+/-- **Binary-power Schwartz–Zippel bridge.** The binary-power substitution
+`z ↦ mle T (powSeq z j)` is the evaluation at `z` of the cell-polynomial
+combination `∑ b, T b • cellPoly b`. Combined with `cellPoly_combo_ne_zero`
+and `cellPoly_combo_natDegree_lt` this realizes `mle T (powSeq ·)` as a
+nonzero univariate polynomial of degree `< 2^j`. -/
+theorem mle_powSeq_eq_aeval (T : Cube j → R) (z : R) :
+    mle T (powSeq z j) = aeval z (∑ b : Cube j, T b • cellPoly (R := R) b) := by
+  rw [map_sum]
+  unfold mle
+  refine Finset.sum_congr rfl fun b _ => ?_
+  rw [map_smul, aeval_cellPoly, smul_eq_mul]
+  ring
+
 end CellPoly
 
 /-! ## The block solver (`prop:uniform`, Stage B)
