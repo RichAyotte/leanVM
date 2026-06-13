@@ -217,4 +217,59 @@ theorem tcoeff_tauTensor_single {k : ℕ} (x lam : Fin k → Fq) (m m' : Fin k) 
     unfold dCoeff; rw [if_neg (by rw [Finset.mem_singleton]; exact hmm)]
     exact gammaC_drow
 
+/-- **Coefficient of `τ_{m'}` at a pair `S = {a, b}` with `a < b`**:
+`φ_{a,b}(τ_{m'}) = lam_a` if `m' = b`, else `0`. -/
+theorem tcoeff_tauTensor_pair {k : ℕ} (x lam : Fin k → Fq) (a b m' : Fin k)
+    (hab : a < b) :
+    tcoeff (dCoeff x {a, b})
+        (ptensor (stairVec (fun i => vrow (x i)) (fun _ => drow) lam m')) =
+      if m' = b then lam a else 0 := by
+  rw [tcoeff_ptensor (dCoeff x {a, b}) (dCoeff_hlin x {a, b})]
+  have hbne : a ≠ b := ne_of_lt hab
+  split_ifs with hmm
+  · subst m'
+    rw [show (∏ i, dCoeff x {a, b} i
+          (stairVec (fun i => vrow (x i)) (fun _ => drow) lam b i)) =
+        ∏ i, (if i = a then lam a else 1) from by
+      refine Finset.prod_congr rfl fun i _ => ?_
+      by_cases hia : i = a
+      · subst hia
+        rw [if_pos rfl]
+        unfold dCoeff
+        rw [if_pos (Finset.mem_insert_self i {b})]
+        rw [show stairVec (fun i => vrow (x i)) (fun _ => drow) lam b i =
+            (fun bb => vrow (x i) bb + lam i * drow bb) from by
+          unfold stairVec; rw [if_pos hab]]
+        exact gammaD_aVec (x i) (lam i)
+      · rw [if_neg hia]
+        by_cases hib : i = b
+        · subst hib
+          unfold dCoeff
+          rw [if_pos (Finset.mem_insert_of_mem (Finset.mem_singleton_self i))]
+          rw [show stairVec (fun i => vrow (x i)) (fun _ => drow) lam i i = drow from by
+            unfold stairVec; rw [if_neg (lt_irrefl i), if_pos rfl]]
+          exact gammaD_drow (x i)
+        · unfold dCoeff
+          rw [if_neg (by simp [Finset.mem_insert, Finset.mem_singleton, hia, hib])]
+          unfold stairVec
+          by_cases hilt : i < b
+          · rw [if_pos hilt]; exact gammaC_aVec (x i) (lam i)
+          · rw [if_neg hilt, if_neg hib]; exact gammaC_vrow (x i)]
+    rw [Finset.prod_eq_single a (fun i _ hi => if_neg hi)
+      (fun h => absurd (Finset.mem_univ a) h), if_pos rfl]
+  · by_cases hma : m' = a
+    · subst m'
+      refine Finset.prod_eq_zero (Finset.mem_univ b) ?_
+      unfold dCoeff
+      rw [if_pos (Finset.mem_insert_of_mem (Finset.mem_singleton_self b))]
+      rw [show stairVec (fun i => vrow (x i)) (fun _ => drow) lam a b = vrow (x b) from by
+        unfold stairVec; rw [if_neg (not_lt.mpr (le_of_lt hab)), if_neg hbne.symm]]
+      exact gammaD_vrow (x b)
+    · refine Finset.prod_eq_zero (Finset.mem_univ m') ?_
+      rw [show stairVec (fun i => vrow (x i)) (fun _ => drow) lam m' m' = drow from by
+        unfold stairVec; rw [if_neg (lt_irrefl m'), if_pos rfl]]
+      unfold dCoeff
+      rw [if_neg (by simp [Finset.mem_insert, Finset.mem_singleton, hma, hmm])]
+      exact gammaC_drow
+
 end ZkWhir
