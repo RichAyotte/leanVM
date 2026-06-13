@@ -495,6 +495,39 @@ theorem pow_pPow_ne_self_of_pow_p_ne {K : Type*} [Field K] [Fintype K] {p d : �
     {r : ℕ} (hr0 : 0 < r) (hrd : r < d) {x : K} (hx : x ^ p ≠ x) : x ^ p ^ r ≠ x :=
   fun h => hx (pow_p_of_pow_pPow_of_dPrime hd hdp hr0 hrd h)
 
+/-- **Prime-field count** (`hDr` measure, `cor:twistprob`): the elements fixed by
+the `p`-power map number at most `p` — they are the roots of `X^p − X`, a nonzero
+polynomial of degree `p`. So a uniform `x` lies in the prime field with
+probability `≤ p/q`. -/
+theorem card_pow_p_eq_self_le {K : Type*} [Field K] [Fintype K] [DecidableEq K] {p : ℕ}
+    (hp : 2 ≤ p) : (Finset.univ.filter (fun x : K => x ^ p = x)).card ≤ p := by
+  classical
+  set g : Polynomial K := Polynomial.X ^ p - Polynomial.X with hg
+  have hg0 : g ≠ 0 := by
+    intro h
+    have hc : g.coeff p = 1 := by
+      rw [hg, Polynomial.coeff_sub, Polynomial.coeff_X_pow, if_pos rfl,
+        Polynomial.coeff_X, if_neg (by omega : ¬ (1 = p)), sub_zero]
+    rw [h, Polynomial.coeff_zero] at hc
+    exact one_ne_zero hc.symm
+  have hdeg : g.natDegree ≤ p := by
+    rw [hg]
+    refine le_trans (Polynomial.natDegree_sub_le _ _) ?_
+    simp only [Polynomial.natDegree_X_pow, Polynomial.natDegree_X]
+    omega
+  have hsub : Finset.univ.filter (fun x : K => x ^ p = x) ⊆ g.roots.toFinset := by
+    intro x hx
+    rw [Finset.mem_filter] at hx
+    rw [Multiset.mem_toFinset, Polynomial.mem_roots']
+    refine ⟨hg0, ?_⟩
+    rw [Polynomial.IsRoot.def, hg, Polynomial.eval_sub, Polynomial.eval_pow,
+      Polynomial.eval_X, hx.2, sub_self]
+  calc (Finset.univ.filter (fun x : K => x ^ p = x)).card
+      ≤ g.roots.toFinset.card := Finset.card_le_card hsub
+    _ ≤ Multiset.card g.roots := Multiset.toFinset_card_le _
+    _ ≤ g.natDegree := Polynomial.card_roots' g
+    _ ≤ p := hdeg
+
 /-- **A functional vanishing on the common kernel lies in the span of the
 functionals** (the finite-dimensional annihilator/coannihilator duality;
 `lem:confine`/`lem:nodechannel` core). If `f` kills every vector killed by all
