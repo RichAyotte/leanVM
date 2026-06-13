@@ -15,6 +15,7 @@ import Mathlib
 import Zkwhir.Statement
 import Zkwhir.Toolbox
 import Zkwhir.Absorption
+import Zkwhir.StaircaseBridge
 
 set_option linter.style.header false
 set_option linter.unusedSectionVars false
@@ -342,5 +343,54 @@ theorem channel_moment_of_viewKer (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
   refine Finset.sum_eq_zero fun t _ => ?_
   linear_combination
     w t * channel_identity_of_viewKer P Fq Dom S ch h2 hmf κ ℓ (pts t)
+
+/-! ## The node-value representation (`lem:fullslice` Step 2c)
+
+The slice value `evalT(mixed_j(ℓ, y))` is the pairing of the node values
+`V_{s,j}` against the staircase Lagrange weight, which `eqPoly_mixedPoint_decomp`
+expands into the telescoped node `ρ^j_ℓ` plus `(y − ζ_j)·τ^j_ℓ`: this is the
+node functional `g^j_ℓ(y)` of the paper, the form the η-matching consumes. -/
+theorem evalT_mixedPoint_node_decomp (δ : Cell P → Fp P) (j : Fin 2)
+    (ℓ : Fin P.k₀) (y : Fq) :
+    evalT P Fq δ (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z j) P.k₀))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) =
+      (∑ s, eqPoly (powSeq (ch.z j) P.k₀) s *
+          mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))
+      + (∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+          lamData P Fq Dom ch (ch.z j) i *
+            (∑ s, ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+                (lamData P Fq Dom ch (ch.z j)) i) s *
+              mle (fun c => liftT P Fq δ (s, c))
+                (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)))
+      + (y - powSeq (ch.z j) P.k₀ ℓ) *
+          (∑ s, ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+              (lamData P Fq Dom ch (ch.z j)) ℓ) s *
+            mle (fun c => liftT P Fq δ (s, c))
+              (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) := by
+  rw [evalT_eq_sum_classes]
+  trans (∑ s, (eqPoly (powSeq (ch.z j) P.k₀) s
+        + (∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+            lamData P Fq Dom ch (ch.z j) i *
+              ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+                (lamData P Fq Dom ch (ch.z j)) i) s)
+        + (y - powSeq (ch.z j) P.k₀ ℓ) *
+            ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+              (lamData P Fq Dom ch (ch.z j)) ℓ) s)
+      * mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))
+  · refine Finset.sum_congr rfl fun s _ => ?_
+    congr 1
+    have hd := congrFun (eqPoly_mixedPoint_decomp P Fq Dom ch ℓ y (ch.z j)) s
+    simpa [Pi.add_apply, Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using hd
+  · simp only [add_mul]
+    rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+    congr 1
+    · congr 1
+      simp only [Finset.sum_mul]
+      rw [Finset.sum_comm]
+      refine Finset.sum_congr rfl fun i _ => ?_
+      rw [Finset.mul_sum]
+      exact Finset.sum_congr rfl fun s _ => by ring
+    · rw [Finset.mul_sum]
+      exact Finset.sum_congr rfl fun s _ => by ring
 
 end ZkWhir
