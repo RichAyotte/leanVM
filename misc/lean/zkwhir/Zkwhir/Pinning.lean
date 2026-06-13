@@ -1535,4 +1535,33 @@ theorem exists_nodeProbe [FiniteDimensional (Fp P) Fq] (hdom : (0 : Fp P) ∉ Do
       Fin.append_right _ _ k] at h
     rw [h, Fin.append_right]
 
+/-- **A view-vanishing probe for any kernel element** (`lem:nodechannel`): if `V`
+lies in the kernel of the node matrix, there is a view-vanishing multi-class
+probe realizing exactly the node values `V`. -/
+theorem exists_viewVanishing_nodeProbe [FiniteDimensional (Fp P) Fq]
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hnode : NodeHyp P Fq Dom ch) (V : Cube P.k₀ → Fin 2 → Fq)
+    (hood : ∀ j, oodRow P Fq Dom ch j V = 0)
+    (hmsg1 : ∀ ℓ, msgRow P Fq Dom ch ℓ 1 V = 0)
+    (hmsg2 : ∀ ℓ, msgRow P Fq Dom ch ℓ 2 V = 0) :
+    ∃ vf : Cube P.k₀ → Cube P.m → Fp P,
+      (∀ s c, vf s c ≠ 0 → IsBlockPos P c) ∧
+      ViewVanishes P Fq Dom S ch (assemble P 0 (- multiBlockMask P vf)) ∧
+      (∀ s t, mle (fun c => algebraMap (Fp P) Fq (vf s c))
+        (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) ∧
+      (∀ s k, mle (fun c => algebraMap (Fp P) Fq (vf s c))
+        (powSeq (ch.zf k) P.m) = 0) := by
+  obtain ⟨vf, hvblk, hvq, hvn, hvz⟩ :=
+    exists_nodeProbe P Fq Dom ch hdom hbudget hnode V
+  have hVeq : (fun (s : Cube P.k₀) (j : Fin 2) =>
+      mle (fun c => algebraMap (Fp P) Fq (vf s c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) = V := by
+    funext s j; exact hvn s j
+  refine ⟨vf, hvblk,
+    multiBlockMask_viewVanishes P Fq Dom S ch h2 hmf hvblk hvq hvz
+      (fun j => by rw [hVeq]; exact hood j)
+      (fun ℓ => by rw [hVeq]; exact hmsg1 ℓ)
+      (fun ℓ => by rw [hVeq]; exact hmsg2 ℓ), hvq, hvz⟩
+
 end ZkWhir
