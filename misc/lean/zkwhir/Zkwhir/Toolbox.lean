@@ -489,6 +489,22 @@ theorem dotFunc_apply {R ι : Type*} [CommRing R] [Fintype ι] (a v : ι → R) 
   refine Finset.sum_congr rfl fun i _ => ?_
   rw [LinearMap.smul_apply, LinearMap.proj_apply, smul_eq_mul]
 
+/-- `dotFunc` evaluated at the `i`-th indicator recovers `a i`. -/
+theorem dotFunc_single {R ι : Type*} [CommRing R] [Fintype ι] [DecidableEq ι]
+    (a : ι → R) (i : ι) : dotFunc a (Pi.single i 1) = a i := by
+  rw [dotFunc_apply, Finset.sum_eq_single i]
+  · rw [Pi.single_eq_same, mul_one]
+  · intro j _ hj; rw [Pi.single_eq_of_ne hj, mul_zero]
+  · intro h; exact absurd (Finset.mem_univ i) h
+
+/-- `dotFunc` is injective: a functional determines its vector. -/
+theorem dotFunc_injective {R ι : Type*} [CommRing R] [Fintype ι] :
+    Function.Injective (dotFunc (R := R) (ι := ι)) := by
+  classical
+  intro a a' h
+  funext i
+  rw [← dotFunc_single a i, ← dotFunc_single a' i, h]
+
 /-- **Slice-kernel characterization**: an `Fq` element is zero iff all its trace
 slices against an `Fp`-basis vanish (the `Fq`-condition `= 0` is the conjunction
 of `d` `Fp`-conditions). -/
