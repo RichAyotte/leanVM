@@ -231,6 +231,25 @@ theorem challenge_failure_union_le {n : ℕ} (Good : Challenges P Fq Dom → Pro
   refine (MeasureTheory.measure_iUnion_fintype_le _ _).trans ?_
   exact Finset.sum_le_sum fun i _ => hC i
 
+/-- **A product of challenge factors vanishes with probability at most the sum of
+the per-factor vanishing probabilities** (the cond:cross2 minor consumer): since
+`Fq` is a domain, `∏ᵢ fᵢ = 0 ⟺ some fᵢ = 0`, so the union bound applies. The
+cond:cross2 minor `γ²·ν₁₁·(1+g(z₂))·α₁(1−α₁)·A_{c*}·[bracket]` is exactly such a
+product, with every factor's bound now in place. -/
+theorem challenge_prod_zero_le {n : ℕ} (f : Fin n → Challenges P Fq Dom → Fq)
+    (ε : Fin n → ℝ≥0∞)
+    (hf : ∀ i, (challengePMF P Fq Dom).toOuterMeasure {ch | f i ch = 0} ≤ ε i) :
+    (challengePMF P Fq Dom).toOuterMeasure {ch | ∏ i, f i ch = 0} ≤ ∑ i, ε i := by
+  have hsub : {ch : Challenges P Fq Dom | ∏ i, f i ch = 0} ⊆
+      ⋃ i, {ch : Challenges P Fq Dom | f i ch = 0} := by
+    intro ch hch
+    simp only [Set.mem_setOf_eq] at hch
+    obtain ⟨i, _, hi⟩ := Finset.prod_eq_zero_iff.mp hch
+    exact Set.mem_iUnion.mpr ⟨i, hi⟩
+  refine (MeasureTheory.measure_mono hsub).trans ?_
+  refine (MeasureTheory.measure_iUnion_fintype_le _ _).trans ?_
+  exact Finset.sum_le_sum fun i _ => hf i
+
 /-- **Per-factor α-root bound**: a single `eqf(α_i, z_j^{2^i})` vanishes with
 probability at most `1/q`. -/
 theorem challenge_alpha_eqf_root_le (h2 : (2 : Fq) ≠ 0) (i : Fin P.k₀)
