@@ -130,6 +130,30 @@ theorem tcoeff_ptensor {k : ℕ} (ψ : Fin k → (Bool → Fq) → Fq)
   refine Finset.prod_congr rfl fun i _ => ?_
   rw [hlin i (w i)]; ring
 
+/-- `tcoeff` is additive in the table. -/
+theorem tcoeff_add {k : ℕ} (ψ : Fin k → (Bool → Fq) → Fq) (f g : Cube k → Fq) :
+    tcoeff ψ (f + g) = tcoeff ψ f + tcoeff ψ g := by
+  unfold tcoeff
+  rw [← Finset.sum_add_distrib]
+  exact Finset.sum_congr rfl fun s _ => by rw [Pi.add_apply]; ring
+
+/-- `tcoeff` is homogeneous in the table. -/
+theorem tcoeff_smul {k : ℕ} (ψ : Fin k → (Bool → Fq) → Fq) (c : Fq)
+    (f : Cube k → Fq) : tcoeff ψ (c • f) = c * tcoeff ψ f := by
+  unfold tcoeff
+  rw [Finset.mul_sum]
+  exact Finset.sum_congr rfl fun s _ => by rw [Pi.smul_apply, smul_eq_mul]; ring
+
+/-- `tcoeff` distributes over a finite sum of tables. -/
+theorem tcoeff_finsetSum {k : ℕ} (ψ : Fin k → (Bool → Fq) → Fq) {ι : Type*}
+    (S : Finset ι) (g : ι → Cube k → Fq) :
+    tcoeff ψ (∑ j ∈ S, g j) = ∑ j ∈ S, tcoeff ψ (g j) := by
+  classical
+  induction S using Finset.induction with
+  | empty => simp only [Finset.sum_empty]; unfold tcoeff; simp
+  | @insert a s ha ih =>
+    rw [Finset.sum_insert ha, Finset.sum_insert ha, tcoeff_add, ih]
+
 /-- The combined slot vector `c_i + lam·d` written out (a `stairVec` slot for
 `i < m`). -/
 theorem aVec_eq (x lam : Fq) :
