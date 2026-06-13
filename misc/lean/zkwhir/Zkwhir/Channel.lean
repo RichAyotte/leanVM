@@ -176,6 +176,22 @@ theorem evalT_mixedPoint_affine (ℓ : Fin P.k₀) (y : Fq) (x : Fin P.k₀ → 
   rw [eqPoly_mixedPoint_affine]
   ring
 
+/-- **The `(ℓ, y)`-family summand is quadratic in `y`** (`lem:fullslice`,
+Step 2 set-up): `prefixFactor · evalT` factors as the `α`-prefix `Π`, times the
+degree-one slot factor `eqf(y, x_ℓ)`, times the affine slice
+`(1−y)E₀ + y E₁`. Its `μ`-moment combination is what the moment system of
+Step 2 integrates against. -/
+theorem prefixFactor_evalT_eq (ℓ : Fin P.k₀) (y : Fq) (x : Fin P.k₀ → Fq)
+    (xs : Fin P.m → Fq) :
+    prefixFactor P Fq Dom ch ℓ y x *
+        evalT P Fq T (mixedPoint P Fq Dom ch ℓ y x) xs =
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+          eqf Fq (ch.α i) (x i)) *
+        ((2 * x ℓ - 1) * y + (1 - x ℓ)) *
+        ((1 - y) * evalT P Fq T (mixedPoint P Fq Dom ch ℓ 0 x) xs +
+          y * evalT P Fq T (mixedPoint P Fq Dom ch ℓ 1 x) xs) := by
+  rw [prefixFactor_eq, evalT_mixedPoint_affine, eqf_affine_left]
+
 /-- The Lagrange prefactor of `partialEval`: the weight of the class `s` in
 the round-`ℓ` partial evaluation at `X` with suffix `b`. -/
 def preFac (ℓ : Fin P.k₀) (X : Fq) (s b : Cube P.k₀) : Fq :=
