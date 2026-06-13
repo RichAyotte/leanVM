@@ -1949,6 +1949,23 @@ theorem nodechannel_in_staircaseSpan [FiniteDimensional (Fp P) Fq]
 weight `W₀`, whose terminal pairing is the cross form `T_ŵ` of `cond:cross2`. -/
 def wHat0 (c : Cube P.m) : Fq := ∑ s, eqPoly ch.α s * S.w (s, c)
 
+/-- The **fold-table family** of `lem:noother` Step 1 (tex:616): the slice table
+`w_{ℓ,x,t}(c) = ŵ(α_{<ℓ}, x, (t, c))`, the partial evaluation of the input weight
+at the round-`ℓ` mixed point. The single-class perturbations invisible to the view
+have vanishing pairings against every one of these. -/
+def foldTable (ℓ : Fin P.k₀) (x : Fq) (t : Cube P.k₀) (c : Cube P.m) : Fq :=
+  partialEval P Fq Dom ch S.w ℓ x t c
+
+/-- **Fold tables are affine in the level point** (`lem:noother`/`lem:fullslice`
+slice structure, tex:625): `w_{ℓ,x,t} = p_{ℓ,t} + x·q_{ℓ,t}` with `p = w_{ℓ,0,t}`
+and `q = w_{ℓ,1,t} − w_{ℓ,0,t}`. -/
+theorem foldTable_affine (ℓ : Fin P.k₀) (x : Fq) (t : Cube P.k₀) (c : Cube P.m) :
+    foldTable P Fq Dom S ch ℓ x t c =
+      foldTable P Fq Dom S ch ℓ 0 t c +
+        x * (foldTable P Fq Dom S ch ℓ 1 t c - foldTable P Fq Dom S ch ℓ 0 t c) := by
+  unfold foldTable
+  exact partialEval_affine P Fq Dom ch S.w ℓ x t c
+
 /-- **`lem:termslice` trace core** (tex:548): the terminal cross form's `Fp`-trace
 is nonzero — some class `s` makes `tr(a·γ²·êq(α,s)·ŵ(α₀,c*)) ≠ 0`. Given SPREAD
 (the weights `λ_s = êq(α,s)` span `Fq` over `Fp`), `a ≠ 0`, `γ ≠ 0`, and
