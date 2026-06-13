@@ -408,6 +408,31 @@ theorem zdetPoly_ne_zero (h2 : (2 : Fq) ≠ 0) (a : Fq) (e : ℕ) (he : 0 < e)
     · exact ha0 h''
     · exact ha1 (sub_eq_zero.mp h'').symm
 
+/-- `zdetPoly` has degree at most `2e`: each summand is a constant times a
+product of two factors of degree at most `e`. -/
+theorem zdetPoly_natDegree (a : Fq) (e : ℕ) :
+    (zdetPoly Fq a e).natDegree ≤ 2 * e := by
+  have hXe : (Polynomial.X ^ e : Polynomial Fq).natDegree ≤ e := by
+    simp [Polynomial.natDegree_X_pow]
+  have hsub : ∀ p q : Polynomial Fq, p.natDegree ≤ e → q.natDegree ≤ e →
+      (p - q).natDegree ≤ e := fun p q hp hq =>
+    (Polynomial.natDegree_sub_le _ _).trans (max_le hp hq)
+  have hf1 : (3 * Polynomial.X ^ e - 1 : Polynomial Fq).natDegree ≤ e :=
+    hsub _ _ ((Polynomial.natDegree_mul_le).trans (by simpa using hXe))
+      (by simp)
+  have hf2 : (2 - Polynomial.X ^ e : Polynomial Fq).natDegree ≤ e :=
+    hsub _ _ (by simp) hXe
+  have hf4 : (1 - Polynomial.X ^ e : Polynomial Fq).natDegree ≤ e :=
+    hsub _ _ (by simp) hXe
+  unfold zdetPoly
+  refine (Polynomial.natDegree_sub_le _ _).trans (max_le ?_ ?_)
+  · refine (Polynomial.natDegree_C_mul_le _ _).trans ?_
+    exact (Polynomial.natDegree_mul_le).trans
+      (by rw [two_mul]; exact add_le_add hf1 hf2)
+  · refine (Polynomial.natDegree_C_mul_le _ _).trans ?_
+    exact (Polynomial.natDegree_mul_le).trans
+      (by rw [two_mul]; exact add_le_add hXe hf4)
+
 /-- **Per-slot solve**: both blocks' diagonals vanishing at slot `m`, with the
 coupling determinant nonzero, pins the slot's two evals to zero. -/
 theorem slot_solve (ν : Fin P.k₀ × Fin 2 → Fq) (m : Fin P.k₀)
