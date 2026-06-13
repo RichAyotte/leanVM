@@ -80,6 +80,40 @@ theorem challenge_z_zf_event_le
   · rw [add_zero]
     exact hA z
 
+/-- An event on the batching scalar is bounded by its marginal probability. -/
+theorem challenge_γ_event_le (A : Set Fq) (c : ℝ≥0∞)
+    (hA : (PMF.uniformOfFintype Fq).toOuterMeasure A ≤ c) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ch.γ ∈ A} ≤ c := by
+  unfold challengePMF
+  refine toOuterMeasure_bind_le _ _ _ c fun z => ?_
+  refine (toOuterMeasure_bind_le_add _ _ _ A 0 ?_).trans ?_
+  · intro γ hγ
+    refine le_of_eq (toOuterMeasure_bind_eq_zero fun α => ?_)
+    refine toOuterMeasure_bind_eq_zero fun zf => ?_
+    refine toOuterMeasure_bind_eq_zero fun qs => ?_
+    exact toOuterMeasure_pure_eq_zero (by simpa using hγ)
+  · rw [add_zero]
+    exact hA
+
+/-- **The `γ = 0` bound**: the batching scalar vanishes with probability at
+most `1/q`. -/
+theorem challenge_gamma_zero_le :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ch.γ = 0} ≤ 1 / (fieldCard Fq : ℝ≥0∞) := by
+  have hev : {ch : Challenges P Fq Dom | ch.γ = 0} =
+      {ch : Challenges P Fq Dom | ch.γ ∈ ({0} : Set Fq)} := by
+    ext ch; simp
+  rw [hev]
+  refine challenge_γ_event_le P Fq Dom _ _ ?_
+  refine (uniform_toOuterMeasure_le ({0} : Set Fq) 1 fun s hs => ?_).trans ?_
+  · calc s.card ≤ ({0} : Finset Fq).card :=
+          Finset.card_le_card fun a ha =>
+            Finset.mem_singleton.mpr (Set.mem_singleton_iff.mp (hs a ha))
+      _ = 1 := Finset.card_singleton 0
+  · rw [Nat.cast_one]
+    rfl
+
 end Peeling
 
 /-- **Exact count of roots of unity in a finite field**:
