@@ -46,4 +46,63 @@ def frobLin [CharP Fq p] (hcard : Fintype.card Fp = p) (r : ℕ) : Fq →ₗ[Fp]
     (x : Fq) : frobLin hcard r x = x ^ p ^ r := by
   rw [frobLin]; exact iterateFrobenius_def p r x
 
+/-- The q-polynomial map: a coefficient tuple `t : Fin d → Fq` to the `Fp`-linear
+endomorphism `x ↦ ∑_{r<d} t_r x^{p^r}`. -/
+def qpolyMap [CharP Fq p] (hcard : Fintype.card Fp = p) (d : ℕ) :
+    (Fin d → Fq) →ₗ[Fp] (Fq →ₗ[Fp] Fq) where
+  toFun t := ∑ r, t r • frobLin hcard r.val
+  map_add' t t' := by
+    simp only [Pi.add_apply, add_smul, Finset.sum_add_distrib]
+  map_smul' a t := by
+    simp only [Pi.smul_apply, RingHom.id_apply, smul_assoc, Finset.smul_sum]
+
+theorem qpolyMap_apply [CharP Fq p] (hcard : Fintype.card Fp = p) (d : ℕ)
+    (t : Fin d → Fq) (x : Fq) :
+    qpolyMap hcard d t x = ∑ r, t r * x ^ p ^ r.val := by
+  rw [qpolyMap]
+  simp only [LinearMap.coe_mk, AddHom.coe_mk, LinearMap.sum_apply, LinearMap.smul_apply,
+    frobLin_apply, smul_eq_mul]
+
+/-- The q-polynomial map is injective: distinct coefficient tuples give distinct
+endomorphisms (a nonzero q-polynomial has degree `< |Fq|`, so is not the zero
+function). -/
+theorem qpolyMap_injective [CharP Fq p] (hcard : Fintype.card Fp = p) (d : ℕ)
+    (hd : Fintype.card Fq = p ^ d) :
+    Function.Injective (qpolyMap (Fq := Fq) hcard d) := by
+  rw [injective_iff_map_eq_zero]
+  intro t ht
+  have hp1 : 1 < p := (Fact.out : p.Prime).one_lt
+  have hfun : ∀ x : Fq, ∑ r : Fin d, t r * x ^ p ^ r.val = 0 := fun x => by
+    rw [← qpolyMap_apply hcard d t x, ht, LinearMap.zero_apply]
+  set Q : Fq[X] := ∑ r : Fin d, C (t r) * X ^ p ^ r.val with hQ
+  have hQeval : ∀ x : Fq, eval x Q = 0 := fun x => by
+    rw [hQ, eval_finset_sum]
+    simp only [eval_mul, eval_C, eval_pow, eval_X]
+    exact hfun x
+  have hpd : 0 < p ^ d := pow_pos (by omega) d
+  have hbound : Q.natDegree ≤ p ^ d - 1 := by
+    rw [hQ]
+    refine Polynomial.natDegree_sum_le_of_forall_le _ _ (fun r _ => ?_)
+    calc (C (t r) * X ^ p ^ r.val).natDegree
+        ≤ p ^ r.val := le_trans (natDegree_C_mul_le _ _) (le_of_eq (natDegree_X_pow _))
+      _ ≤ p ^ d - 1 := by
+          have : p ^ r.val < p ^ d := Nat.pow_lt_pow_right hp1 r.2
+          omega
+  have hQdeg : Q.natDegree < Fintype.card Fq := by rw [hd]; omega
+  have hQ0 : Q = 0 :=
+    Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero Q (f := (id : Fq → Fq))
+      Function.injective_id (fun x => hQeval x) hQdeg
+  funext r
+  have hcoeff : Q.coeff (p ^ r.val) = t r := by
+    rw [hQ, Polynomial.finset_sum_coeff, Finset.sum_eq_single r]
+    · rw [coeff_C_mul, coeff_X_pow, if_pos rfl, mul_one]
+    · intro r' _ hr'
+      rw [coeff_C_mul, coeff_X_pow]
+      split_ifs with h
+      · exact absurd (Fin.ext (Nat.pow_right_injective hp1 h)) (Ne.symm hr')
+      · rw [mul_zero]
+    · intro h; exact absurd (Finset.mem_univ r) h
+  rw [hQ0, coeff_zero] at hcoeff
+  exact hcoeff.symm
+
 end ZkWhir.Linearized
