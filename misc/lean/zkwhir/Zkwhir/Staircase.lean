@@ -248,6 +248,26 @@ theorem chanTauW_sum_split (j : Fin 2) (ν : Fin P.k₀ × Fin 2 → Fq)
     · exact fun ⟨_, h⟩ => h
     · exact fun h => ⟨fun hlt => absurd (h ▸ hlt) (lt_irrefl m), h⟩
 
+/-- The slot-`ℓ` mass for block `j`: the `Pf`-weighted total of the two evals
+at slot `ℓ`. -/
+def slotMass (j : Fin 2) (ν : Fin P.k₀ × Fin 2 → Fq) (ℓ : Fin P.k₀) : Fq :=
+  ∑ y : Fin 2, ν (ℓ, y) *
+    prefixFactor P Fq Dom ch ℓ (((y : ℕ) + 1 : ℕ) : Fq) (powSeq (ch.z j) P.k₀)
+
+/-- The `> m` part of a block's chain coefficient regroups into the sum of
+slot masses above `m` — the triangular structure of the chain system. -/
+theorem slotMass_above (j : Fin 2) (ν : Fin P.k₀ × Fin 2 → Fq)
+    (m : Fin P.k₀) :
+    (∑ r ∈ Finset.univ.filter (fun r : Fin P.k₀ × Fin 2 => m < r.1),
+      ν r * prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+        (powSeq (ch.z j) P.k₀)) =
+      ∑ ℓ ∈ Finset.univ.filter (fun ℓ : Fin P.k₀ => m < ℓ),
+        slotMass Fq P Dom ch j ν ℓ := by
+  rw [sum_filter_fst (fun ℓ : Fin P.k₀ => m < ℓ)
+    (fun r => ν r * prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+      (powSeq (ch.z j) P.k₀))]
+  rfl
+
 /-- **The coupled-chains kernel condition** (`lem:coupled`, consumable form).
 A weight family `ν` over the `k₀ × {1,2}` slot/eval pairs that is killed on
 *both* blocks — each combined with that block's out-of-domain vector — must
