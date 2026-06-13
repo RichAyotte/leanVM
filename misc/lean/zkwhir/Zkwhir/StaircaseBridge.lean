@@ -94,4 +94,141 @@ theorem ptensor_update_smul {k : ℕ} (w : Fin k → Bool → F) (ℓ : Fin k)
   rw [herase, Function.update_self, Function.update_self]
   ring
 
+/-- `a_i = c_i + λ_i d` with a constant difference vector `d`. -/
+def aRow {k : ℕ} (c : Fin k → Bool → F) (d : Bool → F) (lam : Fin k → F)
+    (i : Fin k) : Bool → F := fun b => c i b + lam i * d b
+
+/-- `update`-of-`ρ_n` at the new slot `j` (with `(j:ℕ) = n`) is exactly `τ`
+at that slot. Parameterized by both the `Nat` threshold and the `Fin` slot so
+that it serves the telescoping induction and the mixed-point expansion. -/
+theorem update_rhoN_eq_stairVec {k : ℕ} (c : Fin k → Bool → F) (d : Bool → F)
+    (lam : Fin k → F) (n : ℕ) (j : Fin k) (hjv : (j : ℕ) = n) :
+    Function.update (fun i : Fin k => if (i : ℕ) < n then aRow c d lam i else c i)
+      j d = stairVec c (fun _ => d) lam j := by
+  funext i
+  unfold stairVec aRow
+  by_cases hij : i = j
+  · subst hij
+    rw [Function.update_self, if_neg (lt_irrefl _), if_pos rfl]
+  · rw [Function.update_of_ne hij]
+    by_cases hlt : i < j
+    · rw [if_pos (show (i : ℕ) < n by rw [← hjv]; exact hlt), if_pos hlt]
+    · rw [if_neg (show ¬ (i : ℕ) < n by rw [← hjv]; exact fun h => hlt h),
+        if_neg hlt, if_neg hij]
+
+/-- **Telescoping**: `ρ_n = ω + ∑_{i < n} λ_i τ_i`. -/
+theorem rhoN_telescope {k : ℕ} (c : Fin k → Bool → F) (d : Bool → F)
+    (lam : Fin k → F) (n : ℕ) :
+    ptensor (fun i : Fin k => if (i : ℕ) < n then aRow c d lam i else c i) =
+      ptensor c + ∑ i ∈ Finset.univ.filter (fun i : Fin k => (i : ℕ) < n),
+        lam i • ptensor (stairVec c (fun _ => d) lam i) := by
+  induction n with
+  | zero =>
+    have hc : (fun i : Fin k => if (i : ℕ) < 0 then aRow c d lam i else c i)
+        = c := by funext i; simp
+    rw [hc]
+    simp
+  | succ n ih =>
+    by_cases hn : n < k
+    · set j : Fin k := ⟨n, hn⟩ with hj
+      have hjv : (j : ℕ) = n := by rw [hj]
+      -- the threshold-`n+1` pattern is the threshold-`n` pattern updated at `j`
+      have hupd : (fun i : Fin k => if (i : ℕ) < n + 1 then aRow c d lam i
+            else c i) =
+          Function.update (fun i : Fin k => if (i : ℕ) < n then aRow c d lam i else c i)
+            j (aRow c d lam j) := by
+        funext i
+        by_cases hij : i = j
+        · subst hij
+          rw [Function.update_self, if_pos (by omega)]
+        · rw [Function.update_of_ne hij]
+          have hne : (i : ℕ) ≠ n := fun h => hij (Fin.ext (by omega))
+          by_cases hlt : (i : ℕ) < n
+          · rw [if_pos (by omega), if_pos hlt]
+          · rw [if_neg (by omega), if_neg hlt]
+      -- `aRow j = (ρ_n at j) + λ_j d` since `ρ_n` carries `c_j` at `j`
+      have hbase : (fun i : Fin k => if (i : ℕ) < n then aRow c d lam i
+          else c i) j = c j := by
+        show (if (j : ℕ) < n then aRow c d lam j else c j) = c j
+        rw [if_neg (by omega)]
+      have haj : aRow c d lam j =
+          (fun b => (fun i : Fin k => if (i : ℕ) < n then aRow c d lam i
+            else c i) j b + lam j * d b) := by
+        rw [hbase]; rfl
+      rw [hupd, haj, ptensor_update_add, Function.update_eq_self,
+        ptensor_update_smul, update_rhoN_eq_stairVec c d lam n j hjv, ih]
+      -- the filter gains exactly `j`
+      have hfilter : Finset.univ.filter (fun i : Fin k => (i : ℕ) < n + 1) =
+          insert j (Finset.univ.filter (fun i : Fin k => (i : ℕ) < n)) := by
+        ext i
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and,
+          Finset.mem_insert]
+        constructor
+        · intro hi
+          rcases Nat.lt_succ_iff_lt_or_eq.mp hi with h | h
+          · exact Or.inr h
+          · exact Or.inl (Fin.ext (by omega))
+        · rintro (h | h)
+          · rw [h]; omega
+          · omega
+      have hjnotin : j ∉ Finset.univ.filter (fun i : Fin k => (i : ℕ) < n) := by
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+        omega
+      rw [hfilter, Finset.sum_insert hjnotin]
+      abel
+    · -- `n ≥ k`: nothing new below `n + 1`
+      have he1 : (fun i : Fin k => if (i : ℕ) < n + 1 then aRow c d lam i
+          else c i) = (fun i : Fin k => if (i : ℕ) < n then aRow c d lam i else c i) := by
+        funext i
+        have hik := i.isLt
+        have hiff : ((i : ℕ) < n + 1) ↔ ((i : ℕ) < n) := by omega
+        simp only [hiff]
+      have he2 : Finset.univ.filter (fun i : Fin k => (i : ℕ) < n + 1) =
+          Finset.univ.filter (fun i : Fin k => (i : ℕ) < n) := by
+        ext i
+        have hik := i.isLt
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+        omega
+      rw [he1, he2, ih]
+
+/-- **The mixed-point staircase expansion**: replacing slot `ℓ` of `ρ_ℓ` by
+`c_ℓ + t·d` adds `t·τ_ℓ`. Combined with telescoping this expands a mixed
+Lagrange weight in the `ω/τ` basis. -/
+theorem stairMixed_decomp {k : ℕ} (c : Fin k → Bool → F) (d : Bool → F)
+    (lam : Fin k → F) (ℓ : Fin k) (t : F) :
+    ptensor (fun i : Fin k => if i < ℓ then aRow c d lam i
+        else if i = ℓ then (fun b => c ℓ b + t * d b) else c i) =
+      ptensor c + (∑ i ∈ Finset.univ.filter (fun i : Fin k => i < ℓ),
+        lam i • ptensor (stairVec c (fun _ => d) lam i)) +
+      t • ptensor (stairVec c (fun _ => d) lam ℓ) := by
+  -- the mixed pattern is `ρ_{ℓ.val}` updated at `ℓ`
+  have hupd : (fun i : Fin k => if i < ℓ then aRow c d lam i
+        else if i = ℓ then (fun b => c ℓ b + t * d b) else c i) =
+      Function.update (fun i : Fin k => if (i : ℕ) < (ℓ : ℕ) then aRow c d lam i
+        else c i) ℓ (fun b => c ℓ b + t * d b) := by
+    funext i
+    by_cases hiℓ : i = ℓ
+    · subst hiℓ
+      rw [Function.update_self, if_neg (lt_irrefl _), if_pos rfl]
+    · rw [Function.update_of_ne hiℓ]
+      by_cases hlt : i < ℓ
+      · rw [if_pos hlt, if_pos (show (i : ℕ) < (ℓ : ℕ) from hlt)]
+      · rw [if_neg hlt, if_neg hiℓ,
+          if_neg (show ¬ (i : ℕ) < (ℓ : ℕ) from fun h => hlt h)]
+  have hbase : (fun i : Fin k => if (i : ℕ) < (ℓ : ℕ) then aRow c d lam i
+      else c i) ℓ = c ℓ := by
+    show (if (ℓ : ℕ) < (ℓ : ℕ) then aRow c d lam ℓ else c ℓ) = c ℓ
+    rw [if_neg (lt_irrefl _)]
+  have hsplit : (fun b => c ℓ b + t * d b) =
+      (fun b => (fun i : Fin k => if (i : ℕ) < (ℓ : ℕ) then aRow c d lam i
+        else c i) ℓ b + t * d b) := by rw [hbase]
+  rw [hupd, hsplit, ptensor_update_add, Function.update_eq_self,
+    ptensor_update_smul, update_rhoN_eq_stairVec c d lam (ℓ : ℕ) ℓ rfl,
+    rhoN_telescope]
+  -- align the `< ℓ` filter (Fin order vs val order)
+  have hfeq : Finset.univ.filter (fun i : Fin k => (i : ℕ) < (ℓ : ℕ)) =
+      Finset.univ.filter (fun i : Fin k => i < ℓ) := by
+    ext i; simp only [Finset.mem_filter, Fin.lt_def]
+  rw [hfeq]
+
 end ZkWhir
