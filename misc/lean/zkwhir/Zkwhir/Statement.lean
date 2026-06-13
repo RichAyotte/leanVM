@@ -149,6 +149,13 @@ def assemble (data : DataAssign P) (mask : MaskAssign P) : Cell P → Fp P :=
 
 variable (Fq : Type*) [Field Fq] [Fintype Fq] [Algebra (Fp P) Fq]
 
+/-- The extension field inherits the characteristic `p` of its prime subfield
+`Fp P = ZMod P.p` (the algebra map is injective). This discharges the `CharP Fq p`
+side-condition of the linearized-polynomial / `cond:twist` machinery (use via
+`haveI := charP_Fq P Fq`). -/
+theorem charP_Fq : CharP Fq P.p :=
+  (Algebra.charP_iff (Fp P) Fq P.p).mp (ZMod.charP P.p)
+
 /-- `q = |F_q|`. -/
 def fieldCard : ℕ := Fintype.card Fq
 
