@@ -1115,4 +1115,35 @@ theorem confine_sliceVec_vanishes [FiniteDimensional (Fp P) Fq]
   refine ⟨w, hw, fun β v hv => ?_⟩
   rw [← trace_smul_pairing, hpair v hv, mul_zero, map_zero]
 
+/-- **`confineKer` in `Fp`-functional form** (slice characterization): the
+membership conditions become genuine `Fp`-valued linear conditions — the queried
+fiber values (`Fp`-rational, via `mle_algebraMap`) and the trace slices of the
+node values (via `eq_zero_iff_trace_basis`). This is the form whose common
+kernel `mem_span_of_forall_ker` confines `φ` against. -/
+theorem mem_confineKer_iff_slices [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] {ιβ : Type*}
+    (b : Module.Basis ιβ (Fp P) Fq) {v : Cube P.m → Fp P} :
+    v ∈ confineKer P Fq Dom ch ↔
+      (∀ c, v c ≠ 0 → IsBlockPos P c) ∧
+      (∀ t : Fin P.t₀, mle v (powSeq (ch.qs t : Fp P) P.m) = 0) ∧
+      (∀ (j : Fin 2) (i : ιβ), Algebra.trace (Fp P) Fq (b i *
+        mle (fun c => algebraMap (Fp P) Fq (v c))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) = 0) ∧
+      (∀ (j : Fin P.s₁) (i : ιβ), Algebra.trace (Fp P) Fq (b i *
+        mle (fun c => algebraMap (Fp P) Fq (v c)) (powSeq (ch.zf j) P.m)) = 0) := by
+  rw [mem_confineKer]
+  constructor
+  · rintro ⟨hblk, hq, hn, hz⟩
+    refine ⟨hblk, fun t => ?_, fun j i => ?_, fun j i => ?_⟩
+    · have hqt := hq t
+      rw [mle_algebraMap] at hqt
+      exact (map_eq_zero_iff _ (algebraMap (Fp P) Fq).injective).mp hqt
+    · rw [hn j, mul_zero, map_zero]
+    · rw [hz j, mul_zero, map_zero]
+  · rintro ⟨hblk, hq, hn, hz⟩
+    refine ⟨hblk, fun t => ?_, fun j => ?_, fun j => ?_⟩
+    · rw [mle_algebraMap, hq t, map_zero]
+    · exact (eq_zero_iff_trace_basis b _).mpr (hn j)
+    · exact (eq_zero_iff_trace_basis b _).mpr (hz j)
+
 end ZkWhir
