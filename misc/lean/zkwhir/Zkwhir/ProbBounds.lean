@@ -355,5 +355,17 @@ theorem card_filter_pi_succ {F : Type*} [Fintype F] {n : ℕ}
   · intro x0 _
     simp only [Fin.cons_zero]
 
+/-- **Per-fiber count for an affine function** (SZ induction step): the zeros of
+`x ↦ A + x·B` number at most `1` when `B ≠ 0`, and at most `|F|` always. -/
+theorem card_affine_fiber_le {F : Type*} [Field F] [Fintype F] [DecidableEq F]
+    (A B : F) :
+    (Finset.univ.filter (fun x : F => A + x * B = 0)).card ≤
+      (if B = 0 then Fintype.card F else 1) := by
+  by_cases hB : B = 0
+  · rw [if_pos hB, ← Finset.card_univ]
+    exact Finset.card_filter_le _ _
+  · rw [if_neg hB]
+    exact card_affine_root_le A B hB
+
 end ZkWhir
 
