@@ -1944,6 +1944,31 @@ theorem nodechannel_in_staircaseSpan [FiniteDimensional (Fp P) Fq]
       exact Submodule.smul_mem _ _
         (eqPoly_mixedPoint_mem_staircaseSpan P Fq Dom ch ℓ (![(1 : Fq), 2] yi) (ch.z 1))
 
+/-- The round-0 (class) fold of the input weight `ŵ = S.w` at position `c`:
+`ŵ(α₀, c) = ∑_s êq(α, s)·S.w(s, c)`. This is the `γ²`-component of the terminal
+weight `W₀`, whose terminal pairing is the cross form `T_ŵ` of `cond:cross2`. -/
+def wHat0 (c : Cube P.m) : Fq := ∑ s, eqPoly ch.α s * S.w (s, c)
+
+/-- **`lem:termslice` trace core** (tex:548): the terminal cross form's `Fp`-trace
+is nonzero — some class `s` makes `tr(a·γ²·êq(α,s)·ŵ(α₀,c*)) ≠ 0`. Given SPREAD
+(the weights `λ_s = êq(α,s)` span `Fq` over `Fp`), `a ≠ 0`, `γ ≠ 0`, and
+`ŵ(α₀,c*) ≠ 0`. By `cond:cross2`'s identity `F_{a·θ^term}` has coefficient
+`a·γ²·êq(α,s)·ŵ(α₀,c)` at cell `(s,c)`, so this says `tr ∘ F_{a·θ^term} ≠ 0` —
+the `Fp`-spanning statement `prop:pinbound` consumes for the terminal direction. -/
+theorem termCross_tr_ne_zero [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq]
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    (a : Fq) (ha : a ≠ 0) (hγ : ch.γ ≠ 0) (c0 : Cube P.m)
+    (hw : wHat0 P Fq Dom S ch c0 ≠ 0) :
+    ∃ s, Algebra.trace (Fp P) Fq
+      (a * ch.γ ^ 2 * eqPoly ch.α s * wHat0 P Fq Dom S ch c0) ≠ 0 := by
+  have hX : a * ch.γ ^ 2 * wHat0 P Fq Dom S ch c0 ≠ 0 :=
+    mul_ne_zero (mul_ne_zero ha (pow_ne_zero 2 hγ)) hw
+  obtain ⟨s, hs⟩ := exists_trace_ne_zero_of_span (eqPoly ch.α) hspread _ hX
+  refine ⟨s, ?_⟩
+  rwa [show a * ch.γ ^ 2 * eqPoly ch.α s * wHat0 P Fq Dom S ch c0
+      = eqPoly ch.α s * (a * ch.γ ^ 2 * wHat0 P Fq Dom S ch c0) from by ring]
+
 /-- **`lem:nodechannel` → `cond:twist`, full bridge** (parts (d)+(e)): the node
 functional is forced **untwisted** — there are scalars `θ_j` so the node functional
 equals `θ_j · êq(α, ·)` (and still lies in the node-matrix row space). Applies
