@@ -948,4 +948,45 @@ theorem blockClassMask_viewVanishes (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S
     · rw [if_pos hss, hz j, mul_zero]
     · rw [if_neg hss, mul_zero]
 
+/-- **The probe fold lies in `range pinFold`** (`lem:confine`): a block-supported
+fiber with vanishing evals folds to the single class-weighted lift, which is a
+genuine view-vanishing mask fold. -/
+theorem blockClassMask_fold_mem_range (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    {s : Cube P.k₀} {v : Cube P.m → Fp P}
+    (hvblock : ∀ c, v c ≠ 0 → IsBlockPos P c)
+    (hq : ∀ t : Fin P.t₀, mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0)
+    (hn : ∀ j : Fin 2, mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = 0)
+    (hz : ∀ j : Fin P.s₁, mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (ch.zf j) P.m) = 0) :
+    (fun c => eqPoly ch.α s * algebraMap (Fp P) Fq (v c)) ∈
+      LinearMap.range (pinFold P Fq Dom S ch) := by
+  refine ⟨⟨blockClassMask P s v,
+    (mem_viewKer P Fq Dom S ch _).mpr
+      (blockClassMask_viewVanishes P Fq Dom S ch h2 hmf hvblock hq hn hz)⟩, ?_⟩
+  funext c
+  show foldedF₁ P Fq Dom (assemble P 0 (- blockClassMask P s v)) ch c = _
+  exact foldedF₁_blockClassMask P Fq Dom ch hvblock c
+
+/-- **Confinement pairing** (`lem:confine`, first half): every functional that
+annihilates `range pinFold` vanishes on the single class-weighted lift of a
+block-supported fiber whose evaluations all vanish. The trace/`SPREAD` wrap-up
+turns this into `φ|_blk ∈ span{queried duals, node duals}`. -/
+theorem confine_fold_apply_zero (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    {s : Cube P.k₀} {v : Cube P.m → Fp P}
+    (hvblock : ∀ c, v c ≠ 0 → IsBlockPos P c)
+    (hq : ∀ t : Fin P.t₀, mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0)
+    (hn : ∀ j : Fin 2, mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = 0)
+    (hz : ∀ j : Fin P.s₁, mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (ch.zf j) P.m) = 0)
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
+    φ (fun c => eqPoly ch.α s * algebraMap (Fp P) Fq (v c)) = 0 := by
+  obtain ⟨κ, hκ⟩ :=
+    blockClassMask_fold_mem_range P Fq Dom S ch h2 hmf hvblock hq hn hz
+  rw [← hκ]; exact hφ κ
+
 end ZkWhir
