@@ -183,4 +183,124 @@ theorem coupledGen_failure_full (h2 : (2 : Fq) ≠ 0) :
   coupledGen_failure_le Fq P Dom (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1))
     (challenge_gamma_zero_le P Fq Dom) (fun m => slotDet_zero_le P Fq Dom h2 m)
 
+/-- **Multivariate Schwartz–Zippel for multilinear extensions** (the ε₃ measure
+core, absent from Mathlib): a nonzero `mle T` (`T : Cube n → F`) vanishes at most
+`n·|F|^{n-1}` points of `F^n`. Induction on `n`: `card_filter_pi_succ` recurses on
+the first coordinate, `mle_cons`/`mle_sub` make each fiber affine, and
+`card_affine_fiber_le` bounds it — splitting on whether the top half-tables
+coincide (degenerate: IH on the lower table; otherwise: IH on their difference). -/
+theorem mle_card_zeros_le {F : Type*} [Field F] [Fintype F] [DecidableEq F] :
+    ∀ {n : ℕ} (T : Cube n → F), T ≠ 0 →
+      (Finset.univ.filter (fun x : Fin n → F => mle T x = 0)).card ≤
+        n * Fintype.card F ^ (n - 1) := by
+  intro n
+  induction n with
+  | zero =>
+    intro T hT
+    have hT0 : T default ≠ 0 := fun hd => hT (funext fun b => by
+      rw [Subsingleton.elim b default, Pi.zero_apply]; exact hd)
+    haveI : Unique (Cube 0) := Pi.uniqueOfIsEmpty _
+    have hne : ∀ x : Fin 0 → F, mle T x ≠ 0 := by
+      intro x
+      have heq1 : eqPoly x (default : Cube 0) = 1 := by simp [eqPoly]
+      have hmle : mle T x = T default := by
+        unfold mle
+        rw [Finset.sum_eq_single (a := (default : Cube 0))
+          (fun b _ hb => absurd (Subsingleton.elim b default) hb)
+          (fun h => absurd (Finset.mem_univ default) h), heq1, one_mul]
+      rw [hmle]; exact hT0
+    have hcard : (Finset.univ.filter (fun x : Fin 0 → F => mle T x = 0)).card = 0 := by
+      rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
+      exact fun x _ => hne x
+    rw [hcard]; simp
+  | succ n ih =>
+    intro T hT
+    rw [card_filter_pi_succ]
+    have hform : ∀ (xr : Fin n → F) (x0 : F),
+        mle T (Fin.cons x0 xr) = mle (fun b => T (Fin.cons false b)) xr
+          + x0 * (mle (fun b => T (Fin.cons true b)) xr
+                  - mle (fun b => T (Fin.cons false b)) xr) :=
+      fun xr x0 => by rw [mle_cons]; ring
+    have hfibeq : ∀ xr : Fin n → F,
+        (Finset.univ.filter (fun x0 : F => mle T (Fin.cons x0 xr) = 0)) =
+          Finset.univ.filter (fun x0 : F =>
+            mle (fun b => T (Fin.cons false b)) xr
+              + x0 * (mle (fun b => T (Fin.cons true b)) xr
+                      - mle (fun b => T (Fin.cons false b)) xr) = 0) :=
+      fun xr => Finset.filter_congr fun x0 _ => by rw [hform xr x0]
+    by_cases hD : (fun b => T (Fin.cons true b) - T (Fin.cons false b)) = (0 : Cube n → F)
+    · have hBz : ∀ xr : Fin n → F,
+          mle (fun b => T (Fin.cons true b)) xr
+            - mle (fun b => T (Fin.cons false b)) xr = 0 :=
+        fun xr => by rw [← mle_sub, hD]; exact mle_zero xr
+      have hT0ne : (fun b => T (Fin.cons false b)) ≠ (0 : Cube n → F) := by
+        intro h0; apply hT; funext u
+        rw [Pi.zero_apply, ← Fin.cons_self_tail u]
+        cases hu : u 0 with
+        | false => exact congrFun h0 (Fin.tail u)
+        | true =>
+          rw [sub_eq_zero.mp (congrFun hD (Fin.tail u))]
+          exact congrFun h0 (Fin.tail u)
+      have hfib : ∀ xr : Fin n → F,
+          (Finset.univ.filter (fun x0 : F => mle T (Fin.cons x0 xr) = 0)).card =
+            if mle (fun b => T (Fin.cons false b)) xr = 0 then Fintype.card F else 0 := by
+        intro xr
+        rw [hfibeq xr]
+        simp only [hBz xr, mul_zero, add_zero]
+        by_cases h : mle (fun b => T (Fin.cons false b)) xr = 0
+        · rw [if_pos h, Finset.filter_true_of_mem fun _ _ => h, Finset.card_univ]
+        · rw [if_neg h, Finset.filter_false_of_mem fun _ _ => h, Finset.card_empty]
+      calc ∑ xr : Fin n → F,
+              (Finset.univ.filter (fun x0 : F => mle T (Fin.cons x0 xr) = 0)).card
+          = ∑ xr : Fin n → F,
+              if mle (fun b => T (Fin.cons false b)) xr = 0 then Fintype.card F else 0 :=
+            Finset.sum_congr rfl fun xr _ => hfib xr
+        _ = (Finset.univ.filter (fun xr : Fin n → F =>
+              mle (fun b => T (Fin.cons false b)) xr = 0)).card * Fintype.card F := by
+            rw [← Finset.sum_filter, Finset.sum_const, smul_eq_mul]
+        _ ≤ (n * Fintype.card F ^ (n - 1)) * Fintype.card F :=
+            Nat.mul_le_mul_right _ (ih _ hT0ne)
+        _ ≤ (n + 1) * Fintype.card F ^ (n + 1 - 1) := by
+            have hmul : n * Fintype.card F ^ (n - 1) * Fintype.card F
+                = n * Fintype.card F ^ n := by
+              rcases n with _ | m
+              · simp
+              · rw [Nat.succ_sub_one, mul_assoc, ← pow_succ]
+            rw [hmul, Nat.add_sub_cancel]
+            exact Nat.mul_le_mul_right _ (Nat.le_succ n)
+    · have hfib : ∀ xr : Fin n → F,
+          (Finset.univ.filter (fun x0 : F => mle T (Fin.cons x0 xr) = 0)).card ≤
+            if mle (fun b => T (Fin.cons true b)) xr
+                - mle (fun b => T (Fin.cons false b)) xr = 0
+              then Fintype.card F else 1 :=
+        fun xr => by rw [hfibeq xr]; exact card_affine_fiber_le _ _
+      calc ∑ xr : Fin n → F,
+              (Finset.univ.filter (fun x0 : F => mle T (Fin.cons x0 xr) = 0)).card
+          ≤ ∑ xr : Fin n → F,
+              if mle (fun b => T (Fin.cons true b)) xr
+                  - mle (fun b => T (Fin.cons false b)) xr = 0
+                then Fintype.card F else 1 :=
+            Finset.sum_le_sum fun xr _ => hfib xr
+        _ = (Finset.univ.filter (fun xr : Fin n → F =>
+                mle (fun b => T (Fin.cons true b)) xr
+                  - mle (fun b => T (Fin.cons false b)) xr = 0)).card * Fintype.card F
+              + (Finset.univ.filter (fun xr : Fin n → F =>
+                  ¬ mle (fun b => T (Fin.cons true b)) xr
+                    - mle (fun b => T (Fin.cons false b)) xr = 0)).card * 1 := by
+            rw [Finset.sum_ite, Finset.sum_const, Finset.sum_const, smul_eq_mul, smul_eq_mul]
+        _ ≤ (n * Fintype.card F ^ (n - 1)) * Fintype.card F + Fintype.card F ^ n * 1 := by
+            refine Nat.add_le_add (Nat.mul_le_mul_right _ ?_) (Nat.mul_le_mul_right _ ?_)
+            · refine le_trans (le_of_eq ?_)
+                (ih (fun b => T (Fin.cons true b) - T (Fin.cons false b)) hD)
+              congr 1; ext xr; simp only [Finset.mem_filter, mle_sub]
+            · refine le_trans (Finset.card_filter_le _ _) (le_of_eq ?_)
+              rw [Finset.card_univ]; simp [Fintype.card_pi]
+        _ = (n + 1) * Fintype.card F ^ (n + 1 - 1) := by
+            have hmul : n * Fintype.card F ^ (n - 1) * Fintype.card F
+                = n * Fintype.card F ^ n := by
+              rcases n with _ | m
+              · simp
+              · rw [Nat.succ_sub_one, mul_assoc, ← pow_succ]
+            rw [hmul, mul_one, Nat.add_sub_cancel]; ring
+
 end ZkWhir
