@@ -329,5 +329,31 @@ theorem card_affine_root_le {F : Type*} [Field F] [Fintype F] [DecidableEq F]
   have hab : a * B = b * B := by linear_combination ha.2 - hb.2
   exact mul_right_cancel₀ hB hab
 
+/-- **Fiber count over the first coordinate** (the Schwartz–Zippel induction
+recursion): the number of zeros of a predicate on `Fin (n+1) → F` is the sum over
+the tail `Fin n → F` of the per-fiber count in the first coordinate `F`. -/
+theorem card_filter_pi_succ {F : Type*} [Fintype F] {n : ℕ}
+    (P : (Fin (n + 1) → F) → Prop) [DecidablePred P] :
+    (Finset.univ.filter P).card =
+      ∑ xr : Fin n → F,
+        (Finset.univ.filter (fun x0 : F => P (Fin.cons x0 xr))).card := by
+  classical
+  rw [Finset.card_eq_sum_card_fiberwise (f := fun x => Fin.tail x) (t := Finset.univ)
+      (fun a _ => Finset.mem_univ _)]
+  refine Finset.sum_congr rfl fun xr _ => ?_
+  refine Finset.card_nbij' (fun a => a 0) (fun x0 => Fin.cons x0 xr) ?_ ?_ ?_ ?_
+  · intro a ha
+    simp only [Finset.mem_coe, Finset.mem_filter, Finset.mem_univ, true_and] at ha ⊢
+    rw [← ha.2, Fin.cons_self_tail]; exact ha.1
+  · intro x0 hx0
+    simp only [Finset.mem_coe, Finset.mem_filter, Finset.mem_univ, Fin.tail_cons,
+      and_true, true_and] at hx0 ⊢
+    exact hx0
+  · intro a ha
+    simp only [Finset.mem_coe, Finset.mem_filter, Finset.mem_univ, true_and] at ha
+    simp only [← ha.2, Fin.cons_self_tail]
+  · intro x0 _
+    simp only [Fin.cons_zero]
+
 end ZkWhir
 
