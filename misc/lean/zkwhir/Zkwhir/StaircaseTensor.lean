@@ -62,6 +62,27 @@ def stairVec {k : ℕ} (c d : Fin k → Bool → F) (lam : Fin k → F) (m : Fin
   fun i => if i < m then (fun b => c i b + lam i * d i b)
            else if i = m then d i else c i
 
+/-- Collapse a two-branch indicator sum to a filtered sum plus the diagonal
+term: `∑_i (if i<ℓ then A i else if i=ℓ then B else 0)·v_i = ∑_{i<ℓ} A_i v_i +
+B·v_ℓ`. The regroup primitive for writing a channel's staircase contribution
+as a single per-slot sum. -/
+theorem sum_ite_two_collapse {k : ℕ} {M : Type*} [AddCommMonoid M] [Module F M]
+    (ℓ : Fin k) (A : Fin k → F) (B : F) (v : Fin k → M) :
+    ∑ i, (if i < ℓ then A i else if i = ℓ then B else 0) • v i =
+      (∑ i ∈ Finset.univ.filter (fun i => i < ℓ), A i • v i) + B • v ℓ := by
+  classical
+  rw [← Finset.sum_filter_add_sum_filter_not Finset.univ (fun i => i < ℓ)
+    (fun i => (if i < ℓ then A i else if i = ℓ then B else 0) • v i)]
+  congr 1
+  · refine Finset.sum_congr rfl fun i hi => ?_
+    rw [if_pos (Finset.mem_filter.mp hi).2]
+  · rw [Finset.sum_eq_single ℓ
+      (fun i hi hiℓ => by
+        rw [if_neg (Finset.mem_filter.mp hi).2, if_neg hiℓ, zero_smul])
+      (fun hℓ => absurd
+        (Finset.mem_filter.mpr ⟨Finset.mem_univ ℓ, lt_irrefl ℓ⟩) hℓ)]
+    rw [if_neg (lt_irrefl ℓ), if_pos rfl]
+
 /-- The all-`a` data `ρ_k = a_1 ⊗ ⋯ ⊗ a_k`. -/
 def aVec {k : ℕ} (c d : Fin k → Bool → F) (lam : Fin k → F) : Fin k → Bool → F :=
   fun i b => c i b + lam i * d i b
