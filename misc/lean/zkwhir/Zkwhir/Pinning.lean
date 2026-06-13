@@ -1817,4 +1817,43 @@ theorem nodechannel_rowspace [FiniteDimensional (Fp P) Fq]
     exact Finset.sum_congr rfl fun j _ => by ring]
   exact hp
 
+/-- The node-matrix rows as vectors over `Cube k₀ × Fin 2` (the `2` ood rows + the
+`2·k₀` msg rows at points `y ∈ {1,2}`), for `mem_rowspan_of_pairing_vanishes`. -/
+def nodeRowVec : (Fin 2 ⊕ (Fin P.k₀ × Fin 2)) → (Cube P.k₀ × Fin 2 → Fq) := fun a =>
+  match a with
+  | Sum.inl j => fun p => if p.2 = j then eqPoly (powSeq (ch.z j) P.k₀) p.1 else 0
+  | Sum.inr q => fun p =>
+      if p.2 = 0 then
+        prefixFactor P Fq Dom ch q.1 (![(1 : Fq), 2] q.2) (powSeq (ch.z 0) P.k₀) *
+          eqPoly (mixedPoint P Fq Dom ch q.1 (![(1 : Fq), 2] q.2) (powSeq (ch.z 0) P.k₀)) p.1
+      else
+        ch.γ * (prefixFactor P Fq Dom ch q.1 (![(1 : Fq), 2] q.2) (powSeq (ch.z 1) P.k₀) *
+          eqPoly (mixedPoint P Fq Dom ch q.1 (![(1 : Fq), 2] q.2) (powSeq (ch.z 1) P.k₀)) p.1)
+
+/-- Pairing an ood row vector against `V` reproduces `oodRow`. -/
+theorem nodeRowVec_inl_pairing (j : Fin 2) (V : Cube P.k₀ × Fin 2 → Fq) :
+    (∑ p, nodeRowVec P Fq Dom ch (Sum.inl j) p * V p) =
+      oodRow P Fq Dom ch j (fun s j => V (s, j)) := by
+  rw [Fintype.sum_prod_type]
+  unfold oodRow
+  refine Finset.sum_congr rfl fun s _ => ?_
+  simp only [nodeRowVec]
+  rw [Finset.sum_eq_single j]
+  · rw [if_pos rfl]
+  · intro j' _ hj'; rw [if_neg hj', zero_mul]
+  · intro h; exact absurd (Finset.mem_univ j) h
+
+/-- Pairing a msg row vector against `V` reproduces `msgRow` (at `y ∈ {1,2}`). -/
+theorem nodeRowVec_inr_pairing (q : Fin P.k₀ × Fin 2) (V : Cube P.k₀ × Fin 2 → Fq) :
+    (∑ p, nodeRowVec P Fq Dom ch (Sum.inr q) p * V p) =
+      msgRow P Fq Dom ch q.1 (![(1 : Fq), 2] q.2) (fun s j => V (s, j)) := by
+  rw [Fintype.sum_prod_type]
+  unfold msgRow
+  conv_rhs => rw [Finset.mul_sum, Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun s _ => ?_
+  rw [Fin.sum_univ_two]
+  simp only [nodeRowVec, Fin.isValue, ↓reduceIte]
+  rw [if_neg (by decide : (1 : Fin 2) ≠ 0)]
+  ring
+
 end ZkWhir
