@@ -435,4 +435,19 @@ theorem eq_zero_of_trace_pairing_span {Fp Fq : Type*} [Field Fp] [Field Fq]
   | add x y _ _ hx hy => rw [add_mul, map_add, hx, hy, add_zero]
   | smul r x _ hx => rw [smul_mul_assoc, map_smul, hx, smul_zero]
 
+/-- **A functional vanishing on the common kernel lies in the span of the
+functionals** (the finite-dimensional annihilator/coannihilator duality;
+`lem:confine`/`lem:nodechannel` core). If `f` kills every vector killed by all
+of the `g i`, then `f` is a linear combination of the `g i`. -/
+theorem mem_span_of_forall_ker {K V : Type*} [Field K] [AddCommGroup V]
+    [Module K V] [FiniteDimensional K V] {ι : Type*} (g : ι → Module.Dual K V)
+    (f : Module.Dual K V) (hf : ∀ v, (∀ i, g i v = 0) → f v = 0) :
+    f ∈ Submodule.span K (Set.range g) := by
+  rw [← Subspace.dualCoannihilator_dualAnnihilator_eq
+        (W := Submodule.span K (Set.range g)),
+    Submodule.mem_dualAnnihilator]
+  intro v hv
+  rw [Submodule.mem_dualCoannihilator] at hv
+  exact hf v fun i => hv (g i) (Submodule.subset_span ⟨i, rfl⟩)
+
 end ZkWhir
