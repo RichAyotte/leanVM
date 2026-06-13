@@ -24,6 +24,13 @@ theorem frobenius_algebraMap [CharP Fq p] (hcard : Fintype.card Fp = p) (a : Fp)
     frobenius Fq p (algebraMap Fp Fq a) = algebraMap Fp Fq a := by
   rw [frobenius_def, ← map_pow, ← hcard, FiniteField.pow_card]
 
+/-- Freshman's dream for `1 - a`: `(1 - a)^{p^r} = 1 - a^{p^r}` (iterated Frobenius
+is a ring hom). The per-factor identity behind `λ_s^{p^r} = eqPoly(α^{[r]}, s)`. -/
+theorem iterateFrobenius_one_sub [CharP Fq p] (r : ℕ) (a : Fq) :
+    (1 - a) ^ p ^ r = 1 - a ^ p ^ r := by
+  have h1 : (1 - a) ^ p ^ r = iterateFrobenius Fq p r (1 - a) := (iterateFrobenius_def p r _).symm
+  rw [h1, map_sub, map_one, iterateFrobenius_def]
+
 /-- The iterated Frobenius `x ↦ x^{p^r}` fixes the base prime field. -/
 theorem iterateFrobenius_algebraMap [CharP Fq p] (hcard : Fintype.card Fp = p)
     (r : ℕ) (a : Fp) :
