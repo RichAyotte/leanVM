@@ -1723,12 +1723,12 @@ theorem nodechannel_rowspace [FiniteDimensional (Fp P) Fq]
     {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ (Fp P) Fq)
     (φ : Module.Dual (Fp P) (Cube P.m → Fq))
     (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
-    ∃ B : Cube P.k₀ → Fin 2 → Fq,
+    ∃ T : Fin 2 → (Fq →ₗ[Fp P] Fq),
       ∀ V : Cube P.k₀ → Fin 2 → Fq,
         (∀ j, oodRow P Fq Dom ch j V = 0) →
         (∀ ℓ, msgRow P Fq Dom ch ℓ 1 V = 0) →
         (∀ ℓ, msgRow P Fq Dom ch ℓ 2 V = 0) →
-        (∑ s, ∑ j, B s j * V s j) = 0 := by
+        (∑ s, ∑ j, T j (eqPoly ch.α s) * V s j) = 0 := by
   obtain ⟨w, hw, Cn, hpair⟩ :=
     nodechannel_phi_pairing P Fq Dom S ch h2 hmf hdom hbudget hnode hspread b φ hφ
   set β' := LinearMap.BilinForm.dualBasis (Algebra.traceForm (Fp P) Fq)
@@ -1736,6 +1736,12 @@ theorem nodechannel_rowspace [FiniteDimensional (Fp P) Fq]
   set B : Cube P.k₀ → Fin 2 → Fq := fun s j =>
     ∑ i, (∑ r, Cn (b r) j i * Algebra.trace (Fp P) Fq (eqPoly ch.α s * β' r)) • b i
     with hB
+  -- bundle the node functional as the `cond:twist` Fp-linear maps `T_j`
+  set Tmap : Fin 2 → (Fq →ₗ[Fp P] Fq) :=
+    fun j => nodeTwistMap P Fq β' b (fun i r => Cn (b r) j i) with hTmap
+  have hBT : ∀ s j, Tmap j (eqPoly ch.α s) = B s j := by
+    intro s j
+    simp only [hTmap, nodeTwistMap_apply, hB]
   -- the trace-twist identity, per class
   have hBid : ∀ (V : Cube P.k₀ → Fin 2 → Fq) (s : Cube P.k₀),
       Algebra.trace (Fp P) Fq (eqPoly ch.α s * ∑ r, β' r *
@@ -1772,7 +1778,9 @@ theorem nodechannel_rowspace [FiniteDimensional (Fp P) Fq]
     rw [map_sum]
     refine Finset.sum_congr rfl fun s _ => ?_
     rw [map_sum, hBid V s]
-  refine ⟨B, fun V hood hmsg1 hmsg2 => ?_⟩
+  refine ⟨Tmap, fun V hood hmsg1 hmsg2 => ?_⟩
+  rw [show (∑ s, ∑ j, Tmap j (eqPoly ch.α s) * V s j) = ∑ s, ∑ j, B s j * V s j from
+    Finset.sum_congr rfl fun s _ => Finset.sum_congr rfl fun j _ => by rw [hBT]]
   rw [trace_eq_zero_iff (Fp := Fp P)]
   intro θ
   -- `θ·V` is again in the kernel (the node matrix is `Fq`-linear)
