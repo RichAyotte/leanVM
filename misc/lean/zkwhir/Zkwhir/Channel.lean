@@ -35,6 +35,34 @@ variable (S : Stmt P Fq) (T : Cell P → Fp P) (ch : Challenges P Fq Dom)
 extension of `êq` to a pair of field points. -/
 def eqf (x y : Fq) : Fq := x * y + (1 - x) * (1 - y)
 
+/-- `eqf` is affine of degree one in its first argument:
+`eqf(x, y) = (2y − 1)·x + (1 − y)`. -/
+theorem eqf_affine_left (x y : Fq) : eqf Fq x y = (2 * y - 1) * x + (1 - y) := by
+  unfold eqf; ring
+
+/-- `eqf` is affine of degree one in its second argument. -/
+theorem eqf_affine_right (x y : Fq) : eqf Fq x y = (2 * x - 1) * y + (1 - x) := by
+  unfold eqf; ring
+
+/-- As a polynomial in its first argument, `eqf(·, y)` is nonzero (char ≠ 2):
+its two coefficients `(1 − y, 2y − 1)` cannot both vanish. -/
+theorem eqf_poly_left_ne_zero (h2 : (2 : Fq) ≠ 0) (y : Fq) :
+    (Polynomial.C (1 - y) + Polynomial.C (2 * y - 1) * Polynomial.X :
+      Polynomial Fq) ≠ 0 := by
+  intro h
+  have hco1 : (Polynomial.C (1 - y) +
+      Polynomial.C (2 * y - 1) * Polynomial.X : Polynomial Fq).coeff 1 =
+      2 * y - 1 := by
+    rw [Polynomial.coeff_add, Polynomial.coeff_C_mul, Polynomial.coeff_X_one,
+      mul_one, Polynomial.coeff_C, if_neg (by decide : (1 : ℕ) ≠ 0), zero_add]
+  have hco0 : (Polynomial.C (1 - y) +
+      Polynomial.C (2 * y - 1) * Polynomial.X : Polynomial Fq).coeff 0 =
+      1 - y := by
+    rw [Polynomial.coeff_add, Polynomial.coeff_C_mul, Polynomial.coeff_X_zero,
+      mul_zero, add_zero, Polynomial.coeff_C, if_pos rfl]
+  rw [h, Polynomial.coeff_zero] at hco1 hco0
+  exact h2 (by linear_combination -2 * hco1 - 4 * hco0)
+
 /-- The class part of the round-`ℓ` *mixed point*: the sumcheck challenges
 below `ℓ`, the evaluation point `y` at `ℓ`, the coordinates of `x` above. -/
 def mixedPoint (ℓ : Fin P.k₀) (y : Fq) (x : Fin P.k₀ → Fq) : Fin P.k₀ → Fq :=
