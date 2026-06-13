@@ -329,4 +329,16 @@ theorem rigidity {k : ℕ} (x lam : Fin k → Fq) {R : Type*} [Fintype R]
     exact Finset.sum_congr rfl fun r _ => by ring]
   rw [hpair, hsingle]; ring
 
+/-- **The Lagrange weight in `rigidity`'s `v`-form**: `êq(β, ·)` is the staircase
+tensor `⊗(c_i + (β_i − z^{2^{i-1}}) d)` over the `z`-staircase. With `β = α^{[r]}`
+this is exactly `rigidity`'s `v^{(r)}` (`x_i = z^{2^{i-1}}`, `a^{(r)}_i = β_i − x_i`). -/
+theorem eqPoly_eq_vTensor {k : ℕ} (z : Fq) (β : Fin k → Fq) :
+    eqPoly β =
+      ptensor (fun i => fun b =>
+        vrow (powSeq z k i) b + (β i - powSeq z k i) * drow b) := by
+  rw [eqPoly_eq_ptensor]
+  congr 1
+  funext i
+  rw [vrow_affine (β i) (powSeq z k i)]
+
 end ZkWhir
