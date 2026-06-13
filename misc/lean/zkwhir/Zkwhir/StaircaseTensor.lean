@@ -109,6 +109,15 @@ theorem two_by_two_zero {a b A0 B0 A1 B1 : F} (hdet : A0 * B1 - A1 * B0 ≠ 0)
       linear_combination A0 * h1 - A1 * h0
     exact (mul_eq_zero.mp key).resolve_right hdet
 
+/-- **Nonzero `2×2` minor ⟹ independent pair** (`cond:cross2`/`lem:noother` minor
+arguments): if two vectors `v, w : ι → F` have a nonzero coordinate minor
+`v_i·w_j − v_j·w_i`, then any pointwise relation `a·v + b·w = 0` forces `a = b = 0`
+— `v, w` are linearly independent over `F`. -/
+theorem pair_indep_of_minor {ι : Type*} (v w : ι → F) (i j : ι)
+    (hdet : v i * w j - v j * w i ≠ 0) {a b : F}
+    (h : ∀ k, a * v k + b * w k = 0) : a = 0 ∧ b = 0 :=
+  two_by_two_zero hdet (h i) (h j)
+
 /-- The all-`a` data `ρ_k = a_1 ⊗ ⋯ ⊗ a_k`. -/
 def aVec {k : ℕ} (c d : Fin k → Bool → F) (lam : Fin k → F) : Fin k → Bool → F :=
   fun i b => c i b + lam i * d i b
