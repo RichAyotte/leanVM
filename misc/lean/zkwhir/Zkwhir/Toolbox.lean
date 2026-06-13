@@ -450,4 +450,19 @@ theorem mem_span_of_forall_ker {K V : Type*} [Field K] [AddCommGroup V]
   rw [Submodule.mem_dualCoannihilator] at hv
   exact hf v fun i => hv (g i) (Submodule.subset_span ⟨i, rfl⟩)
 
+/-- **Trace dual-basis reconstruction** (`lem:traceorth`/slice machinery): any
+`x : Fq` is recovered from its trace pairings against an `Fp`-basis `b` of `Fq`
+via the trace-form dual basis. The slices `tr(x · b i)` determine `x`. -/
+theorem eq_sum_trace_smul_dualBasis {Fp Fq : Type*} [Field Fp] [Field Fq]
+    [Algebra Fp Fq] [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq]
+    {ι : Type*} [Fintype ι] [DecidableEq ι] (b : Module.Basis ι Fp Fq) (x : Fq) :
+    x = ∑ i, Algebra.trace Fp Fq (x * b i) •
+      (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+        (traceForm_nondegenerate Fp Fq) b) i := by
+  conv_lhs =>
+    rw [← Module.Basis.sum_repr (LinearMap.BilinForm.dualBasis
+      (Algebra.traceForm Fp Fq) (traceForm_nondegenerate Fp Fq) b) x]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [LinearMap.BilinForm.dualBasis_repr_apply, Algebra.traceForm_apply]
+
 end ZkWhir
