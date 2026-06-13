@@ -63,6 +63,24 @@ theorem eqf_poly_left_ne_zero (h2 : (2 : Fq) ≠ 0) (y : Fq) :
   rw [h, Polynomial.coeff_zero] at hco1 hco0
   exact h2 (by linear_combination -2 * hco1 - 4 * hco0)
 
+/-- `eqf(x, y)` is the evaluation at `x` of its degree-≤1 polynomial. -/
+theorem eqf_eq_eval (x y : Fq) :
+    eqf Fq x y =
+      Polynomial.eval x (Polynomial.C (1 - y) +
+        Polynomial.C (2 * y - 1) * Polynomial.X) := by
+  rw [eqf_affine_left, Polynomial.eval_add, Polynomial.eval_C,
+    Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_X]
+  ring
+
+/-- The `eqf` polynomial in its first argument has degree at most one. -/
+theorem eqf_poly_natDegree (y : Fq) :
+    (Polynomial.C (1 - y) + Polynomial.C (2 * y - 1) * Polynomial.X :
+      Polynomial Fq).natDegree ≤ 1 := by
+  refine (Polynomial.natDegree_add_le _ _).trans (max_le ?_ ?_)
+  · rw [Polynomial.natDegree_C]; exact Nat.zero_le 1
+  · exact (Polynomial.natDegree_C_mul_le _ _).trans
+      (le_of_eq Polynomial.natDegree_X)
+
 /-- The class part of the round-`ℓ` *mixed point*: the sumcheck challenges
 below `ℓ`, the evaluation point `y` at `ℓ`, the coordinates of `x` above. -/
 def mixedPoint (ℓ : Fin P.k₀) (y : Fq) (x : Fin P.k₀ → Fq) : Fin P.k₀ → Fq :=
