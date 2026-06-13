@@ -14,6 +14,8 @@ import Zkwhir.StaircaseTensor
 
 set_option linter.style.header false
 set_option linter.unusedSectionVars false
+set_option linter.unusedFintypeInType false
+set_option linter.style.show false
 
 namespace ZkWhir
 
@@ -89,5 +91,43 @@ theorem gammaC_smul (a : Fq) (w : Bool → Fq) : gammaC (a • w) = a * gammaC w
 theorem gammaD_smul (x a : Fq) (w : Bool → Fq) :
     gammaD x (a • w) = a * gammaD x w := by
   simp only [gammaD, Pi.smul_apply, smul_eq_mul]; ring
+
+/-- The slot indicator vector `e_b`. -/
+def eBool (b : Bool) : Bool → Fq := fun b' => if b' = b then 1 else 0
+
+/-- Every slot vector is its `e`-basis expansion. -/
+theorem bool_basis (w : Bool → Fq) :
+    w = (w false) • eBool false + (w true) • eBool true := by
+  funext b
+  cases b <;> simp [eBool, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
+
+theorem gammaC_linBool (w : Bool → Fq) :
+    gammaC w = w false * gammaC (eBool false) + w true * gammaC (eBool true) := by
+  conv_lhs => rw [bool_basis w]
+  rw [gammaC_add, gammaC_smul, gammaC_smul]
+
+theorem gammaD_linBool (x : Fq) (w : Bool → Fq) :
+    gammaD x w = w false * gammaD x (eBool false) + w true * gammaD x (eBool true) := by
+  conv_lhs => rw [bool_basis w]
+  rw [gammaD_add, gammaD_smul, gammaD_smul]
+
+/-- The tensor coefficient functional for a per-slot family `ψ`: reads the
+coefficient of `f` against `⊗_i ψ_i` in the slot bases. -/
+def tcoeff {k : ℕ} (ψ : Fin k → (Bool → Fq) → Fq) (f : Cube k → Fq) : Fq :=
+  ∑ s : Cube k, (∏ i, ψ i (eBool (s i))) * f s
+
+/-- **The tensor coefficient of a pure tensor factorizes**: `φ_S(⊗ w_i) = ∏_i ψ_i(w_i)`. -/
+theorem tcoeff_ptensor {k : ℕ} (ψ : Fin k → (Bool → Fq) → Fq)
+    (hlin : ∀ (i : Fin k) (w : Bool → Fq),
+      ψ i w = w false * ψ i (eBool false) + w true * ψ i (eBool true))
+    (w : Fin k → Bool → Fq) :
+    tcoeff ψ (ptensor w) = ∏ i, ψ i (w i) := by
+  unfold tcoeff ptensor
+  rw [show (∑ s : Cube k, (∏ i, ψ i (eBool (s i))) * ∏ i, w i (s i)) =
+      ∑ s : Cube k, ∏ i, (ψ i (eBool (s i)) * w i (s i)) from
+    Finset.sum_congr rfl fun s _ => (Finset.prod_mul_distrib).symm]
+  rw [sum_cube_prod Fq (fun i b => ψ i (eBool b) * w i b)]
+  refine Finset.prod_congr rfl fun i _ => ?_
+  rw [hlin i (w i)]; ring
 
 end ZkWhir
