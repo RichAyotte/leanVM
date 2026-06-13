@@ -1384,4 +1384,30 @@ theorem multiBlockMask_viewVanishes (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S
     refine Finset.sum_eq_zero fun s _ => ?_
     rw [multiBlockMask_fiber_mle P Fq hvf, hz s k, mul_zero]
 
+/-- **The node-probe pairing vanishes** (`lem:nodechannel`): for a view-vanishing
+multi-class probe, the functional `φ` (trace-dual `w`) pairs to zero, decomposing
+as the `λ`-weighted trace sum of the per-class pairings `⟨w, vf_s⟩`. -/
+theorem multiBlockMask_pairing_zero
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0)
+    (w : Cube P.m → Fq) (hw : ∀ g, φ g = Algebra.trace (Fp P) Fq (∑ c, w c * g c))
+    {vf : Cube P.k₀ → Cube P.m → Fp P}
+    (hvf : ∀ s c, vf s c ≠ 0 → IsBlockPos P c)
+    (hview : ViewVanishes P Fq Dom S ch (assemble P 0 (- multiBlockMask P vf))) :
+    (∑ s, Algebra.trace (Fp P) Fq
+      (eqPoly ch.α s * ∑ c, w c * algebraMap (Fp P) Fq (vf s c))) = 0 := by
+  have h0 : φ (foldedF₁ P Fq Dom (assemble P 0 (- multiBlockMask P vf)) ch) = 0 := by
+    have hmem : multiBlockMask P vf ∈ viewKer P Fq Dom S ch :=
+      (mem_viewKer P Fq Dom S ch _).mpr hview
+    exact hφ ⟨multiBlockMask P vf, hmem⟩
+  rw [hw] at h0
+  rw [show (∑ c, w c *
+        foldedF₁ P Fq Dom (assemble P 0 (- multiBlockMask P vf)) ch c) =
+      ∑ s, eqPoly ch.α s * ∑ c, w c * algebraMap (Fp P) Fq (vf s c) from by
+    simp only [foldedF₁_multiBlockMask P Fq Dom ch hvf, Finset.mul_sum]
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl fun s _ => Finset.sum_congr rfl fun c _ => by ring] at h0
+  rw [map_sum] at h0
+  exact h0
+
 end ZkWhir
