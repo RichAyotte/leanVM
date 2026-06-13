@@ -162,6 +162,54 @@ theorem challenge_α_event_le (Q : (Fin P.k₀ → Fq) → Prop) (c : ℝ≥0∞
   · rw [add_zero]
     exact hQ
 
+/-- A single `α`-coordinate lands in a fixed two-element set `{a, b}` with
+probability at most `2/q` — the cond:cross2 factor `α₁(1 − α₁) ≠ 0` (i.e.
+`α₁ ∉ {0, 1}`, taking `a = 0, b = 1`). -/
+theorem challenge_alpha_pair_le (i : Fin P.k₀) (a b : Fq) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ch.α i = a ∨ ch.α i = b} ≤
+      ((2 : ℕ) : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞) := by
+  classical
+  have hcard : ∀ s : Finset Fq, (∀ x ∈ s, x ∈ ({a, b} : Set Fq)) → s.card ≤ 2 := by
+    intro s hs
+    have hsub : s ⊆ ({a, b} : Finset Fq) := fun x hx => by
+      have hxm := hs x hx
+      simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hxm
+      simpa [Finset.mem_insert, Finset.mem_singleton] using hxm
+    exact (Finset.card_le_card hsub).trans
+      ((Finset.card_insert_le a {b}).trans (by simp))
+  have hset : {ch : Challenges P Fq Dom | ch.α i = a ∨ ch.α i = b} =
+      {ch : Challenges P Fq Dom | ch.α i ∈ ({a, b} : Set Fq)} := by
+    ext ch; simp [Set.mem_insert_iff]
+  rw [hset]
+  refine challenge_α_coord_le P Fq Dom i (fun _ => ({a, b} : Set Fq)) _ (fun z => ?_)
+  refine (uniform_pi_coord_le i ({a, b} : Set Fq) 2 hcard).trans ?_
+  simp [fieldCard]
+
+/-- A single ood point `z_i` lands in a fixed two-element set `{a, b}` with
+probability at most `2/q` — the cond:cross2 factor `1 + g(z₂) ≠ 0` (i.e.
+`z₂ ∉ {0, 1}`). -/
+theorem challenge_z_pair_le (i : Fin 2) (a b : Fq) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ch.z i = a ∨ ch.z i = b} ≤
+      ((2 : ℕ) : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞) := by
+  classical
+  have hcard : ∀ s : Finset Fq, (∀ x ∈ s, x ∈ ({a, b} : Set Fq)) → s.card ≤ 2 := by
+    intro s hs
+    have hsub : s ⊆ ({a, b} : Finset Fq) := fun x hx => by
+      have hxm := hs x hx
+      simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hxm
+      simpa [Finset.mem_insert, Finset.mem_singleton] using hxm
+    exact (Finset.card_le_card hsub).trans
+      ((Finset.card_insert_le a {b}).trans (by simp))
+  refine challenge_z_event_le P Fq Dom {z | z i = a ∨ z i = b} _ ?_
+  have hset : {z : Fin 2 → Fq | z i = a ∨ z i = b} =
+      {z : Fin 2 → Fq | z i ∈ ({a, b} : Set Fq)} := by
+    ext z; simp [Set.mem_insert_iff]
+  rw [hset]
+  refine (uniform_pi_coord_le i ({a, b} : Set Fq) 2 hcard).trans ?_
+  simp [fieldCard]
+
 /-- **Per-factor α-root bound**: a single `eqf(α_i, z_j^{2^i})` vanishes with
 probability at most `1/q`. -/
 theorem challenge_alpha_eqf_root_le (h2 : (2 : Fq) ≠ 0) (i : Fin P.k₀)
