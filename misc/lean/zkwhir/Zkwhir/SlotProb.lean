@@ -365,4 +365,35 @@ theorem challenge_mle_α_zero_le [DecidableEq Fq] {T : Cube P.k₀ → Fq} (hT :
       (P.k₀ : ℝ≥0∞) / Fintype.card Fq :=
   challenge_α_event_le P Fq Dom (fun α => mle T α = 0) _ (mle_zeros_prob_le T hT)
 
+/-- **Binary-power-in-`z` condition fails with probability `≤ 2^k/q`** (the
+cond:cross2 consumer): for any nonzero class-table `T` and a fixed ood
+coordinate `j`, the challenge event `mle T (powSeq (z_j) k) = 0` has probability
+at most `2^k/q`. Combines `challenge_z_event_le` (challenge → uniform `z`
+marginal), the single-coordinate marginal `uniform_pi_coord_le`, and the
+`lem:binpow` root count (`cellPoly_combo_ne_zero` / `_natDegree_lt`). This is the
+cross-minor factor `A_{c*}(z_j) ≠ 0` bound. -/
+theorem challenge_mle_z_powSeq_zero_le {k : ℕ} (j : Fin 2) {T : Cube k → Fq}
+    (hT : T ≠ 0) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | mle T (powSeq (ch.z j) k) = 0} ≤
+      ((2 ^ k : ℕ) : ℝ≥0∞) / Fintype.card Fq := by
+  classical
+  have haeq : ∀ (a : Fq) (p : Polynomial Fq), Polynomial.aeval a p = p.eval a :=
+    fun a p => by simp [Polynomial.aeval_def, Polynomial.eval₂_eq_eval_map]
+  have hae : ∀ a : Fq,
+      mle T (powSeq a k) = (∑ b : Cube k, T b • cellPoly (R := Fq) b).eval a :=
+    fun a => by rw [mle_powSeq_eq_aeval, haeq]
+  have hcard : ∀ s : Finset Fq,
+      (∀ a ∈ s, a ∈ {a : Fq | mle T (powSeq a k) = 0}) → s.card ≤ 2 ^ k := by
+    intro s hs
+    have hQne : (∑ b : Cube k, T b • cellPoly (R := Fq) b) ≠ 0 :=
+      cellPoly_combo_ne_zero hT
+    refine le_trans (card_roots_le _ hQne s ?_) (le_of_lt (cellPoly_combo_natDegree_lt T))
+    intro a ha
+    have h0 := hs a ha
+    rw [Set.mem_setOf_eq, hae] at h0
+    exact h0
+  exact challenge_z_event_le P Fq Dom {z | z j ∈ {a : Fq | mle T (powSeq a k) = 0}} _
+    (uniform_pi_coord_le j {a : Fq | mle T (powSeq a k) = 0} (2 ^ k) hcard)
+
 end ZkWhir
