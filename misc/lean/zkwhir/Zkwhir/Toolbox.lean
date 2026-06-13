@@ -516,4 +516,32 @@ theorem eq_zero_iff_trace_basis {Fp Fq : Type*} [Field Fp] [Field Fq]
   · rintro rfl i; rw [mul_zero, map_zero]
   · intro h; exact eq_zero_of_trace_pairing_span b b.span_eq x h
 
+/-- **Dual-basis combination of a mixed pairing**: an `Fq`-against-`Fp` pairing
+`∑_i w_i · v_i` is recovered from its trace slices via the trace dual basis. The
+inner pairings `∑_i tr(b_r · w_i) · v_i` are `Fp`-valued. This combines the
+per-slice node pairings of `lem:nodechannel` into the full `⟨w, vf_s⟩`. -/
+theorem pairing_eq_sum_dualBasis {Fp Fq : Type*} [Field Fp] [Field Fq]
+    [Algebra Fp Fq] [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq]
+    {ι : Type*} [Fintype ι] {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ]
+    (b : Module.Basis ιβ Fp Fq) (w : ι → Fq) (v : ι → Fp) :
+    (∑ i, w i * algebraMap Fp Fq (v i)) =
+      ∑ r, (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+          (traceForm_nondegenerate Fp Fq) b) r *
+        algebraMap Fp Fq (∑ i, Algebra.trace Fp Fq (b r * w i) * v i) := by
+  have hexpand : (∑ i, w i * algebraMap Fp Fq (v i)) =
+      ∑ i, ∑ r, (Algebra.trace Fp Fq (b r * w i) •
+        (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+          (traceForm_nondegenerate Fp Fq) b) r) * algebraMap Fp Fq (v i) := by
+    refine Finset.sum_congr rfl fun i _ => ?_
+    rw [← Finset.sum_mul]
+    congr 1
+    conv_lhs => rw [eq_sum_trace_smul_dualBasis b (w i)]
+    exact Finset.sum_congr rfl fun r _ => by rw [mul_comm (w i) (b r)]
+  rw [hexpand, Finset.sum_comm]
+  refine Finset.sum_congr rfl fun r _ => ?_
+  rw [map_sum, Finset.mul_sum]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [smul_mul_assoc, Algebra.smul_def, map_mul (algebraMap Fp Fq)]
+  ring
+
 end ZkWhir
