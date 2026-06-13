@@ -309,4 +309,16 @@ theorem mem_range_iff_forall_dual {K W V : Type*} [Field K] [AddCommGroup W]
     exact h f (fun w => (Submodule.mem_dualAnnihilator f).mp hf (ψ w)
       (LinearMap.mem_range.mpr ⟨w, rfl⟩))
 
+/-- **Trace duality** (`lem:traceorth` core): over a finite separable extension,
+an element is zero iff all its trace pairings vanish. This identifies the
+`Fp`-functionals on `Fq` with `Fq` itself — the step that turns an
+`Fq`-pairing condition into the full family of base-field directions. -/
+theorem trace_eq_zero_iff {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq] (x : Fq) :
+    x = 0 ↔ ∀ a : Fq, Algebra.trace Fp Fq (a * x) = 0 := by
+  refine ⟨fun hx a => by rw [hx, mul_zero, map_zero], fun h => ?_⟩
+  refine (traceForm_nondegenerate Fp Fq).1 x (fun a => ?_)
+  rw [Algebra.traceForm_apply, mul_comm]
+  exact h a
+
 end ZkWhir
