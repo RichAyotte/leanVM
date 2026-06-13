@@ -15,6 +15,7 @@ Part of the `GoodSetAbsorption` formalization campaign; unwired until green.
 -/
 import Mathlib
 import Zkwhir.Statement
+import Zkwhir.Channel
 import Zkwhir.StaircaseTensor
 
 set_option linter.style.header false
@@ -230,5 +231,58 @@ theorem stairMixed_decomp {k : ℕ} (c : Fin k → Bool → F) (d : Bool → F)
       Finset.univ.filter (fun i : Fin k => i < ℓ) := by
     ext i; simp only [Finset.mem_filter, Fin.lt_def]
   rw [hfeq]
+
+/-! ## Instantiation for the protocol mixed points -/
+
+section Protocol
+
+variable (P : Params) (Fq : Type*) [Field Fq] [Fintype Fq]
+  [Algebra (Fp P) Fq] (Dom : Finset (Fp P)) (ch : Challenges P Fq Dom)
+
+/-- The `c`-data of the `z`-staircase: `c_i = vrow(z^{2^i})`. -/
+def czData (z : Fq) : Fin P.k₀ → Bool → Fq :=
+  fun i => vrow (powSeq z P.k₀ i)
+
+/-- The `λ`-data of the `z`-staircase: `λ_i = α_i − z^{2^i}`. -/
+def lamData (z : Fq) : Fin P.k₀ → Fq :=
+  fun i => ch.α i - powSeq z P.k₀ i
+
+/-- **The mixed-point Lagrange weight in the `ω/τ` staircase basis**: the
+concrete instantiation that the coupled-chains kernel consumes. -/
+theorem eqPoly_mixedPoint_decomp (ℓ : Fin P.k₀) (y z : Fq) :
+    eqPoly (mixedPoint P Fq Dom ch ℓ y (powSeq z P.k₀)) =
+      eqPoly (powSeq z P.k₀)
+      + (∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+          lamData P Fq Dom ch z i •
+            ptensor (stairVec (czData P Fq z) (fun _ => drow)
+              (lamData P Fq Dom ch z) i))
+      + (y - powSeq z P.k₀ ℓ) •
+          ptensor (stairVec (czData P Fq z) (fun _ => drow)
+            (lamData P Fq Dom ch z) ℓ) := by
+  have hcz : ptensor (czData P Fq z) = eqPoly (powSeq z P.k₀) := by
+    rw [eqPoly_eq_ptensor]; rfl
+  have hfun : (fun i => vrow (mixedPoint P Fq Dom ch ℓ y (powSeq z P.k₀) i)) =
+      (fun i : Fin P.k₀ => if i < ℓ then aRow (czData P Fq z) drow
+            (lamData P Fq Dom ch z) i
+        else if i = ℓ then
+          (fun b => czData P Fq z ℓ b + (y - powSeq z P.k₀ ℓ) * drow b)
+        else czData P Fq z i) := by
+    funext i
+    by_cases h1 : i < ℓ
+    · rw [show mixedPoint P Fq Dom ch ℓ y (powSeq z P.k₀) i = ch.α i from by
+          simp [mixedPoint, h1], if_pos h1]
+      unfold aRow czData lamData
+      exact vrow_affine (ch.α i) (powSeq z P.k₀ i)
+    · by_cases h2 : i = ℓ
+      · rw [show mixedPoint P Fq Dom ch ℓ y (powSeq z P.k₀) i = y from by
+            simp [mixedPoint, h2], if_neg h1, if_pos h2]
+        unfold czData
+        exact vrow_affine y (powSeq z P.k₀ ℓ)
+      · rw [show mixedPoint P Fq Dom ch ℓ y (powSeq z P.k₀) i = powSeq z P.k₀ i
+            from by simp [mixedPoint, h1, h2], if_neg h1, if_neg h2]
+        rfl
+  rw [eqPoly_eq_ptensor, hfun, stairMixed_decomp, hcz]
+
+end Protocol
 
 end ZkWhir
