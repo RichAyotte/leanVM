@@ -9,6 +9,8 @@ Part of the `GoodSetAbsorption` formalization campaign.
 import Mathlib
 import Zkwhir.Statement
 import Zkwhir.Linearized
+import Zkwhir.StaircaseBridge
+import Zkwhir.StaircaseTensor
 
 set_option linter.style.header false
 set_option linter.unusedSectionVars false
@@ -44,5 +46,48 @@ theorem T_eval_eqPoly {j : ℕ} (hcard : Fintype.card Fp = p) (d : ℕ)
   refine ⟨t, fun s => ?_⟩
   rw [ht (eqPoly α s)]
   exact Finset.sum_congr rfl fun r _ => by rw [eqPoly_pow]
+
+/-! ## Staircase coordinate functionals (`lem:rigidity`)
+
+The `{c_i = vrow(x_i), d = drow}` basis of each slot plane has dual functionals
+`γ^c` (the `c`-coordinate, independent of `x`) and `γ^d_x` (the `d`-coordinate).
+They read off the staircase coefficients in the rigidity argument. -/
+
+/-- The `c`-coordinate functional: the `vrow`-coefficient of a slot vector
+(independent of the base point `x`). -/
+def gammaC (w : Bool → Fq) : Fq := w false + w true
+
+/-- The `d`-coordinate functional at base point `x`: the `drow`-coefficient. -/
+def gammaD (x : Fq) (w : Bool → Fq) : Fq := w true - x * (w false + w true)
+
+@[simp] theorem gammaC_vrow (x : Fq) : gammaC (vrow x) = 1 := by
+  show (1 - x) + x = 1; ring
+
+@[simp] theorem gammaC_drow : gammaC (drow : Bool → Fq) = 0 := by
+  show (-1 : Fq) + 1 = 0; ring
+
+@[simp] theorem gammaD_vrow (x : Fq) : gammaD x (vrow x) = 0 := by
+  show x - x * ((1 - x) + x) = 0; ring
+
+@[simp] theorem gammaD_drow (x : Fq) : gammaD x (drow : Bool → Fq) = 1 := by
+  show (1 : Fq) - x * ((-1) + 1) = 1; ring
+
+/-- `γ^c` is additive (a slot functional). -/
+theorem gammaC_add (w w' : Bool → Fq) : gammaC (w + w') = gammaC w + gammaC w' := by
+  simp only [gammaC, Pi.add_apply]; ring
+
+/-- `γ^d` is additive. -/
+theorem gammaD_add (x : Fq) (w w' : Bool → Fq) :
+    gammaD x (w + w') = gammaD x w + gammaD x w' := by
+  simp only [gammaD, Pi.add_apply]; ring
+
+/-- `γ^c` is homogeneous over scalars. -/
+theorem gammaC_smul (a : Fq) (w : Bool → Fq) : gammaC (a • w) = a * gammaC w := by
+  simp only [gammaC, Pi.smul_apply, smul_eq_mul]; ring
+
+/-- `γ^d` is homogeneous over scalars. -/
+theorem gammaD_smul (x a : Fq) (w : Bool → Fq) :
+    gammaD x (a • w) = a * gammaD x w := by
+  simp only [gammaD, Pi.smul_apply, smul_eq_mul]; ring
 
 end ZkWhir
