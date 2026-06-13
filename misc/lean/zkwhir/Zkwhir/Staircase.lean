@@ -268,6 +268,44 @@ theorem slotMass_above (j : Fin 2) (ν : Fin P.k₀ × Fin 2 → Fq)
       (powSeq (ch.z j) P.k₀))]
   rfl
 
+/-- The slot-`m` diagonal mass for block `j`: the `Pf·(ŷ − z^{2^m})`-weighted
+total of the two evals at slot `m`. -/
+def slotDiag (j : Fin 2) (ν : Fin P.k₀ × Fin 2 → Fq) (m : Fin P.k₀) : Fq :=
+  ∑ y : Fin 2, ν (m, y) *
+    (prefixFactor P Fq Dom ch m (((y : ℕ) + 1 : ℕ) : Fq)
+        (powSeq (ch.z j) P.k₀) *
+      ((((y : ℕ) + 1 : ℕ) : Fq) - powSeq (ch.z j) P.k₀ m))
+
+/-- The `= m` (diagonal) part of a block's chain coefficient regroups into the
+slot-`m` diagonal mass. -/
+theorem slotDiag_eq (j : Fin 2) (ν : Fin P.k₀ × Fin 2 → Fq) (m : Fin P.k₀) :
+    (∑ r ∈ Finset.univ.filter (fun r : Fin P.k₀ × Fin 2 => r.1 = m),
+      ν r * (prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+          (powSeq (ch.z j) P.k₀) *
+        ((((r.2 : ℕ) + 1 : ℕ) : Fq) - powSeq (ch.z j) P.k₀ r.1))) =
+      slotDiag Fq P Dom ch j ν m := by
+  rw [sum_filter_fst (fun ℓ : Fin P.k₀ => ℓ = m)
+    (fun r => ν r * (prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+        (powSeq (ch.z j) P.k₀) *
+      ((((r.2 : ℕ) + 1 : ℕ) : Fq) - powSeq (ch.z j) P.k₀ r.1))),
+    Finset.filter_eq' Finset.univ m, if_pos (Finset.mem_univ m),
+    Finset.sum_singleton]
+  rfl
+
+/-- **A block's chain equation in triangular slot form**: assembling the
+filter-form chain coefficient, the slot-mass regroup, and the diagonal
+regroup. -/
+theorem block_slot_chain (j : Fin 2) (μ : Fq) (ν : Fin P.k₀ × Fin 2 → Fq)
+    (h : μ • eqPoly (powSeq (ch.z j) P.k₀) +
+      ∑ r, ν r • chanWeight Fq P Dom ch j r = 0) (m : Fin P.k₀) :
+    lamData P Fq Dom ch (ch.z j) m *
+        (∑ ℓ ∈ Finset.univ.filter (fun ℓ : Fin P.k₀ => m < ℓ),
+          slotMass Fq P Dom ch j ν ℓ)
+      + slotDiag Fq P Dom ch j ν m = 0 := by
+  have hc := (block_chain_eqns Fq P Dom ch j μ ν h).2 m
+  rw [chanTauW_sum_split, slotMass_above, slotDiag_eq] at hc
+  exact hc
+
 /-- **The coupled-chains kernel condition** (`lem:coupled`, consumable form).
 A weight family `ν` over the `k₀ × {1,2}` slot/eval pairs that is killed on
 *both* blocks — each combined with that block's out-of-domain vector — must

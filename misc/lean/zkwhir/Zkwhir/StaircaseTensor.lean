@@ -96,6 +96,19 @@ theorem sum_filter_fst {α β M : Type*} [Fintype α] [Fintype β] [DecidableEq 
     simp [Finset.mem_filter, Finset.mem_product]]
   rw [Finset.sum_product]
 
+/-- **2×2 nonsingular kernel**: a homogeneous 2×2 system with nonzero
+determinant has only the zero solution. The per-slot Vandermonde solve of the
+coupled chains. -/
+theorem two_by_two_zero {a b A0 B0 A1 B1 : F} (hdet : A0 * B1 - A1 * B0 ≠ 0)
+    (h0 : a * A0 + b * B0 = 0) (h1 : a * A1 + b * B1 = 0) : a = 0 ∧ b = 0 := by
+  refine ⟨?_, ?_⟩
+  · have key : a * (A0 * B1 - A1 * B0) = 0 := by
+      linear_combination B1 * h0 - B0 * h1
+    exact (mul_eq_zero.mp key).resolve_right hdet
+  · have key : b * (A0 * B1 - A1 * B0) = 0 := by
+      linear_combination A0 * h1 - A1 * h0
+    exact (mul_eq_zero.mp key).resolve_right hdet
+
 /-- The all-`a` data `ρ_k = a_1 ⊗ ⋯ ⊗ a_k`. -/
 def aVec {k : ℕ} (c d : Fin k → Bool → F) (lam : Fin k → F) : Fin k → Bool → F :=
   fun i b => c i b + lam i * d i b
