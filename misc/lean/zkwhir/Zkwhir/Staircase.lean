@@ -98,6 +98,12 @@ theorem mle_sub {R : Type*} [CommRing R] {j : ℕ} (T T' : Cube j → R) (x : Fi
   rw [← Finset.sum_sub_distrib]
   exact Finset.sum_congr rfl fun b _ => by ring
 
+/-- `mle` of the zero table is `0` (the degenerate case of the SZ induction). -/
+theorem mle_zero {R : Type*} [CommRing R] {j : ℕ} (x : Fin j → R) :
+    mle (0 : Cube j → R) x = 0 := by
+  unfold mle
+  exact Finset.sum_eq_zero fun b _ => by simp
+
 /-- **Partition of unity**: the Lagrange weights at any point sum to `1`. -/
 theorem eqPoly_sum_eq_one {j : ℕ} (p : Fin j → Fq) :
     ∑ s : Cube j, eqPoly p s = 1 := by
