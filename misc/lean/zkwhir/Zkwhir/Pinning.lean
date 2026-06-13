@@ -584,6 +584,27 @@ theorem moment_minor_det_at_zero (ζ : Fq) :
     Matrix.tail_cons]
   ring
 
+/-- **The `S`-coefficient is the moment combination of the `eqf` weight**
+(`lem:fullslice` Step 2, tex:577): with moments `m₀ = ∑ μ_t`, `m₁ = ∑ μ_t y_t`,
+the `ρ`-coefficient `momS ζ m₀ m₁` equals `∑_t μ_t · êq(y_t, ζ)`, since the
+single-coordinate weight `êq(y, ζ) = (1−ζ) + (2ζ−1)y`. -/
+theorem momS_moment_combo {n : ℕ} (ζ : Fq) (μ y : Fin n → Fq) :
+    momS Fq ζ (∑ t, μ t) (∑ t, μ t * y t) = ∑ t, μ t * eqf Fq (y t) ζ := by
+  unfold momS eqf
+  rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+  exact Finset.sum_congr rfl fun t _ => by ring
+
+/-- **The `R`-coefficient is the `(y − ζ)`-weighted moment combination**
+(`lem:fullslice` Step 2, tex:578): `momR ζ m₀ m₁ m₂ = ∑_t μ_t · êq(y_t, ζ)·(y_t − ζ)`,
+the `τ`-coefficient of the `μ`-combination of `g(y) = ρ + (y − ζ)τ`. -/
+theorem momR_moment_combo {n : ℕ} (ζ : Fq) (μ y : Fin n → Fq) :
+    momR Fq ζ (∑ t, μ t) (∑ t, μ t * y t) (∑ t, μ t * y t ^ 2) =
+      ∑ t, μ t * (eqf Fq (y t) ζ * (y t - ζ)) := by
+  unfold momR eqf
+  rw [Finset.mul_sum, Finset.mul_sum, Finset.mul_sum,
+    ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+  exact Finset.sum_congr rfl fun t _ => by ring
+
 /-! ## The cross-form `F_θ` (`lem:fullslice` Step 3, foundation)
 
 `F_θ(δ) = ∑_j θ_j·⟨η_j, V_j⟩` pairs the extension rows against the
