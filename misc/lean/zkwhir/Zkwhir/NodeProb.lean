@@ -116,6 +116,35 @@ theorem challenge_gamma_zero_le :
 
 end Peeling
 
+/-- **`eqf(·, y)` has at most one root** (char ≠ 2): it is a degree-≤1
+nonzero polynomial. -/
+theorem eqf_root_card (h2 : (2 : Fq) ≠ 0) (y : Fq) (s : Finset Fq)
+    (hs : ∀ a ∈ s, eqf Fq a y = 0) : s.card ≤ 1 :=
+  (card_roots_le _ (eqf_poly_left_ne_zero Fq h2 y) s
+    (fun a ha => by rw [← eqf_eq_eval Fq]; exact hs a ha)).trans
+    (eqf_poly_natDegree Fq y)
+
+/-- **Coordinate event on the sumcheck challenges**: an event on a single
+`α`-coordinate, with a `z`-dependent target set, is bounded by its uniform
+marginal. -/
+theorem challenge_α_coord_le (i : Fin P.k₀) (B : (Fin 2 → Fq) → Set Fq)
+    (c : ℝ≥0∞)
+    (hB : ∀ z : Fin 2 → Fq, (PMF.uniformOfFintype (Fin P.k₀ → Fq)).toOuterMeasure
+      {α : Fin P.k₀ → Fq | α i ∈ B z} ≤ c) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ch.α i ∈ B ch.z} ≤ c := by
+  unfold challengePMF
+  refine toOuterMeasure_bind_le _ _ _ c fun z => ?_
+  refine toOuterMeasure_bind_le _ _ _ c fun γ => ?_
+  refine (toOuterMeasure_bind_le_add _ _ _ {α : Fin P.k₀ → Fq | α i ∈ B z} 0
+    ?_).trans ?_
+  · intro α hα
+    refine le_of_eq (toOuterMeasure_bind_eq_zero fun zf => ?_)
+    refine toOuterMeasure_bind_eq_zero fun qs => ?_
+    exact toOuterMeasure_pure_eq_zero (by simpa using hα)
+  · rw [add_zero]
+    exact hB z
+
 /-- **Exact count of roots of unity in a finite field**:
 `#{x : x^m = 1} = gcd(m, q − 1)`. -/
 theorem card_pow_eq_one_eq_gcd {F : Type*} [Field F] [Fintype F]
