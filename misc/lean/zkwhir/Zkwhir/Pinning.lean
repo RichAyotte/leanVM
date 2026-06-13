@@ -1590,4 +1590,61 @@ theorem confine_slice_coeffs_choice [FiniteDimensional (Fp P) Fq]
   choose Cq Cn Cz hC using hco
   exact ⟨Cq, Cn, Cz, hC⟩
 
+/-- **The node-channel pairing identity** (`lem:nodechannel`): for every node
+value `V` in the kernel of the node matrix, the `λ`-weighted trace pairing of the
+node coefficients against `V` vanishes. This is the linear functional of `V` that
+the row-space conclusion (and `cond:twist`) consumes; here `Cn (b r)` are the
+confinement node coefficients of the trace-dual `w`. -/
+theorem nodechannel_phi_pairing [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hnode : NodeHyp P Fq Dom ch)
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
+    ∃ w : Cube P.m → Fq,
+      (∀ g, φ g = Algebra.trace (Fp P) Fq (∑ c, w c * g c)) ∧
+      ∃ Cn : Fq → Fin 2 → ιβ → Fp P,
+        ∀ V : Cube P.k₀ → Fin 2 → Fq,
+          (∀ j, oodRow P Fq Dom ch j V = 0) →
+          (∀ ℓ, msgRow P Fq Dom ch ℓ 1 V = 0) →
+          (∀ ℓ, msgRow P Fq Dom ch ℓ 2 V = 0) →
+          (∑ s, Algebra.trace (Fp P) Fq (eqPoly ch.α s *
+            ∑ r, (LinearMap.BilinForm.dualBasis (Algebra.traceForm (Fp P) Fq)
+                (traceForm_nondegenerate (Fp P) Fq) b) r *
+              algebraMap (Fp P) Fq (∑ j, ∑ i, Cn (b r) j i *
+                Algebra.trace (Fp P) Fq (b i * V s j)))) = 0 := by
+  obtain ⟨w, hw, Cq, Cn, Cz, hC⟩ :=
+    confine_slice_coeffs_choice P Fq Dom S ch h2 hmf hspread b φ hφ
+  refine ⟨w, hw, Cn, fun V hood hmsg1 hmsg2 => ?_⟩
+  obtain ⟨vf, hvblk, hvq, hvn, hvz⟩ :=
+    exists_nodeProbe P Fq Dom ch hdom hbudget hnode V
+  have hVeq : (fun (s : Cube P.k₀) (j : Fin 2) =>
+      mle (fun c => algebraMap (Fp P) Fq (vf s c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) = V := by
+    funext s j; exact hvn s j
+  have hview := multiBlockMask_viewVanishes P Fq Dom S ch h2 hmf hvblk hvq hvz
+    (fun j => by rw [hVeq]; exact hood j)
+    (fun ℓ => by rw [hVeq]; exact hmsg1 ℓ)
+    (fun ℓ => by rw [hVeq]; exact hmsg2 ℓ)
+  have hvqfp : ∀ s t, mle (vf s) (powSeq (ch.qs t : Fp P) P.m) = 0 := by
+    intro s t
+    have h := hvq s t
+    rw [mle_algebraMap] at h
+    exact (map_eq_zero_iff _ (algebraMap (Fp P) Fq).injective).mp h
+  rw [← multiBlockMask_pairing_zero P Fq Dom S ch φ hφ w hw hvblk hview]
+  refine Finset.sum_congr rfl fun s _ => ?_
+  congr 1
+  rw [pairing_eq_sum_dualBasis b w (vf s)]
+  congr 1
+  refine Finset.sum_congr rfl fun r _ => ?_
+  congr 1
+  refine congrArg (algebraMap (Fp P) Fq) ?_
+  rw [confine_pairing_node_slice P Fq Dom ch b (b r) w (Cq (b r)) (Cn (b r))
+    (Cz (b r)) (fun c0 hc0 => hC (b r) c0 hc0) (hvblk s) (hvqfp s) (fun k => hvz s k)]
+  refine Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun i _ => ?_
+  rw [hvn s j]
+
 end ZkWhir
