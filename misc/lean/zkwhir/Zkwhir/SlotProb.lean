@@ -328,6 +328,32 @@ theorem mle_zeros_prob_le {F : Type*} [Field F] [Fintype F] [DecidableEq F] [Non
     push_cast
     rw [pow_succ, mul_comm ((m : ℝ≥0∞) + 1), ENNReal.mul_div_mul_left _ _ hne htop]
 
+/-- **Binary-power Schwartz–Zippel, probability form** (`lem:binpow` consumer):
+the univariate substitution `z ↦ mle T (powSeq z j)` is a nonzero polynomial of
+degree `< 2^j` (`mle_powSeq_eq_aeval` + `cellPoly_combo_ne_zero` +
+`cellPoly_combo_natDegree_lt`), so a uniform `z` is one of its zeros with
+probability at most `2^j / |F|`. This is the cond:cross2 consumer for the
+cross-minor factor `A_{c*}(z)`. -/
+theorem mle_powSeq_zeros_le {F : Type*} [Field F] [Fintype F] [Nonempty F]
+    {j : ℕ} (T : Cube j → F) (hT : T ≠ 0) :
+    (PMF.uniformOfFintype F).toOuterMeasure {z | mle T (powSeq z j) = 0} ≤
+      ((2 ^ j : ℕ) : ℝ≥0∞) / Fintype.card F := by
+  classical
+  have hQne : (∑ b : Cube j, T b • cellPoly (R := F) b) ≠ 0 := cellPoly_combo_ne_zero hT
+  have hdeg : (∑ b : Cube j, T b • cellPoly (R := F) b).natDegree ≤ 2 ^ j :=
+    le_of_lt (cellPoly_combo_natDegree_lt T)
+  have hae : ∀ (z : F) (p : Polynomial F), Polynomial.aeval z p = p.eval z :=
+    fun z p => by simp [Polynomial.aeval_def, Polynomial.eval₂_eq_eval_map]
+  have haeval : ∀ z : F,
+      mle T (powSeq z j) = (∑ b : Cube j, T b • cellPoly (R := F) b).eval z := by
+    intro z
+    rw [mle_powSeq_eq_aeval, hae]
+  have hset : {z : F | mle T (powSeq z j) = 0} =
+      {z | (∑ b : Cube j, T b • cellPoly (R := F) b).eval z = 0} := by
+    ext z; rw [Set.mem_setOf_eq, Set.mem_setOf_eq, haeval]
+  rw [hset]
+  exact uniform_root_bound _ hQne (2 ^ j) hdeg
+
 /-- **Multilinear-in-`α` condition fails with probability `≤ k₀/q`** (the ε₃
 measure consumer): for any nonzero class-table `T`, the challenge event
 `mle T (α) = 0` has probability at most `k₀/q`. Combines `challenge_α_event_le`
