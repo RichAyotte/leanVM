@@ -584,6 +584,25 @@ theorem moment_minor_det_at_zero (ζ : Fq) :
     Matrix.tail_cons]
   ring
 
+/-- **The Step-2 minor is invertible off the hypersurface** `ζ(1−ζ) = 0`: with
+`ζ ∉ {0,1}` the `(S¹,R¹,R²)` coefficient matrix (at `ζ₁ = 0`) has a unit
+determinant. -/
+theorem moment_minor_isUnit (ζ : Fq) (hζ : ζ * (1 - ζ) ≠ 0) :
+    IsUnit (Matrix.det !![(1 : Fq), -1, 0;
+        0, 1, -1;
+        -(ζ * (1 - ζ)), 1 - 2 * ζ ^ 2, 2 * ζ - 1]) := by
+  rw [moment_minor_det_at_zero]
+  exact isUnit_iff_ne_zero.mpr hζ
+
+/-- **The `(S,R)` matching system is solvable** (`lem:fullslice` Step 2 solve):
+off `ζ(1−ζ) = 0`, every target `(S¹,R¹,R²)` is realized by some moment vector
+`(m₀,m₁,m₂)`. The linear-algebra core of the η-match. -/
+theorem moment_minor_solvable (ζ : Fq) (hζ : ζ * (1 - ζ) ≠ 0) (b : Fin 3 → Fq) :
+    ∃ m : Fin 3 → Fq, (!![(1 : Fq), -1, 0;
+        0, 1, -1;
+        -(ζ * (1 - ζ)), 1 - 2 * ζ ^ 2, 2 * ζ - 1]).mulVec m = b :=
+  exists_mulVec_of_isUnit_det _ (moment_minor_isUnit Fq ζ hζ) b
+
 /-- **The `S`-coefficient is the moment combination of the `eqf` weight**
 (`lem:fullslice` Step 2, tex:577): with moments `m₀ = ∑ μ_t`, `m₁ = ∑ μ_t y_t`,
 the `ρ`-coefficient `momS ζ m₀ m₁` equals `∑_t μ_t · êq(y_t, ζ)`, since the
