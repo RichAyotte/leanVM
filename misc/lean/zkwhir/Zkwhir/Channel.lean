@@ -75,6 +75,28 @@ def prefixFactor (ℓ : Fin P.k₀) (y : Fq) (x : Fin P.k₀ → Fq) : Fq :=
        else if i = ℓ then eqf Fq y (x i)
        else 1
 
+/-- **Prefix-factor factorization**: `prefixFactor` splits into the product of
+the lower `eqf(α_i, x_i)` factors and the slot factor `eqf(y, x_ℓ)`. Exposes
+the `α`-prefix and the degree-one `eqf(y, ·)` factor for the `slotDet`
+Schwartz–Zippel. -/
+theorem prefixFactor_eq (ℓ : Fin P.k₀) (y : Fq) (x : Fin P.k₀ → Fq) :
+    prefixFactor P Fq Dom ch ℓ y x =
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+        eqf Fq (ch.α i) (x i)) * eqf Fq y (x ℓ) := by
+  classical
+  unfold prefixFactor
+  rw [← Finset.prod_filter_mul_prod_filter_not Finset.univ
+    (fun i : Fin P.k₀ => i < ℓ)]
+  congr 1
+  · refine Finset.prod_congr rfl fun i hi => ?_
+    rw [if_pos (Finset.mem_filter.mp hi).2]
+  · rw [Finset.prod_eq_single ℓ
+      (fun i hi hiℓ => by
+        rw [if_neg (Finset.mem_filter.mp hi).2, if_neg hiℓ])
+      (fun hℓ => absurd
+        (Finset.mem_filter.mpr ⟨Finset.mem_univ ℓ, lt_irrefl ℓ⟩) hℓ)]
+    rw [if_neg (lt_irrefl ℓ), if_pos rfl]
+
 /-- The Lagrange prefactor of `partialEval`: the weight of the class `s` in
 the round-`ℓ` partial evaluation at `X` with suffix `b`. -/
 def preFac (ℓ : Fin P.k₀) (X : Fq) (s b : Cube P.k₀) : Fq :=
