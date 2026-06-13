@@ -393,4 +393,44 @@ theorem evalT_mixedPoint_node_decomp (δ : Cell P → Fp P) (j : Fin 2)
     · rw [Finset.mul_sum]
       exact Finset.sum_congr rfl fun s _ => by ring
 
+/-! ## The terminal node and its telescoping (`lem:fullslice` Step 2, η-exit)
+
+The terminal node `η = ρ_{k₀+1}` is the full-`α` Lagrange weight `êq(α, ·)`: each
+staircase row `aRow_i = c_i + λ_i·d` telescopes to `vrow(α_i)` by `vrow_affine`.
+The exit relation `η = ω + ∑_i λ_i·τ_i` then writes `η` in the `ω/τ` basis — the
+target the moment system of Step 2 must reach. -/
+
+/-- Each `z`-staircase row collapses to the full-`α` 2-vector. -/
+theorem aRow_czData_eq_vrow_alpha (z : Fq) (i : Fin P.k₀) :
+    aRow (czData P Fq z) drow (lamData P Fq Dom ch z) i = vrow (ch.α i) := by
+  funext b
+  unfold aRow czData lamData
+  rw [vrow_affine (ch.α i) (powSeq z P.k₀ i)]
+
+/-- **The η-exit relation**: the terminal node `êq(α, ·)` telescopes through the
+`z`-staircase as `ω + ∑_{i} λ_i·τ_i`. -/
+theorem eta_telescope (z : Fq) :
+    eqPoly (ch.α) = eqPoly (powSeq z P.k₀)
+      + ∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => (i : ℕ) < P.k₀),
+          lamData P Fq Dom ch z i •
+            ptensor (stairVec (czData P Fq z) (fun _ => drow)
+              (lamData P Fq Dom ch z) i) := by
+  have hcz : ptensor (czData P Fq z) = eqPoly (powSeq z P.k₀) := by
+    rw [eqPoly_eq_ptensor]; rfl
+  have hα : eqPoly (ch.α) =
+      ptensor (fun i : Fin P.k₀ =>
+        aRow (czData P Fq z) drow (lamData P Fq Dom ch z) i) := by
+    rw [eqPoly_eq_ptensor]
+    congr 1
+    funext i
+    rw [aRow_czData_eq_vrow_alpha]
+  have hif : (fun i : Fin P.k₀ =>
+        if (i : ℕ) < P.k₀ then aRow (czData P Fq z) drow (lamData P Fq Dom ch z) i
+        else czData P Fq z i) =
+      (fun i : Fin P.k₀ => aRow (czData P Fq z) drow (lamData P Fq Dom ch z) i) := by
+    funext i; rw [if_pos i.isLt]
+  have h := rhoN_telescope (czData P Fq z) drow (lamData P Fq Dom ch z) P.k₀
+  rw [hif] at h
+  rw [hα, h, hcz]
+
 end ZkWhir
