@@ -803,4 +803,149 @@ theorem exists_trace_crossForm_ne_zero_of_nodeHyp [FiniteDimensional (Fp P) Fq]
   exists_trace_crossForm_ne_zero P Fq Dom ch θ
     (crossFormMap_surjective P Fq Dom ch hnode hbudget θ hθ)
 
+/-! ## The single-class block probe mask (`lem:confine`/`lem:noother`)
+
+The confinement and no-other arguments both use the same probe: a block-supported
+fiber `v` placed on the block of a single class `s`, zero elsewhere. When `v`'s
+evaluations vanish at the queried points, the two commitment nodes, and the `f̂₁`
+nodes, this probe is view-vanishing — so it lies in `viewKer`, and its fold is
+the single class-weighted lift `êq(α, s) · v`. This is the reusable keystone the
+slice argument repeatedly invokes. -/
+
+/-- The cross-term of the zero table vanishes (block masks contribute none). -/
+theorem crossTerm_zero (ℓ : Fin P.k₀) (y : Fq) :
+    crossTerm P Fq Dom S (0 : Cell P → Fp P) ch ℓ y = 0 := by
+  unfold crossTerm
+  refine Finset.sum_eq_zero fun b _ => Finset.sum_eq_zero fun c _ => ?_
+  have hpe : partialEval P Fq Dom ch (liftT P Fq (0 : Cell P → Fp P)) ℓ y b c = 0 := by
+    rw [liftT_zero]; unfold partialEval; simp
+  rw [hpe, zero_mul]
+
+/-- **The single-class block probe mask**: place `−v` on the block of class `s`. -/
+def blockClassMask (s : Cube P.k₀) (v : Cube P.m → Fp P) : MaskAssign P :=
+  fun u => if u.1.1 = s then -(v u.1.2) else 0
+
+/-- The assembled table of the probe: `v` on class `s`, zero elsewhere (using
+that `v` is block-supported, so off-block cells carry no data either). -/
+theorem assemble_blockClassMask {s : Cube P.k₀} {v : Cube P.m → Fp P}
+    (hvblock : ∀ c, v c ≠ 0 → IsBlockPos P c) (s' : Cube P.k₀) (c : Cube P.m) :
+    assemble P 0 (- blockClassMask P s v) (s', c) = if s' = s then v c else 0 := by
+  unfold assemble
+  by_cases hm : IsMask P (s', c)
+  · rw [dif_pos hm]
+    show -(if s' = s then -(v c) else 0) = if s' = s then v c else 0
+    by_cases hss : s' = s
+    · rw [if_pos hss, if_pos hss, neg_neg]
+    · rw [if_neg hss, if_neg hss, neg_zero]
+  · rw [dif_neg hm]
+    by_cases hss : s' = s
+    · rw [if_pos hss]
+      have hcnb : ¬ IsBlockPos P c := fun hb => hm (Or.inr hb)
+      have hvc : v c = 0 := by by_contra hh; exact hcnb (hvblock c hh)
+      rw [hvc]; rfl
+    · rw [if_neg hss]; rfl
+
+/-- The per-class fiber extension of the probe: only class `s` carries `v`. -/
+theorem blockClassMask_fiber_mle {s : Cube P.k₀} {v : Cube P.m → Fp P}
+    (hvblock : ∀ c, v c ≠ 0 → IsBlockPos P c) (s' : Cube P.k₀)
+    (pt : Fin P.m → Fq) :
+    mle (fun c => liftT P Fq (assemble P 0 (- blockClassMask P s v)) (s', c)) pt =
+      if s' = s then mle (fun c => algebraMap (Fp P) Fq (v c)) pt else 0 := by
+  by_cases hss : s' = s
+  · rw [if_pos hss]
+    congr 1; funext c
+    unfold liftT
+    rw [assemble_blockClassMask P hvblock s' c, if_pos hss]
+  · rw [if_neg hss]
+    have hz0 : (fun c => liftT P Fq (assemble P 0 (- blockClassMask P s v)) (s', c)) =
+        (fun _ => (0 : Fq)) := by
+      funext c; unfold liftT
+      rw [assemble_blockClassMask P hvblock s' c, if_neg hss]; simp
+    rw [hz0]; unfold mle; simp
+
+/-- The fold of the probe is the single class-weighted lift `êq(α, s) · v`. -/
+theorem foldedF₁_blockClassMask {s : Cube P.k₀} {v : Cube P.m → Fp P}
+    (hvblock : ∀ c, v c ≠ 0 → IsBlockPos P c) (c : Cube P.m) :
+    foldedF₁ P Fq Dom (assemble P 0 (- blockClassMask P s v)) ch c =
+      eqPoly ch.α s * algebraMap (Fp P) Fq (v c) := by
+  unfold foldedF₁
+  rw [Finset.sum_eq_single s]
+  · unfold liftT; rw [assemble_blockClassMask P hvblock s c, if_pos rfl]
+  · intro s' _ hs's
+    unfold liftT; rw [assemble_blockClassMask P hvblock s' c, if_neg hs's]; simp
+  · intro h; exact absurd (Finset.mem_univ s) h
+
+/-- **The probe mask is view-vanishing** (`lem:confine`/`lem:noother`): a
+block-supported fiber whose evaluations vanish at the queried points, the two
+commitment nodes, and the `f̂₁` nodes gives a view-vanishing perturbation. -/
+theorem blockClassMask_viewVanishes (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    {s : Cube P.k₀} {v : Cube P.m → Fp P}
+    (hvblock : ∀ c, v c ≠ 0 → IsBlockPos P c)
+    (hq : ∀ t : Fin P.t₀, mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0)
+    (hn : ∀ j : Fin 2, mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = 0)
+    (hz : ∀ j : Fin P.s₁, mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (ch.zf j) P.m) = 0) :
+    ViewVanishes P Fq Dom S ch (assemble P 0 (- blockClassMask P s v)) := by
+  -- every evaluation at a commitment node vanishes (any class weights)
+  have hclass_node : ∀ (ys : Fin P.k₀ → Fq) (j : Fin 2),
+      evalT P Fq (assemble P 0 (- blockClassMask P s v)) ys
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = 0 := by
+    intro ys j
+    rw [evalT_eq_sum_classes]
+    refine Finset.sum_eq_zero fun s' _ => ?_
+    rw [blockClassMask_fiber_mle P Fq hvblock s']
+    by_cases hss : s' = s
+    · rw [if_pos hss, hn j, mul_zero]
+    · rw [if_neg hss, mul_zero]
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · -- out-of-domain answers
+    intro j
+    show evalT P Fq (assemble P 0 (- blockClassMask P s v)) (powSeq (ch.z j) P.k₀)
+      (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = 0
+    exact hclass_node (powSeq (ch.z j) P.k₀) j
+  · -- messages at X = 1
+    intro ℓ
+    rw [hPoly_channel P Fq Dom S (assemble P 0 (- blockClassMask P s v)) ch ℓ 1,
+      hclass_node (mixedPoint P Fq Dom ch ℓ 1 (powSeq (ch.z 0) P.k₀)) 0,
+      hclass_node (mixedPoint P Fq Dom ch ℓ 1 (powSeq (ch.z 1) P.k₀)) 1,
+      crossTerm_eq_of_eq_nonblock P Fq Dom S ch hmf
+        (assemble P 0 (- blockClassMask P s v)) (0 : Cell P → Fp P)
+        (fun s' c hc => by
+          rw [assemble_blockClassMask P hvblock s' c]
+          have hvc : v c = 0 := by by_contra hh; exact hc (hvblock c hh)
+          simp [hvc]) ℓ 1,
+      crossTerm_zero P Fq Dom S ch ℓ 1]
+    ring
+  · -- messages at X = 2
+    intro ℓ
+    rw [hPoly_channel P Fq Dom S (assemble P 0 (- blockClassMask P s v)) ch ℓ 2,
+      hclass_node (mixedPoint P Fq Dom ch ℓ 2 (powSeq (ch.z 0) P.k₀)) 0,
+      hclass_node (mixedPoint P Fq Dom ch ℓ 2 (powSeq (ch.z 1) P.k₀)) 1,
+      crossTerm_eq_of_eq_nonblock P Fq Dom S ch hmf
+        (assemble P 0 (- blockClassMask P s v)) (0 : Cell P → Fp P)
+        (fun s' c hc => by
+          rw [assemble_blockClassMask P hvblock s' c]
+          have hvc : v c = 0 := by by_contra hh; exact hc (hvblock c hh)
+          simp [hvc]) ℓ 2,
+      crossTerm_zero P Fq Dom S ch ℓ 2]
+    ring
+  · -- per-class query answers
+    intro t s'
+    show mle (fun c => liftT P Fq (assemble P 0 (- blockClassMask P s v)) (s', c))
+      (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0
+    rw [blockClassMask_fiber_mle P Fq hvblock s']
+    by_cases hss : s' = s
+    · rw [if_pos hss]; exact hq t
+    · rw [if_neg hss]
+  · -- f̂₁ out-of-domain answers
+    intro j
+    rw [mle_fold_eq_sum_classes P Fq Dom (assemble P 0 (- blockClassMask P s v)) ch]
+    refine Finset.sum_eq_zero fun s' _ => ?_
+    rw [blockClassMask_fiber_mle P Fq hvblock s']
+    by_cases hss : s' = s
+    · rw [if_pos hss, hz j, mul_zero]
+    · rw [if_neg hss, mul_zero]
+
 end ZkWhir
