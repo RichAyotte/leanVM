@@ -693,6 +693,32 @@ theorem block_moment_SR (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀)
   conv_rhs => rw [← evalT_eqf_moment_SR P Fq Dom ch δ j ℓ w pts, Finset.mul_sum]
   exact Finset.sum_congr rfl fun t _ => by ring
 
+/-- **The full `y`-family moment identity in `(S,R)` form** (`lem:fullslice`
+Step 2): for a view-vanishing perturbation, the `w`-moment of the two-block
+`y`-family equals `Π^0·(S^0ρ^0+R^0τ^0) + γ·Π^1·(S^1ρ^1+R^1τ^1) + γ²·(cross moment) = 0`.
+This is `channel_moment_of_viewKer` rewritten through `block_moment_SR` on each
+block — the moment system the η-matching of Step 2 solves. -/
+theorem channel_moment_SR (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (κ : viewKer P Fq Dom S ch) (ℓ : Fin P.k₀) (w pts : Fin 3 → Fq) :
+    (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+        eqf Fq (ch.α i) (powSeq (ch.z 0) P.k₀ i)) *
+      (momS Fq (powSeq (ch.z 0) P.k₀ ℓ) (∑ t, w t) (∑ t, w t * pts t) *
+          nodePairRho P Fq Dom ch (assemble P 0 (-κ.1)) 0 ℓ +
+        momR Fq (powSeq (ch.z 0) P.k₀ ℓ) (∑ t, w t) (∑ t, w t * pts t)
+            (∑ t, w t * pts t ^ 2) * nodePairTau P Fq Dom ch (assemble P 0 (-κ.1)) 0 ℓ) +
+    ch.γ * ((∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+        eqf Fq (ch.α i) (powSeq (ch.z 1) P.k₀ i)) *
+      (momS Fq (powSeq (ch.z 1) P.k₀ ℓ) (∑ t, w t) (∑ t, w t * pts t) *
+          nodePairRho P Fq Dom ch (assemble P 0 (-κ.1)) 1 ℓ +
+        momR Fq (powSeq (ch.z 1) P.k₀ ℓ) (∑ t, w t) (∑ t, w t * pts t)
+            (∑ t, w t * pts t ^ 2) * nodePairTau P Fq Dom ch (assemble P 0 (-κ.1)) 1 ℓ)) +
+    ch.γ ^ 2 * (∑ t, w t *
+        crossTerm P Fq Dom S (assemble P 0 (-κ.1)) ch ℓ (pts t)) = 0 := by
+  have h := channel_moment_of_viewKer P Fq Dom S ch h2 hmf κ ℓ w pts
+  rw [block_moment_SR P Fq Dom ch (assemble P 0 (-κ.1)) 0 ℓ w pts,
+    block_moment_SR P Fq Dom ch (assemble P 0 (-κ.1)) 1 ℓ w pts] at h
+  exact h
+
 /-- **The cross-form** `F_θ`: the `θ`-weighted pairing of the extension rows
 against the perturbation's node values. -/
 def crossForm (δ : Cell P → Fp P) (θ : Fin 2 → Fq) : Fq :=
