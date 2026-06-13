@@ -260,4 +260,26 @@ theorem exists_preimage_of_linearIndependent_dual {V : Type*} [AddCommGroup V]
   rw [hψ0, LinearMap.zero_apply] at hψ1
   exact hψ1 rfl
 
+/-- **Moments determine coefficients** (Vandermonde): for distinct points
+`v : Fin n → F`, every target moment vector `m` is realized by some
+coefficients `μ` with `∑ₜ μₜ · vₜ^h = m h`. The engine of the moment systems
+in `lem:fullslice`/`lem:noother`. -/
+theorem exists_coeffs_of_moments {F : Type*} [Field F] {n : ℕ} (v : Fin n → F)
+    (hv : Function.Injective v) (m : Fin n → F) :
+    ∃ μ : Fin n → F, ∀ h : Fin n, ∑ t, μ t * v t ^ (h : ℕ) = m h := by
+  classical
+  set A : Matrix (Fin n) (Fin n) F := (Matrix.vandermonde v).transpose with hA
+  have hdet : IsUnit A.det := by
+    rw [hA, Matrix.det_transpose]
+    exact (Matrix.det_vandermonde_ne_zero_iff.mpr hv).isUnit
+  refine ⟨A⁻¹.mulVec m, fun h => ?_⟩
+  have hmv : A.mulVec (A⁻¹.mulVec m) = m := by
+    rw [Matrix.mulVec_mulVec, Matrix.mul_nonsing_inv A hdet, Matrix.one_mulVec]
+  have hh : A.mulVec (A⁻¹.mulVec m) h = m h := congrFun hmv h
+  rw [← hh]
+  show ∑ t, (A⁻¹.mulVec m) t * v t ^ (h : ℕ) =
+    ∑ t, A h t * (A⁻¹.mulVec m) t
+  refine Finset.sum_congr rfl fun t _ => ?_
+  rw [hA, Matrix.transpose_apply, Matrix.vandermonde_apply, mul_comm]
+
 end ZkWhir
