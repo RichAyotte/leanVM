@@ -831,6 +831,24 @@ theorem nodePair_add_table (δ δ' : Cell P → Fp P) (j : Fin 2)
     simp [liftT, Pi.add_apply, map_add]
   rw [hm]; ring
 
+/-- `nodePairTau` is additive in the perturbation table (linearity of the node
+functionals in the perturbation — `lem:fullslice` Step 3 applies the represented
+identity linearly to `V^δ`). -/
+theorem nodePairTau_add_table (δ δ' : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀) :
+    nodePairTau P Fq Dom ch (δ + δ') j ℓ =
+      nodePairTau P Fq Dom ch δ j ℓ + nodePairTau P Fq Dom ch δ' j ℓ := by
+  unfold nodePairTau
+  rw [nodePair_add_table]
+
+/-- `nodePairRho` is additive in the perturbation table. -/
+theorem nodePairRho_add_table (δ δ' : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀) :
+    nodePairRho P Fq Dom ch (δ + δ') j ℓ =
+      nodePairRho P Fq Dom ch δ j ℓ + nodePairRho P Fq Dom ch δ' j ℓ := by
+  unfold nodePairRho
+  simp_rw [nodePair_add_table, mul_add]
+  rw [Finset.sum_add_distrib]
+  ring
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
