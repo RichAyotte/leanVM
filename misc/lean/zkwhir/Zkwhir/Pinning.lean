@@ -295,4 +295,30 @@ theorem pinFold_terminal_zero (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
   exact terminal_pairing_eq_zero_of_msgs P Fq Dom S (assemble P 0 (-κ.1)) ch h2
     hmsg0 κ.2.msg1 κ.2.msg2
 
+/-! ## The `(ℓ, y)`-family for view-vanishing masks (`lem:fullslice` Step 1)
+
+For a view-vanishing mask the sumcheck messages vanish identically, so its
+channel decomposition (`hPoly_channel`) gives the `(ℓ, y)`-family of identities
+at every point — the input to the moment system of Step 2. This strengthens
+`channel_identity_of_invisible` (which assumed full invisibility) to the actual
+hypothesis class of the pinning argument. -/
+theorem channel_identity_of_viewKer (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (κ : viewKer P Fq Dom S ch) (ℓ : Fin P.k₀) (y : Fq) :
+    prefixFactor P Fq Dom ch ℓ y (powSeq (ch.z 0) P.k₀) *
+        evalT P Fq (assemble P 0 (-κ.1))
+          (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z 0) P.k₀))
+          (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m) +
+      ch.γ * (prefixFactor P Fq Dom ch ℓ y (powSeq (ch.z 1) P.k₀) *
+        evalT P Fq (assemble P 0 (-κ.1))
+          (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z 1) P.k₀))
+          (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m)) +
+      ch.γ ^ 2 * crossTerm P Fq Dom S (assemble P 0 (-κ.1)) ch ℓ y = 0 := by
+  rw [← hPoly_channel P Fq Dom S (assemble P 0 (-κ.1)) ch ℓ y]
+  have hw : ∑ u, liftT P Fq (assemble P 0 (-κ.1)) u * S.w u = 0 := by
+    rw [pairing_assemble P Fq S hmf 0 (-κ.1)]; simp
+  have hmsg0 := msg0_of_reduced_view P Fq Dom S ch h2 (assemble P 0 (-κ.1))
+    κ.2.ood κ.2.msg1 κ.2.msg2 hw
+  exact hPoly_eq_zero_of_msgs P Fq Dom S (assemble P 0 (-κ.1)) ch h2
+    hmsg0 κ.2.msg1 κ.2.msg2 ℓ y
+
 end ZkWhir
