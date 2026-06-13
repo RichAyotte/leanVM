@@ -193,6 +193,61 @@ theorem block_chain_eqns (j : Fin 2) (μ : Fq) (ν : Fin P.k₀ × Fin 2 → Fq)
     (lamData P Fq Dom ch (ch.z j))
     (fun i => vrow_basis (powSeq (ch.z j) P.k₀ i)) _ _ h
 
+/-- **Chain coefficient in filter form**: the slot-`m` chain coefficient
+splits into the `> m` part (carrying `λ_m`) and the `= m` diagonal part — the
+chain-matrix structure (`lem:chain`) the coupled solve operates on. -/
+theorem chanTauW_sum_split (j : Fin 2) (ν : Fin P.k₀ × Fin 2 → Fq)
+    (m : Fin P.k₀) :
+    ∑ r, ν r * chanTauW Fq P Dom ch j r m =
+      lamData P Fq Dom ch (ch.z j) m *
+        (∑ r ∈ Finset.univ.filter (fun r : Fin P.k₀ × Fin 2 => m < r.1),
+          ν r * prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+            (powSeq (ch.z j) P.k₀))
+      + ∑ r ∈ Finset.univ.filter (fun r : Fin P.k₀ × Fin 2 => r.1 = m),
+          ν r * (prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+              (powSeq (ch.z j) P.k₀) *
+            ((((r.2 : ℕ) + 1 : ℕ) : Fq) - powSeq (ch.z j) P.k₀ r.1)) := by
+  classical
+  rw [← Finset.sum_filter_add_sum_filter_not Finset.univ
+    (fun r : Fin P.k₀ × Fin 2 => m < r.1)]
+  congr 1
+  · rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun r hr => ?_
+    have hlt : m < r.1 := (Finset.mem_filter.mp hr).2
+    rw [show chanTauW Fq P Dom ch j r m =
+        prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+            (powSeq (ch.z j) P.k₀) * lamData P Fq Dom ch (ch.z j) m from by
+      simp [chanTauW, hlt]]
+    ring
+  · have hstep : ∀ r ∈ Finset.univ.filter
+        (fun r : Fin P.k₀ × Fin 2 => ¬ m < r.1),
+        ν r * chanTauW Fq P Dom ch j r m =
+        if r.1 = m then
+          ν r * (prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+              (powSeq (ch.z j) P.k₀) *
+            ((((r.2 : ℕ) + 1 : ℕ) : Fq) - powSeq (ch.z j) P.k₀ r.1))
+        else 0 := by
+      intro r hr
+      have hnlt : ¬ m < r.1 := (Finset.mem_filter.mp hr).2
+      by_cases hm : r.1 = m
+      · rw [if_pos hm,
+          show chanTauW Fq P Dom ch j r m =
+            prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+                (powSeq (ch.z j) P.k₀) *
+              ((((r.2 : ℕ) + 1 : ℕ) : Fq) - powSeq (ch.z j) P.k₀ r.1) from by
+          simp [chanTauW, hm]]
+      · rw [if_neg hm,
+          show chanTauW Fq P Dom ch j r m = 0 from by
+            simp only [chanTauW, if_neg hnlt]
+            rw [if_neg (fun h => hm h.symm)], mul_zero]
+    rw [Finset.sum_congr rfl hstep, ← Finset.sum_filter, Finset.filter_filter]
+    apply Finset.sum_congr _ (fun r _ => rfl)
+    ext r
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    constructor
+    · exact fun ⟨_, h⟩ => h
+    · exact fun h => ⟨fun hlt => absurd (h ▸ hlt) (lt_irrefl m), h⟩
+
 /-- **The coupled-chains kernel condition** (`lem:coupled`, consumable form).
 A weight family `ν` over the `k₀ × {1,2}` slot/eval pairs that is killed on
 *both* blocks — each combined with that block's out-of-domain vector — must
