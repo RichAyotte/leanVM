@@ -63,6 +63,12 @@ theorem eqf_poly_left_ne_zero (h2 : (2 : Fq) ≠ 0) (y : Fq) :
   rw [h, Polynomial.coeff_zero] at hco1 hco0
   exact h2 (by linear_combination -2 * hco1 - 4 * hco0)
 
+/-- `eqf(1, x) = x`. -/
+theorem eqf_one (x : Fq) : eqf Fq 1 x = x := by unfold eqf; ring
+
+/-- `eqf(2, x) = 3x − 1`. -/
+theorem eqf_two (x : Fq) : eqf Fq 2 x = 3 * x - 1 := by unfold eqf; ring
+
 /-- `eqf(x, y)` is the evaluation at `x` of its degree-≤1 polynomial. -/
 theorem eqf_eq_eval (x y : Fq) :
     eqf Fq x y =
