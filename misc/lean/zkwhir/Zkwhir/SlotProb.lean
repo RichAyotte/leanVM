@@ -303,4 +303,29 @@ theorem mle_card_zeros_le {F : Type*} [Field F] [Fintype F] [DecidableEq F] :
               · rw [Nat.succ_sub_one, mul_assoc, ← pow_succ]
             rw [hmul, mul_one, Nat.add_sub_cancel]; ring
 
+/-- **Schwartz–Zippel, probability form** (the ε₃ minor-bound consumer): a uniform
+point of `F^n` is a zero of a nonzero `mle T` with probability at most `n/|F|`.
+Turns `mle_card_zeros_le`'s count into the `d/q` form the measure bounds use. -/
+theorem mle_zeros_prob_le {F : Type*} [Field F] [Fintype F] [DecidableEq F] [Nonempty F]
+    {n : ℕ} (T : Cube n → F) (hT : T ≠ 0) :
+    (PMF.uniformOfFintype (Fin n → F)).toOuterMeasure {x | mle T x = 0} ≤
+      (n : ℝ≥0∞) / Fintype.card F := by
+  classical
+  have hcard : ∀ s : Finset (Fin n → F), (∀ a ∈ s, a ∈ {x | mle T x = 0}) →
+      s.card ≤ n * Fintype.card F ^ (n - 1) := by
+    intro s hs
+    refine le_trans (Finset.card_le_card ?_) (mle_card_zeros_le T hT)
+    intro a ha; rw [Finset.mem_filter]; exact ⟨Finset.mem_univ a, hs a ha⟩
+  refine le_trans (uniform_toOuterMeasure_le _ _ hcard) ?_
+  rw [show Fintype.card (Fin n → F) = Fintype.card F ^ n from by simp [Fintype.card_pi]]
+  rcases n with _ | m
+  · simp
+  · rw [Nat.succ_sub_one]
+    have hne : ((Fintype.card F : ℝ≥0∞) ^ m) ≠ 0 :=
+      pow_ne_zero m (by exact_mod_cast Fintype.card_ne_zero)
+    have htop : ((Fintype.card F : ℝ≥0∞) ^ m) ≠ ⊤ :=
+      ENNReal.pow_ne_top (ENNReal.natCast_ne_top _)
+    push_cast
+    rw [pow_succ, mul_comm ((m : ℝ≥0∞) + 1), ENNReal.mul_div_mul_left _ _ hne htop]
+
 end ZkWhir
