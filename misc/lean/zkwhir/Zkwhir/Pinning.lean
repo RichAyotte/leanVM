@@ -989,4 +989,36 @@ theorem confine_fold_apply_zero (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
     blockClassMask_fold_mem_range P Fq Dom S ch h2 hmf hvblock hq hn hz
   rw [← hκ]; exact hφ κ
 
+/-- **Confinement, full** (`lem:confine`): a functional `φ` annihilating
+`range pinFold` admits a trace-dual vector `w` (`lem:traceorth`) such that its
+trace pairing against every block-supported probe fiber `v` with vanishing
+evaluations is zero — i.e. `w` (the block representative of `φ`) lies in the
+annihilator of the common kernel `K`, hence in the span of the queried-point and
+node duals. Combines the probe view-invisibility, the trace-dual representation,
+and `SPREAD` (the `êq(α, ·)` weights spanning `Fq` over `Fp`). -/
+theorem confine_pairing_zero [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
+    ∃ w : Cube P.m → Fq,
+      (∀ g, φ g = Algebra.trace (Fp P) Fq (∑ c, w c * g c)) ∧
+      ∀ (v : Cube P.m → Fp P), (∀ c, v c ≠ 0 → IsBlockPos P c) →
+        (∀ t : Fin P.t₀, mle (fun c => algebraMap (Fp P) Fq (v c))
+          (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) →
+        (∀ j : Fin 2, mle (fun c => algebraMap (Fp P) Fq (v c))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = 0) →
+        (∀ j : Fin P.s₁, mle (fun c => algebraMap (Fp P) Fq (v c))
+          (powSeq (ch.zf j) P.m) = 0) →
+        (∑ c, w c * algebraMap (Fp P) Fq (v c)) = 0 := by
+  obtain ⟨w, hw⟩ := exists_trace_pairing_rep (Fp := Fp P) (ι := Cube P.m) φ
+  refine ⟨w, hw, fun v hvblock hq hn hz => ?_⟩
+  refine eq_zero_of_trace_pairing_span (Fp := Fp P) (eqPoly ch.α) hspread _ (fun s => ?_)
+  have hap := confine_fold_apply_zero P Fq Dom S ch h2 hmf hvblock hq hn hz φ hφ (s := s)
+  rw [hw] at hap
+  rw [Finset.mul_sum]
+  refine Eq.trans ?_ hap
+  congr 1
+  exact Finset.sum_congr rfl fun c _ => by ring
+
 end ZkWhir

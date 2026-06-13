@@ -417,4 +417,22 @@ theorem exists_trace_pairing_rep {Fp Fq : Type*} [Field Fp] [Field Fq]
   rw [← key]
   rfl
 
+/-- **`SPREAD` + trace nondegeneracy** (`lem:confine` wrap-up): if a spanning
+family `λs` over `Fp` has `tr(λs i · X) = 0` for every `i`, then `X = 0`. The
+multipliers `λ_s = êq(α, s)` span `Fq` over `Fp` (the `SPREAD` condition), so the
+vanishing trace pairings extend to all of `Fq` and the trace is nondegenerate. -/
+theorem eq_zero_of_trace_pairing_span {Fp Fq : Type*} [Field Fp] [Field Fq]
+    [Algebra Fp Fq] [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq]
+    {ι : Type*} (lam : ι → Fq)
+    (hspan : Submodule.span Fp (Set.range lam) = ⊤)
+    (X : Fq) (h : ∀ i, Algebra.trace Fp Fq (lam i * X) = 0) : X = 0 := by
+  rw [trace_eq_zero_iff (Fp := Fp)]
+  intro a
+  have ha : a ∈ Submodule.span Fp (Set.range lam) := by rw [hspan]; exact Submodule.mem_top
+  induction ha using Submodule.span_induction with
+  | mem x hx => obtain ⟨i, rfl⟩ := hx; exact h i
+  | zero => rw [zero_mul, map_zero]
+  | add x y _ _ hx hy => rw [add_mul, map_add, hx, hy, add_zero]
+  | smul r x _ hx => rw [smul_mul_assoc, map_smul, hx, smul_zero]
+
 end ZkWhir
