@@ -53,6 +53,17 @@ theorem eqPoly_snoc {R : Type*} [CommRing R] {j : ℕ} (p : Fin j → R) (t : R)
       rw [Fin.snoc_castSucc, Fin.snoc_castSucc]
   · rw [Fin.snoc_last, Fin.snoc_last]
 
+/-- Peeling the first coordinate of a Lagrange weight: `êq` at a `cons`-point and
+a `cons`-vertex factors (the `Fin.cons`/`Equiv.piFinSucc` analog of `eqPoly_snoc`,
+for the multivariate Schwartz–Zippel induction). -/
+theorem eqPoly_cons {R : Type*} [CommRing R] {j : ℕ} (t : R) (p : Fin j → R)
+    (b : Bool) (s : Cube j) :
+    eqPoly (Fin.cons t p) (Fin.cons b s) =
+      (if b then t else 1 - t) * eqPoly p s := by
+  unfold eqPoly
+  rw [Fin.prod_univ_succ]
+  simp only [Fin.cons_zero, Fin.cons_succ]
+
 /-- **Partition of unity**: the Lagrange weights at any point sum to `1`. -/
 theorem eqPoly_sum_eq_one {j : ℕ} (p : Fin j → Fq) :
     ∑ s : Cube j, eqPoly p s = 1 := by
