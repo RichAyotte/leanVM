@@ -1966,6 +1966,19 @@ theorem foldTable_affine (ℓ : Fin P.k₀) (x : Fq) (t : Cube P.k₀) (c : Cube
   unfold foldTable
   exact partialEval_affine P Fq Dom ch S.w ℓ x t c
 
+/-- **Slice tables are linearly independent when not proportional** (`lem:noother`
+hypothesis, tex:607): a nonzero `2×2` minor of the two slice tables
+`w_{L,0,·}` and `w_{L,1,·}` forces any pointwise relation
+`a·w_{L,0} + b·w_{L,1} = 0` to have `a = b = 0`. -/
+theorem foldTable_slice_indep (L : Fin P.k₀) (t t' : Cube P.k₀) (c c' : Cube P.m)
+    (hminor : foldTable P Fq Dom S ch L 0 t c * foldTable P Fq Dom S ch L 1 t' c'
+        - foldTable P Fq Dom S ch L 0 t' c' * foldTable P Fq Dom S ch L 1 t c ≠ 0)
+    {a b : Fq}
+    (h : ∀ (t : Cube P.k₀) (c : Cube P.m),
+        a * foldTable P Fq Dom S ch L 0 t c + b * foldTable P Fq Dom S ch L 1 t c = 0) :
+    a = 0 ∧ b = 0 :=
+  two_by_two_zero hminor (h t c) (h t' c')
+
 /-- **`lem:termslice` trace core** (tex:548): the terminal cross form's `Fp`-trace
 is nonzero — some class `s` makes `tr(a·γ²·êq(α,s)·ŵ(α₀,c*)) ≠ 0`. Given SPREAD
 (the weights `λ_s = êq(α,s)` span `Fq` over `Fp`), `a ≠ 0`, `γ ≠ 0`, and
