@@ -882,6 +882,16 @@ theorem crossForm_eq_rho_tau (δ : Cell P → Fp P) (θ : Fin 2 → Fq) (ℓ : F
   unfold crossForm
   rw [nodePair_eta_rho_tau P Fq Dom ch δ 0 ℓ, nodePair_eta_rho_tau P Fq Dom ch δ 1 ℓ]
 
+/-- **The cross form is additive in the perturbation table** (`lem:fullslice`
+Step 3 / cond:cross2 consequence): `F_θ` is `Fp`-linear in `δ`, so the
+`δ_out`-arbitrariness of `lem:kersurj` transfers to the cross form. -/
+theorem crossForm_add_table (δ δ' : Cell P → Fp P) (θ : Fin 2 → Fq) :
+    crossForm P Fq Dom ch (δ + δ') θ =
+      crossForm P Fq Dom ch δ θ + crossForm P Fq Dom ch δ' θ := by
+  unfold crossForm
+  rw [nodePair_add_table, nodePair_add_table]
+  ring
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
