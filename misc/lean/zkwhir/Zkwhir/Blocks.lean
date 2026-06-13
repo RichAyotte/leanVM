@@ -188,6 +188,19 @@ theorem posVal_surj : ∀ (j k : ℕ), k < 2 ^ j → ∃ c : Cube j, posVal c = 
       simp only [if_true]
       omega
 
+/-- `posVal` (the binary encoding of a position) is injective on `Cube j`. -/
+theorem posVal_injective {j : ℕ} : Function.Injective (posVal : Cube j → ℕ) := by
+  set f : Cube j → Fin (2 ^ j) := fun c => ⟨posVal c, posVal_lt_two_pow c⟩ with hf
+  have hcard : Fintype.card (Cube j) = Fintype.card (Fin (2 ^ j)) := by
+    simp [Cube, Fintype.card_fin, Fintype.card_bool]
+  have hbij : Function.Bijective f :=
+    (Fintype.bijective_iff_surjective_and_card f).mpr
+      ⟨fun k => by
+        obtain ⟨c, hc⟩ := posVal_surj j k.val k.isLt
+        exact ⟨c, by simp [hf, Fin.ext_iff, hc]⟩, hcard⟩
+  intro a b hab
+  exact hbij.injective (Fin.ext hab)
+
 /-- The Lagrange weight commutes with scalar extension. -/
 theorem eqPoly_algebraMap {R A : Type*} [CommRing R] [CommRing A] [Algebra R A]
     {j : ℕ} (x : Fin j → R) (c : Cube j) :
