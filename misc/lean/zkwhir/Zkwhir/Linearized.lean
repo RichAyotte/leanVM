@@ -24,4 +24,26 @@ theorem frobenius_algebraMap [CharP Fq p] (hcard : Fintype.card Fp = p) (a : Fp)
     frobenius Fq p (algebraMap Fp Fq a) = algebraMap Fp Fq a := by
   rw [frobenius_def, ← map_pow, ← hcard, FiniteField.pow_card]
 
+/-- The iterated Frobenius `x ↦ x^{p^r}` fixes the base prime field. -/
+theorem iterateFrobenius_algebraMap [CharP Fq p] (hcard : Fintype.card Fp = p)
+    (r : ℕ) (a : Fp) :
+    iterateFrobenius Fq p r (algebraMap Fp Fq a) = algebraMap Fp Fq a := by
+  rw [iterateFrobenius_def, ← map_pow]
+  congr 1
+  rw [← hcard]
+  exact FiniteField.pow_card_pow r a
+
+/-- The iterated Frobenius `x ↦ x^{p^r}` as an `Fp`-linear endomorphism of `Fq`
+(it is additive and fixes the base field). -/
+def frobLin [CharP Fq p] (hcard : Fintype.card Fp = p) (r : ℕ) : Fq →ₗ[Fp] Fq where
+  toFun := iterateFrobenius Fq p r
+  map_add' x y := map_add _ _ _
+  map_smul' a x := by
+    simp only [RingHom.id_apply]
+    rw [Algebra.smul_def, map_mul, iterateFrobenius_algebraMap hcard, ← Algebra.smul_def]
+
+@[simp] theorem frobLin_apply [CharP Fq p] (hcard : Fintype.card Fp = p) (r : ℕ)
+    (x : Fq) : frobLin hcard r x = x ^ p ^ r := by
+  rw [frobLin]; exact iterateFrobenius_def p r x
+
 end ZkWhir.Linearized
