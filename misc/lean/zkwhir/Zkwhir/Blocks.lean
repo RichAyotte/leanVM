@@ -402,6 +402,47 @@ theorem cellPoly_coeff_eq_zero (c : Cube j) (k : ℕ)
   have hup : ∀ i, c i = true → c' i = true := (Finset.mem_filter.mp hc').2
   rw [neg_one_pow_mul_X_pow_coeff, if_neg (fun heq => hk c' hup heq.symm)]
 
+/-- **`lem:binpow` (binary-power non-vanishing).** A nonzero `R`-linear
+combination of the cell polynomials is itself nonzero. The lowest-`posVal`
+position `b₀` with a nonzero coefficient contributes `T b₀ ≠ 0` to the
+`X^(posVal b₀)` coefficient of the combination, and no other position can
+reach down to that degree (the up-set expansion only adds higher monomials,
+and `posVal` is injective). -/
+theorem cellPoly_combo_ne_zero {T : Cube j → R} (hT : T ≠ 0) :
+    (∑ b : Cube j, T b • cellPoly (R := R) b) ≠ 0 := by
+  classical
+  have hne : (Finset.univ.filter (fun b => T b ≠ 0)).Nonempty := by
+    rw [Finset.filter_nonempty_iff]
+    by_contra h
+    push_neg at h
+    exact hT (funext fun b => h b (Finset.mem_univ b))
+  obtain ⟨b₀, hb₀mem, hb₀min⟩ :=
+    Finset.exists_min_image (Finset.univ.filter (fun b => T b ≠ 0)) posVal hne
+  have hother : ∀ b ∈ (Finset.univ : Finset (Cube j)), b ≠ b₀ →
+      (T b • cellPoly (R := R) b).coeff (posVal b₀) = 0 := by
+    intro b _ hbne
+    rw [Polynomial.coeff_smul, smul_eq_mul]
+    by_cases hTb : T b = 0
+    · rw [hTb, zero_mul]
+    · have hbmem : b ∈ Finset.univ.filter (fun b => T b ≠ 0) :=
+        Finset.mem_filter.mpr ⟨Finset.mem_univ _, hTb⟩
+      have hge : posVal b₀ ≤ posVal b := hb₀min b hbmem
+      have hz : (cellPoly (R := R) b).coeff (posVal b₀) = 0 := by
+        apply cellPoly_coeff_eq_zero
+        intro c' hup hpv
+        have hcb : c' = b₀ := posVal_injective hpv
+        subst c'
+        have hlt : posVal b < posVal b₀ := posVal_lt_of_lt hup hbne
+        omega
+      rw [hz, mul_zero]
+  have hcoeff : (∑ b : Cube j, T b • cellPoly (R := R) b).coeff (posVal b₀) = T b₀ := by
+    rw [Polynomial.finsetSum_coeff,
+      Finset.sum_eq_single_of_mem b₀ (Finset.mem_univ b₀) hother,
+      Polynomial.coeff_smul, cellPoly_coeff_posVal, smul_eq_mul, mul_one]
+  intro hzero
+  rw [hzero, Polynomial.coeff_zero] at hcoeff
+  exact (Finset.mem_filter.mp hb₀mem).2 hcoeff.symm
+
 end CellPoly
 
 /-! ## The block solver (`prop:uniform`, Stage B)
