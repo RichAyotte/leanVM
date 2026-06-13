@@ -478,4 +478,15 @@ theorem trace_smul_pairing {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
   rw [show β * (w c * algebraMap Fp Fq (v c)) = v c • (β * w c) from by
     rw [Algebra.smul_def]; ring, map_smul, smul_eq_mul]
 
+/-- **Slice-kernel characterization**: an `Fq` element is zero iff all its trace
+slices against an `Fp`-basis vanish (the `Fq`-condition `= 0` is the conjunction
+of `d` `Fp`-conditions). -/
+theorem eq_zero_iff_trace_basis {Fp Fq : Type*} [Field Fp] [Field Fq]
+    [Algebra Fp Fq] [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq]
+    {ι : Type*} (b : Module.Basis ι Fp Fq) (x : Fq) :
+    x = 0 ↔ ∀ i, Algebra.trace Fp Fq (b i * x) = 0 := by
+  constructor
+  · rintro rfl i; rw [mul_zero, map_zero]
+  · intro h; exact eq_zero_of_trace_pairing_span b b.span_eq x h
+
 end ZkWhir
