@@ -358,4 +358,26 @@ theorem exists_trace_ne_zero_of_surjective {Fp Fq M : Type*} [Field Fp]
   obtain ⟨m, hm⟩ := hL a
   exact ⟨m, by rw [hm]; exact ha⟩
 
+/-- **Trace-dual nondegeneracy on a product space** (`lem:traceorth` core): a
+vector `v` over `Fq` is zero iff its trace pairing against every `w` vanishes.
+This identifies `Fp`-functionals on `Fq^ι` with `Fq^ι` itself, the step that
+represents an annihilator element as a trace pairing. -/
+theorem trace_pairing_eq_zero_iff {Fp Fq : Type*} [Field Fp] [Field Fq]
+    [Algebra Fp Fq] [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq]
+    {ι : Type*} [Fintype ι] [DecidableEq ι] (v : ι → Fq) :
+    (∀ w : ι → Fq, Algebra.trace Fp Fq (∑ i, v i * w i) = 0) ↔ v = 0 := by
+  classical
+  constructor
+  · intro h
+    funext i₀
+    rw [Pi.zero_apply, trace_eq_zero_iff (Fp := Fp)]
+    intro a
+    have hsum := h (Pi.single i₀ a)
+    rw [Finset.sum_eq_single i₀
+      (fun i _ hi => by rw [Pi.single_eq_of_ne hi, mul_zero])
+      (fun hni => absurd (Finset.mem_univ i₀) hni),
+      Pi.single_eq_same, mul_comm] at hsum
+    exact hsum
+  · rintro rfl w; simp
+
 end ZkWhir
