@@ -681,6 +681,23 @@ theorem crossForm_eq_zero_pair_imp_theta_zero (δ δ'' : Cell P → Fp P)
   · exact e0
   · exact e1
 
+/-- **`cond:cross2` conclusion (witnessed form).** A nonzero `2×2` node minor on
+two mask cells `δ, δ''` certifies the cross form's non-degeneracy: for every
+direction `θ ≠ 0`, `F_θ` is nonzero on at least one of the two cells. This is the
+form `prop:pinbound`/`lem:fullslice` consume (`F_θ ≠ 0 ∀ θ ≠ 0`); the value-row
+Schwartz–Zippel argument supplies the witness minor (tex:543, via `lem:binpow`). -/
+theorem crossForm_ne_zero_of_minor (δ δ'' : Cell P → Fp P) (θ : Fin 2 → Fq)
+    (hθ : θ ≠ 0)
+    (hminor :
+      nodePair P Fq Dom ch δ 0 (eqPoly ch.α) *
+          nodePair P Fq Dom ch δ'' 1 (eqPoly ch.α) -
+        nodePair P Fq Dom ch δ 1 (eqPoly ch.α) *
+          nodePair P Fq Dom ch δ'' 0 (eqPoly ch.α) ≠ 0) :
+    crossForm P Fq Dom ch δ θ ≠ 0 ∨ crossForm P Fq Dom ch δ'' θ ≠ 0 := by
+  by_contra h
+  push_neg at h
+  exact hθ (crossForm_eq_zero_pair_imp_theta_zero P Fq Dom ch δ δ'' θ hminor h.1 h.2)
+
 /-- `nodePair` is additive in the perturbation table. -/
 theorem nodePair_add_table (δ δ' : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
