@@ -282,6 +282,15 @@ theorem exists_coeffs_of_moments {F : Type*} [Field F] {n : ℕ} (v : Fin n → 
   refine Finset.sum_congr rfl fun t _ => ?_
   rw [hA, Matrix.transpose_apply, Matrix.vandermonde_apply, mul_comm]
 
+/-- **Solving an invertible linear system**: a matrix with a unit determinant
+reaches every target under `mulVec`. The linear-algebra core of the (S, R)
+moment matching. -/
+theorem exists_mulVec_of_isUnit_det {F : Type*} [Field F] {n : ℕ}
+    (A : Matrix (Fin n) (Fin n) F) (hA : IsUnit A.det) (b : Fin n → F) :
+    ∃ x, A.mulVec x = b :=
+  ⟨A⁻¹.mulVec b, by
+    rw [Matrix.mulVec_mulVec, Matrix.mul_nonsing_inv A hA, Matrix.one_mulVec]⟩
+
 /-- **Membership via the dual annihilator** (finite-dimensional): `x ∈ U` iff
 every functional vanishing on `U` vanishes at `x`. The primal↔dual bridge. -/
 theorem mem_iff_forall_dualAnnihilator {K V : Type*} [Field K] [AddCommGroup V]
