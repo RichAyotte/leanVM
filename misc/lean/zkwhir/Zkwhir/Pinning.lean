@@ -912,6 +912,20 @@ theorem fullslice_step4 [FiniteDimensional (Fp P) Fq] [Algebra.IsSeparable (Fp P
   calc γ2 * E' π * G v = E' π * (γ2 * G v) := by ring
     _ = 0 := by rw [hg, mul_zero]
 
+/-- The cross channel is additive in the perturbation table (`crossTerm` pairs
+`liftT T` linearly against the fixed input weight `ŵ`): the cross-moment of
+`lem:fullslice` Step 3 is `Fp`-linear in the perturbation. -/
+theorem crossTerm_add_table (T₁ T₂ : Cell P → Fp P) (ℓ : Fin P.k₀) (y : Fq) :
+    crossTerm P Fq Dom S (T₁ + T₂) ch ℓ y =
+      crossTerm P Fq Dom S T₁ ch ℓ y + crossTerm P Fq Dom S T₂ ch ℓ y := by
+  unfold crossTerm
+  rw [← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun b _ => ?_
+  rw [← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun c _ => ?_
+  rw [liftT_add, partialEval_add]
+  ring
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
