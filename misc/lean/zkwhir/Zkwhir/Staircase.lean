@@ -72,6 +72,24 @@ theorem sum_cube_succ {M : Type*} [AddCommMonoid M] {j : ℕ} (g : Cube (j + 1) 
   rw [← (Fin.consEquiv (fun _ : Fin (j + 1) => Bool)).sum_comp g, Fintype.sum_prod_type]
   rfl
 
+/-- **`mle` is affine in the first coordinate** (Schwartz–Zippel induction core):
+`mle T (cons t x) = (1−t)·mle T₀ x + t·mle T₁ x`, where `T₀ = T(cons false ·)` and
+`T₁ = T(cons true ·)` are the two half-tables. -/
+theorem mle_cons {R : Type*} [CommRing R] {j : ℕ} (T : Cube (j + 1) → R) (t : R)
+    (x : Fin j → R) :
+    mle T (Fin.cons t x) =
+      (1 - t) * mle (fun b => T (Fin.cons false b)) x +
+        t * mle (fun b => T (Fin.cons true b)) x := by
+  unfold mle
+  rw [sum_cube_succ (fun b => eqPoly (Fin.cons t x) b * T b), Fintype.sum_bool, add_comm]
+  congr 1
+  · rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun brest _ => ?_
+    rw [eqPoly_cons]; simp only [Bool.false_eq_true, if_false]; ring
+  · rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun brest _ => ?_
+    rw [eqPoly_cons]; simp only [if_true]; ring
+
 /-- **Partition of unity**: the Lagrange weights at any point sum to `1`. -/
 theorem eqPoly_sum_eq_one {j : ℕ} (p : Fin j → Fq) :
     ∑ s : Cube j, eqPoly p s = 1 := by
