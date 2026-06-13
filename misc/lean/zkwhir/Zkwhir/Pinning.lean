@@ -698,4 +698,83 @@ theorem exists_eqPoly_alpha_ne_zero : ∃ s : Cube P.k₀, eqPoly (ch.α) s ≠ 
   push_neg at h
   exact eqPoly_vec_ne_zero Fq (ch.α) (funext fun s => h s)
 
+/-- **`crossFormMap θ` is surjective for `θ ≠ 0`** (Step-4 spanning condition):
+placing a single block fiber on a class with nonzero `α`-weight, hitting the
+commitment node where `θ` is nonzero, realizes any target. Uses the node
+genericity (`NodeHyp`) and the block solver (`exists_block_fiber`). -/
+theorem crossFormMap_surjective [FiniteDimensional (Fp P) Fq]
+    (hnode : NodeHyp P Fq Dom ch)
+    (hbudget : Module.finrank (Fp P) Fq * 2 ≤ 2 ^ P.a)
+    (θ : Fin 2 → Fq) (hθ : θ ≠ 0) :
+    Function.Surjective (crossFormMap P Fq Dom ch θ) := by
+  classical
+  obtain ⟨s, hs⟩ := exists_eqPoly_alpha_ne_zero P Fq Dom ch
+  obtain ⟨j₀, hj₀⟩ : ∃ j, θ j ≠ 0 := Function.ne_iff.mp hθ
+  set ν : Fin 2 → Fq := fun j => ch.z j ^ 2 ^ P.k₀ with hν_def
+  have hcomm : ∀ j : Fin 2, nodes P Fq Dom ch (Fin.castAdd P.s₁ j) = ν j :=
+    fun j => Fin.append_left _ _ j
+  have hνbase : ∀ j, ν j ∉ Set.range (algebraMap (Fp P) Fq) :=
+    fun j => hcomm j ▸ hnode.not_in_base _
+  have hνgen : ∀ j, (minpoly (Fp P) (ν j)).natDegree =
+      Module.finrank (Fp P) Fq := fun j => hcomm j ▸ hnode.gen _
+  have hνconj : ∀ j j', j ≠ j' →
+      minpoly (Fp P) (ν j) ≠ minpoly (Fp P) (ν j') := fun j j' hjj' =>
+    hcomm j ▸ hcomm j' ▸ hnode.conj _ _ (fun h => hjj' (Fin.castAdd_injective _ _ h))
+  intro t
+  set b : Fin 2 → Fq :=
+    fun j => if j = j₀ then t / (θ j₀ * eqPoly (ch.α) s) else 0 with hb_def
+  obtain ⟨v, hvblock, _, hvnode⟩ := exists_block_fiber P Fq
+    (fun i : Fin 0 => (0 : Fp P)) ν (fun i => i.elim0) (fun i => i.elim0)
+    hνbase hνgen hνconj (by simpa using hbudget) (fun i : Fin 0 => 0) b
+  set κ : MaskAssign P := fun u => if u.1.1 = s then -(v u.1.2) else 0 with hκ_def
+  have htab : ∀ (s' : Cube P.k₀) (c : Cube P.m),
+      assemble P 0 (-κ) (s', c) = if s' = s then v c else 0 := by
+    intro s' c
+    unfold assemble
+    by_cases hm : IsMask P (s', c)
+    · rw [dif_pos hm]
+      show -(if s' = s then -(v c) else 0) = if s' = s then v c else 0
+      by_cases hss : s' = s
+      · rw [if_pos hss, if_pos hss, neg_neg]
+      · rw [if_neg hss, if_neg hss, neg_zero]
+    · rw [dif_neg hm]
+      by_cases hss : s' = s
+      · rw [if_pos hss]
+        have hcnb : ¬ IsBlockPos P c := fun hb => hm (Or.inr hb)
+        have hvc : v c = 0 := by by_contra hh; exact hcnb (hvblock c hh)
+        rw [hvc]; rfl
+      · rw [if_neg hss]; rfl
+  have hnp : ∀ j : Fin 2, nodePair P Fq Dom ch (assemble P 0 (-κ)) j
+      (eqPoly (ch.α)) = eqPoly (ch.α) s * b j := by
+    intro j
+    unfold nodePair
+    rw [Finset.sum_eq_single s]
+    · congr 1
+      have hfib : (fun c => liftT P Fq (assemble P 0 (-κ)) (s, c)) =
+          fun c => algebraMap (Fp P) Fq (v c) := by
+        funext c; unfold liftT; rw [htab s c, if_pos rfl]
+      rw [hfib]; exact hvnode j
+    · intro s' _ hs's
+      have hz : (fun c => liftT P Fq (assemble P 0 (-κ)) (s', c)) =
+          (fun _ => (0 : Fq)) := by
+        funext c; unfold liftT; rw [htab s' c, if_neg hs's]; simp
+      rw [hz]
+      have : mle (fun _ : Cube P.m => (0 : Fq)) (powSeq (ν j) P.m) = 0 := by
+        unfold mle; simp
+      rw [this, mul_zero]
+    · intro hns; exact absurd (Finset.mem_univ s) hns
+  refine ⟨κ, ?_⟩
+  show crossForm P Fq Dom ch (assemble P 0 (-κ)) θ = t
+  unfold crossForm
+  rw [hnp 0, hnp 1]
+  have hbj0 : b j₀ = t / (θ j₀ * eqPoly (ch.α) s) := by rw [hb_def]; simp
+  have hsum : (∑ j : Fin 2, θ j * b j) = θ j₀ * b j₀ :=
+    Finset.sum_eq_single j₀ (fun j' _ hj' => by rw [hb_def]; simp [hj'])
+      (fun h => absurd (Finset.mem_univ j₀) h)
+  have key : θ 0 * (eqPoly (ch.α) s * b 0) + θ 1 * (eqPoly (ch.α) s * b 1) =
+      eqPoly (ch.α) s * (∑ j : Fin 2, θ j * b j) := by
+    rw [Fin.sum_univ_two]; ring
+  rw [key, hsum, hbj0]
+  field_simp
+
 end ZkWhir
