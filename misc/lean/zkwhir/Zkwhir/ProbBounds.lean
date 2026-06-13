@@ -317,5 +317,17 @@ theorem uniform_pi_pair_le {ι β : Type*} [Fintype ι] [DecidableEq ι]
           ENNReal.mul_div_mul_right _ _ hq hqtop
       _ ≤ (k : ℝ≥0∞) / (Fintype.card β : ℝ≥0∞) := le_rfl
 
+/-- **Affine root count** (the inductive core of multivariate Schwartz–Zippel):
+an affine function `x ↦ A + x·B` with nonzero slope `B` has at most one root in
+`F` (the unique `x = −A/B`). This bounds the per-coordinate root count in the
+`SZ` induction that the ε₃ measure bounds require. -/
+theorem card_affine_root_le {F : Type*} [Field F] [Fintype F] [DecidableEq F]
+    (A B : F) (hB : B ≠ 0) :
+    (Finset.univ.filter (fun x : F => A + x * B = 0)).card ≤ 1 := by
+  refine Finset.card_le_one.mpr fun a ha b hb => ?_
+  rw [Finset.mem_filter] at ha hb
+  have hab : a * B = b * B := by linear_combination ha.2 - hb.2
+  exact mul_right_cancel₀ hB hab
+
 end ZkWhir
 
