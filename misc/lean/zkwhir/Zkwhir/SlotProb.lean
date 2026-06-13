@@ -328,4 +328,15 @@ theorem mle_zeros_prob_le {F : Type*} [Field F] [Fintype F] [DecidableEq F] [Non
     push_cast
     rw [pow_succ, mul_comm ((m : ℝ≥0∞) + 1), ENNReal.mul_div_mul_left _ _ hne htop]
 
+/-- **Multilinear-in-`α` condition fails with probability `≤ k₀/q`** (the ε₃
+measure consumer): for any nonzero class-table `T`, the challenge event
+`mle T (α) = 0` has probability at most `k₀/q`. Combines `challenge_α_event_le`
+(challenge → uniform marginal) with `mle_zeros_prob_le` (Schwartz–Zippel). This is
+e.g. `lem:termslice`'s `ŵ(α₀,c*) ≠ 0` bound. -/
+theorem challenge_mle_α_zero_le [DecidableEq Fq] {T : Cube P.k₀ → Fq} (hT : T ≠ 0) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | mle T ch.α = 0} ≤
+      (P.k₀ : ℝ≥0∞) / Fintype.card Fq :=
+  challenge_α_event_le P Fq Dom (fun α => mle T α = 0) _ (mle_zeros_prob_le T hT)
+
 end ZkWhir
