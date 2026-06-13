@@ -130,4 +130,18 @@ theorem tcoeff_ptensor {k : ℕ} (ψ : Fin k → (Bool → Fq) → Fq)
   refine Finset.prod_congr rfl fun i _ => ?_
   rw [hlin i (w i)]; ring
 
+/-- The combined slot vector `c_i + lam·d` written out (a `stairVec` slot for
+`i < m`). -/
+theorem aVec_eq (x lam : Fq) :
+    (fun b => vrow x b + lam * drow b) = vrow x + lam • drow := by
+  funext b; simp [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
+
+@[simp] theorem gammaC_aVec (x lam : Fq) :
+    gammaC (fun b => vrow x b + lam * drow b) = 1 := by
+  rw [aVec_eq, gammaC_add, gammaC_smul, gammaC_vrow, gammaC_drow]; ring
+
+@[simp] theorem gammaD_aVec (x lam : Fq) :
+    gammaD x (fun b => vrow x b + lam * drow b) = lam := by
+  rw [aVec_eq, gammaD_add, gammaD_smul, gammaD_vrow, gammaD_drow]; ring
+
 end ZkWhir
