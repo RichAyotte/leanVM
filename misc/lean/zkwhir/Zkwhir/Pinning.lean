@@ -489,4 +489,27 @@ theorem nodePair_eta (δ : Cell P → Fp P) (j : Fin 2) :
   congr 1
   exact Finset.sum_congr rfl fun i _ => nodePair_smul P Fq Dom ch δ j _ _
 
+/-- **The node functional in pairing form** (`lem:fullslice` Step 2c, clean): the
+slice value is `⟨ρ^j_ℓ, V_j⟩ + (y − ζ_j)·⟨τ^j_ℓ, V_j⟩`, the affine node
+functional `g^j_ℓ(y)`, with `⟨ρ^j_ℓ, V_j⟩` itself telescoped. -/
+theorem evalT_mixed_nodePair_decomp (δ : Cell P → Fp P) (j : Fin 2)
+    (ℓ : Fin P.k₀) (y : Fq) :
+    evalT P Fq δ (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z j) P.k₀))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) =
+      nodePair P Fq Dom ch δ j (eqPoly (powSeq (ch.z j) P.k₀))
+      + (∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+          lamData P Fq Dom ch (ch.z j) i *
+            nodePair P Fq Dom ch δ j
+              (ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+                (lamData P Fq Dom ch (ch.z j)) i)))
+      + (y - powSeq (ch.z j) P.k₀ ℓ) *
+          nodePair P Fq Dom ch δ j
+            (ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+              (lamData P Fq Dom ch (ch.z j)) ℓ)) := by
+  rw [evalT_mixed_eq_nodePair, eqPoly_mixedPoint_decomp, nodePair_add,
+    nodePair_add, nodePair_smul, nodePair_sum]
+  congr 1
+  congr 1
+  exact Finset.sum_congr rfl fun i _ => nodePair_smul P Fq Dom ch δ j _ _
+
 end ZkWhir
