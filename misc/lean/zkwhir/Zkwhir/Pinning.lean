@@ -638,6 +638,18 @@ theorem crossForm_eq_fold (δ : Cell P → Fp P) (θ : Fin 2 → Fq) :
   unfold crossForm
   rw [nodePair_alpha_eq_fold, nodePair_alpha_eq_fold]
 
+/-- `F_θ` is additive in the direction `θ` (`cond:cross2` uses `Fq`-linearity of
+`θ ↦ F_θ`, tex:553). -/
+theorem crossForm_theta_add (δ : Cell P → Fp P) (θ θ' : Fin 2 → Fq) :
+    crossForm P Fq Dom ch δ (θ + θ') =
+      crossForm P Fq Dom ch δ θ + crossForm P Fq Dom ch δ θ' := by
+  unfold crossForm; simp only [Pi.add_apply]; ring
+
+/-- `F_θ` is homogeneous in the direction `θ` (`cond:cross2` `Fq`-linearity). -/
+theorem crossForm_theta_smul (δ : Cell P → Fp P) (a : Fq) (θ : Fin 2 → Fq) :
+    crossForm P Fq Dom ch δ (a • θ) = a * crossForm P Fq Dom ch δ θ := by
+  unfold crossForm; simp only [Pi.smul_apply, smul_eq_mul]; ring
+
 /-- `nodePair` is additive in the perturbation table. -/
 theorem nodePair_add_table (δ δ' : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
