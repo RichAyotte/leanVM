@@ -2023,6 +2023,22 @@ theorem terminal_node_eq_neg_cross (T : Cell P → Fp P) (h2 : (2 : Fq) ≠ 0)
   rw [terminal_pairing_node_decomp] at h
   linear_combination h
 
+/-- **`F_{θ^term} = γ²·T_ŵ` in `crossForm` terms** (`cond:cross2`): for a
+view-vanishing table the cross form at the terminal direction
+`θ^term = (A₀, γ·A₁)` (`A_j = ∑_s êq(α,s)·êq(powz_j,s)`) equals `−γ²·T_ŵ`, where
+`T_ŵ = ∑_c f̂₁(c)·ŵ(α₀,c)`. So the terminal cross form is nonzero iff `T_ŵ ≠ 0`. -/
+theorem crossForm_term_eq (T : Cell P → Fp P) (h2 : (2 : Fq) ≠ 0)
+    (hmsg0 : ∀ ℓ, hPoly P Fq Dom S T ch ℓ 0 = 0)
+    (hmsg1 : ∀ ℓ, hPoly P Fq Dom S T ch ℓ 1 = 0)
+    (hmsg2 : ∀ ℓ, hPoly P Fq Dom S T ch ℓ 2 = 0) :
+    crossForm P Fq Dom ch T
+        ![∑ s, eqPoly ch.α s * eqPoly (powSeq (ch.z 0) P.k₀) s,
+          ch.γ * ∑ s, eqPoly ch.α s * eqPoly (powSeq (ch.z 1) P.k₀) s] =
+      -(ch.γ ^ 2 * (∑ c, foldedF₁ P Fq Dom T ch c * wHat0 P Fq Dom S ch c)) := by
+  rw [crossForm_eq_fold]
+  simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.head_cons, mle]
+  linear_combination terminal_node_eq_neg_cross P Fq Dom S ch T h2 hmsg0 hmsg1 hmsg2
+
 /-- **`lem:nodechannel` → `cond:twist`, full bridge** (parts (d)+(e)): the node
 functional is forced **untwisted** — there are scalars `θ_j` so the node functional
 equals `θ_j · êq(α, ·)` (and still lies in the node-matrix row space). Applies
