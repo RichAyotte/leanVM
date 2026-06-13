@@ -282,4 +282,31 @@ theorem exists_coeffs_of_moments {F : Type*} [Field F] {n : ℕ} (v : Fin n → 
   refine Finset.sum_congr rfl fun t _ => ?_
   rw [hA, Matrix.transpose_apply, Matrix.vandermonde_apply, mul_comm]
 
+/-- **Membership via the dual annihilator** (finite-dimensional): `x ∈ U` iff
+every functional vanishing on `U` vanishes at `x`. The primal↔dual bridge. -/
+theorem mem_iff_forall_dualAnnihilator {K V : Type*} [Field K] [AddCommGroup V]
+    [Module K V] [FiniteDimensional K V] (U : Subspace K V) (x : V) :
+    x ∈ U ↔ ∀ f ∈ U.dualAnnihilator, f x = 0 := by
+  rw [← Submodule.mem_dualCoannihilator,
+    Subspace.dualAnnihilator_dualCoannihilator_eq]
+
+/-- **Reaching a target through a linear map** (finite-dimensional codomain):
+`y` is in the range of `ψ` iff every functional that kills the whole image of
+`ψ` also kills `y`. This is the criterion the primal pinning construction uses:
+`−F` is a mask-fold iff every protocol direction (= functional killing all
+mask-folds) annihilates `−F`. -/
+theorem mem_range_iff_forall_dual {K W V : Type*} [Field K] [AddCommGroup W]
+    [Module K W] [AddCommGroup V] [Module K V] [FiniteDimensional K V]
+    (ψ : W →ₗ[K] V) (y : V) :
+    y ∈ LinearMap.range ψ ↔
+      ∀ f : Module.Dual K V, (∀ w, f (ψ w) = 0) → f y = 0 := by
+  rw [mem_iff_forall_dualAnnihilator]
+  constructor
+  · intro h f hf
+    exact h f ((Submodule.mem_dualAnnihilator f).mpr
+      (fun x hx => by obtain ⟨w, rfl⟩ := LinearMap.mem_range.mp hx; exact hf w))
+  · intro h f hf
+    exact h f (fun w => (Submodule.mem_dualAnnihilator f).mp hf (ψ w)
+      (LinearMap.mem_range.mpr ⟨w, rfl⟩))
+
 end ZkWhir
