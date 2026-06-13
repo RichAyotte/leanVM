@@ -1483,4 +1483,56 @@ theorem confine_pairing_node_slice {ιβ : Type*} [Fintype ιβ]
     · have hvc : vs c = 0 := by by_contra hh; exact hb (hvblk c hh)
       rw [hvc, mul_zero, mul_zero]
 
+/-- **The node probe realizes any node values** (`lem:nodechannel`): under node
+genericity and the block budget, for every target `V` there is a per-class block
+fiber family with vanishing queried and `f̂₁` evaluations and commitment-node
+values exactly `V`. (Mirrors the `maskViewSection` construction, with no data and
+no cross-term solving.) -/
+theorem exists_nodeProbe [FiniteDimensional (Fp P) Fq] (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hnode : NodeHyp P Fq Dom ch) (V : Cube P.k₀ → Fin 2 → Fq) :
+    ∃ vf : Cube P.k₀ → Cube P.m → Fp P,
+      (∀ s c, vf s c ≠ 0 → IsBlockPos P c) ∧
+      (∀ s t, mle (fun c => algebraMap (Fp P) Fq (vf s c))
+        (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) ∧
+      (∀ s j, mle (fun c => algebraMap (Fp P) Fq (vf s c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = V s j) ∧
+      (∀ s k, mle (fun c => algebraMap (Fp P) Fq (vf s c))
+        (powSeq (ch.zf k) P.m) = 0) := by
+  classical
+  set Q : Finset (Fp P) :=
+    Finset.image (fun t : Fin P.t₀ => (ch.qs t : Fp P)) Finset.univ with hQ
+  set x : Fin Q.card → Fp P := fun i => (Q.equivFin.symm i : Fp P) with hx
+  have hxinj : Function.Injective x := fun i i' h =>
+    (Q.equivFin.symm).injective (Subtype.ext h)
+  have hxmem : ∀ i, x i ∈ Q := fun i => (Q.equivFin.symm i).2
+  have hx0 : ∀ i, x i ≠ 0 := by
+    intro i h0
+    obtain ⟨t, _, ht⟩ := Finset.mem_image.mp (hxmem i)
+    exact hdom (by rw [← h0, ← ht]; exact (ch.qs t).2)
+  have hQcard : Q.card ≤ P.t₀ :=
+    le_trans Finset.card_image_le (by simp)
+  have hbudget' : Q.card + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a := by omega
+  have hsolve := fun s : Cube P.k₀ =>
+    exists_block_fiber P Fq x (nodes P Fq Dom ch) hxinj hx0
+      hnode.not_in_base hnode.gen hnode.conj hbudget'
+      (fun _ => (0 : Fp P)) (Fin.append (V s) (fun _ : Fin P.s₁ => (0 : Fq)))
+  choose vf hvblock hvq hvν using hsolve
+  refine ⟨vf, hvblock, ?_, ?_, ?_⟩
+  · intro s t
+    obtain ⟨i, hi⟩ : ∃ i, x i = (ch.qs t : Fp P) := by
+      have hm : ((ch.qs t : Fp P)) ∈ Q := Finset.mem_image_of_mem _ (Finset.mem_univ t)
+      exact ⟨Q.equivFin ⟨_, hm⟩, by rw [hx]; simp⟩
+    rw [← hi, hvq s i, map_zero]
+  · intro s j
+    have h := hvν s (Fin.castAdd P.s₁ j)
+    rw [show nodes P Fq Dom ch (Fin.castAdd P.s₁ j) = ch.z j ^ 2 ^ P.k₀ from
+      Fin.append_left _ _ j] at h
+    rw [h, Fin.append_left]
+  · intro s k
+    have h := hvν s (Fin.natAdd 2 k)
+    rw [show nodes P Fq Dom ch (Fin.natAdd 2 k) = ch.zf k from
+      Fin.append_right _ _ k] at h
+    rw [h, Fin.append_right]
+
 end ZkWhir
