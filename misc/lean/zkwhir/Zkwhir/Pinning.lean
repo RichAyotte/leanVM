@@ -1564,4 +1564,30 @@ theorem exists_viewVanishing_nodeProbe [FiniteDimensional (Fp P) Fq]
       (fun ℓ => by rw [hVeq]; exact hmsg1 ℓ)
       (fun ℓ => by rw [hVeq]; exact hmsg2 ℓ), hvq, hvz⟩
 
+/-- **Confinement coefficients as functions of the twist** (`lem:nodechannel`
+prep): the per-twist coefficient families of `confine_slice_coeffs` chosen
+uniformly in `β`, so they can be evaluated at the basis elements `b r`. -/
+theorem confine_slice_coeffs_choice [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
+    ∃ w : Cube P.m → Fq,
+      (∀ g, φ g = Algebra.trace (Fp P) Fq (∑ c, w c * g c)) ∧
+      ∃ (Cq : Fq → Fin P.t₀ → Fp P) (Cn : Fq → Fin 2 → ιβ → Fp P)
+          (Cz : Fq → Fin P.s₁ → ιβ → Fp P),
+        ∀ (β : Fq) c0, IsBlockPos P c0 →
+          Algebra.trace (Fp P) Fq (β * w c0) =
+            (∑ t, Cq β t * eqPoly (powSeq (ch.qs t : Fp P) P.m) c0)
+            + (∑ j, ∑ i, Cn β j i * Algebra.trace (Fp P) Fq
+                (b i * eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) c0))
+            + (∑ k, ∑ i, Cz β k i * Algebra.trace (Fp P) Fq
+                (b i * eqPoly (powSeq (ch.zf k) P.m) c0)) := by
+  obtain ⟨w, hw, hco⟩ :=
+    confine_slice_coeffs P Fq Dom S ch h2 hmf hspread b φ hφ
+  refine ⟨w, hw, ?_⟩
+  choose Cq Cn Cz hC using hco
+  exact ⟨Cq, Cn, Cz, hC⟩
+
 end ZkWhir
