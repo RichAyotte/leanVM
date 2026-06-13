@@ -669,6 +669,30 @@ theorem evalT_eqf_moment_SR {n : ℕ} (δ : Cell P → Fp P) (j : Fin 2) (ℓ : 
   rw [Finset.sum_mul, Finset.sum_mul, ← Finset.sum_add_distrib]
   exact Finset.sum_congr rfl fun t _ => by ring
 
+/-- **The block-`j` moment term is `Π^j·(S·ρ + R·τ)`** (`lem:fullslice` Step 2,
+the form `channel_moment_of_viewKer` feeds): factoring `prefixFactor` into the
+`α`-prefix `Π^j = ∏_{i<ℓ} êq(α_i, z_j^{2^{i-1}})` and the slot weight `êq(y,ζ)`,
+the `w`-moment of the block-`j` `y`-family is the `α`-prefix times the `(S,R)`
+node combination. -/
+theorem block_moment_SR (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀)
+    (w pts : Fin 3 → Fq) :
+    (∑ t, w t * (prefixFactor P Fq Dom ch ℓ (pts t) (powSeq (ch.z j) P.k₀) *
+        evalT P Fq δ (mixedPoint P Fq Dom ch ℓ (pts t) (powSeq (ch.z j) P.k₀))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))) =
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+          eqf Fq (ch.α i) (powSeq (ch.z j) P.k₀ i)) *
+        (momS Fq (powSeq (ch.z j) P.k₀ ℓ) (∑ t, w t) (∑ t, w t * pts t) *
+            nodePairRho P Fq Dom ch δ j ℓ +
+          momR Fq (powSeq (ch.z j) P.k₀ ℓ) (∑ t, w t) (∑ t, w t * pts t)
+              (∑ t, w t * pts t ^ 2) * nodePairTau P Fq Dom ch δ j ℓ) := by
+  have hpf : ∀ t, prefixFactor P Fq Dom ch ℓ (pts t) (powSeq (ch.z j) P.k₀) =
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+          eqf Fq (ch.α i) (powSeq (ch.z j) P.k₀ i)) *
+        eqf Fq (pts t) (powSeq (ch.z j) P.k₀ ℓ) := fun t => prefixFactor_eq P Fq Dom ch ℓ (pts t) _
+  simp_rw [hpf]
+  conv_rhs => rw [← evalT_eqf_moment_SR P Fq Dom ch δ j ℓ w pts, Finset.mul_sum]
+  exact Finset.sum_congr rfl fun t _ => by ring
+
 /-- **The cross-form** `F_θ`: the `θ`-weighted pairing of the extension rows
 against the perturbation's node values. -/
 def crossForm (δ : Cell P → Fp P) (θ : Fin 2 → Fq) : Fq :=
