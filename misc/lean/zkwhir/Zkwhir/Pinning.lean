@@ -436,6 +436,45 @@ theorem eta_telescope (z : Fq) :
   rw [hif] at h
   rw [hα, h, hcz]
 
+/-- The staircase row at an arbitrary point `β` (used for the Frobenius
+conjugates `β = α^{[r]}` in `cond:twist`). -/
+theorem aRow_czData_eq_vrow (z : Fq) (β : Fin P.k₀ → Fq) (i : Fin P.k₀) :
+    aRow (czData P Fq z) drow (fun i => β i - powSeq z P.k₀ i) i = vrow (β i) := by
+  funext b
+  unfold aRow czData
+  rw [vrow_affine (β i) (powSeq z P.k₀ i)]
+
+/-- **The point-telescope** (`cond:twist`): every Lagrange weight `êq(β, ·)`
+telescopes through the `z`-staircase as `ω + ∑_i (β_i − z^{2^{i-1}})·τ_i`, with
+`τ_i` the staircase row at offset `β − z`. Specializes to `eta_telescope` at
+`β = α`, and to the conjugates `β = α^{[r]}` for the rigidity argument. -/
+theorem eqPoly_point_telescope (z : Fq) (β : Fin P.k₀ → Fq) :
+    eqPoly β = eqPoly (powSeq z P.k₀)
+      + ∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => (i : ℕ) < P.k₀),
+          (β i - powSeq z P.k₀ i) •
+            ptensor (stairVec (czData P Fq z) (fun _ => drow)
+              (fun i => β i - powSeq z P.k₀ i) i) := by
+  have hcz : ptensor (czData P Fq z) = eqPoly (powSeq z P.k₀) := by
+    rw [eqPoly_eq_ptensor]; rfl
+  have hβ : eqPoly β =
+      ptensor (fun i : Fin P.k₀ =>
+        aRow (czData P Fq z) drow (fun i => β i - powSeq z P.k₀ i) i) := by
+    rw [eqPoly_eq_ptensor]
+    congr 1
+    funext i
+    rw [aRow_czData_eq_vrow]
+  have hif : (fun i : Fin P.k₀ =>
+        if (i : ℕ) < P.k₀ then
+          aRow (czData P Fq z) drow (fun i => β i - powSeq z P.k₀ i) i
+        else czData P Fq z i) =
+      (fun i : Fin P.k₀ =>
+        aRow (czData P Fq z) drow (fun i => β i - powSeq z P.k₀ i) i) := by
+    funext i; rw [if_pos i.isLt]
+  have h := rhoN_telescope (czData P Fq z) drow
+    (fun i => β i - powSeq z P.k₀ i) P.k₀
+  rw [hif] at h
+  rw [hβ, h, hcz]
+
 /-! ## The node pairing (`lem:fullslice` Step 2, the `⟨·, V⟩` functional)
 
 `nodePair δ j w = ⟨w, V_j⟩` pairs a class-vector against block `j`'s node
