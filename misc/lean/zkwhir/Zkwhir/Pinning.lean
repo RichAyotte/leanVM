@@ -1021,4 +1021,80 @@ theorem confine_pairing_zero [FiniteDimensional (Fp P) Fq]
   congr 1
   exact Finset.sum_congr rfl fun c _ => by ring
 
+/-- `mle` pulls out a constant `Fq` factor. -/
+theorem mle_const_mul {j : ℕ} (k : Fq) (g : Cube j → Fq) (x : Fin j → Fq) :
+    mle (fun c => k * g c) x = k * mle g x := by
+  unfold mle; rw [Finset.mul_sum]
+  exact Finset.sum_congr rfl fun b _ => by ring
+
+/-- **The confinement kernel `K`** (`lem:confine`): block-supported `Fp`-fibers
+whose evaluations vanish at the queried points, the two commitment nodes, and
+the `f̂₁` nodes. The probe placing such a fiber on any class is view-vanishing
+(`blockClassMask_viewVanishes`), so `confine_pairing_zero` says any
+`φ ∈ ann(range pinFold)` trace-pairs to zero against all of `K`. -/
+def confineKer : Submodule (Fp P) (Cube P.m → Fp P) where
+  carrier := {v |
+    (∀ c, v c ≠ 0 → IsBlockPos P c) ∧
+    (∀ t : Fin P.t₀, mle (fun c => algebraMap (Fp P) Fq (v c))
+      (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) ∧
+    (∀ j : Fin 2, mle (fun c => algebraMap (Fp P) Fq (v c))
+      (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = 0) ∧
+    (∀ j : Fin P.s₁, mle (fun c => algebraMap (Fp P) Fq (v c))
+      (powSeq (ch.zf j) P.m) = 0)}
+  zero_mem' := by
+    refine ⟨fun c hc => absurd rfl hc, ?_, ?_, ?_⟩ <;> intro <;> simp [mle]
+  add_mem' := by
+    rintro v v' ⟨hb, hq, hn, hz⟩ ⟨hb', hq', hn', hz'⟩
+    have hadd : (fun c => algebraMap (Fp P) Fq ((v + v') c)) =
+        (fun c => algebraMap (Fp P) Fq (v c) + algebraMap (Fp P) Fq (v' c)) := by
+      funext c; rw [Pi.add_apply, map_add]
+    refine ⟨?_, fun t => ?_, fun j => ?_, fun j => ?_⟩
+    · intro c hc
+      rw [Pi.add_apply] at hc
+      by_cases h : v c = 0
+      · rw [h, zero_add] at hc; exact hb' c hc
+      · exact hb c h
+    · rw [hadd, mle_add, hq t, hq' t, add_zero]
+    · rw [hadd, mle_add, hn j, hn' j, add_zero]
+    · rw [hadd, mle_add, hz j, hz' j, add_zero]
+  smul_mem' := by
+    rintro r v ⟨hb, hq, hn, hz⟩
+    have hsmul : (fun c => algebraMap (Fp P) Fq ((r • v) c)) =
+        (fun c => algebraMap (Fp P) Fq r * algebraMap (Fp P) Fq (v c)) := by
+      funext c; rw [Pi.smul_apply, smul_eq_mul, map_mul]
+    refine ⟨?_, fun t => ?_, fun j => ?_, fun j => ?_⟩
+    · intro c hc
+      refine hb c (fun h => hc ?_)
+      rw [Pi.smul_apply, smul_eq_mul, h, mul_zero]
+    · rw [hsmul, mle_const_mul, hq t, mul_zero]
+    · rw [hsmul, mle_const_mul, hn j, mul_zero]
+    · rw [hsmul, mle_const_mul, hz j, mul_zero]
+
+/-- Membership in `confineKer` unfolds to the four vanishing conditions. -/
+theorem mem_confineKer {v : Cube P.m → Fp P} :
+    v ∈ confineKer P Fq Dom ch ↔
+      (∀ c, v c ≠ 0 → IsBlockPos P c) ∧
+      (∀ t : Fin P.t₀, mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) ∧
+      (∀ j : Fin 2, mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = 0) ∧
+      (∀ j : Fin P.s₁, mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (ch.zf j) P.m) = 0) := Iff.rfl
+
+/-- **Confinement, packaged** (`lem:confine`): the trace-dual `w` of any
+`φ ∈ ann(range pinFold)` trace-pairs to zero against every element of the
+confinement kernel `K`. -/
+theorem confine_trace_pairing_confineKer [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
+    ∃ w : Cube P.m → Fq,
+      (∀ g, φ g = Algebra.trace (Fp P) Fq (∑ c, w c * g c)) ∧
+      ∀ v ∈ confineKer P Fq Dom ch,
+        (∑ c, w c * algebraMap (Fp P) Fq (v c)) = 0 := by
+  obtain ⟨w, hw, hpair⟩ :=
+    confine_pairing_zero P Fq Dom S ch h2 hmf hspread φ hφ
+  exact ⟨w, hw, fun v hv => hpair v hv.1 hv.2.1 hv.2.2.1 hv.2.2.2⟩
+
 end ZkWhir
