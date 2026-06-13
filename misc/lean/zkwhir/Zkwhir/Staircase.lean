@@ -149,6 +149,50 @@ theorem chanWeight_staircase_sum (j : Fin 2) (r : Fin P.k₀ × Fin 2) :
         (lamData P Fq Dom ch (ch.z j)) i))
   rw [h, add_assoc]
 
+/-- **The block combination in the `ω/τ` basis**: a μ-weighted ood vector plus
+a ν-weighted channel sum regroups (via `sum_comm`) into one coefficient per
+slot — the form `staircase_indep` consumes. -/
+theorem block_combination (j : Fin 2) (μ : Fq) (ν : Fin P.k₀ × Fin 2 → Fq) :
+    μ • eqPoly (powSeq (ch.z j) P.k₀) + ∑ r, ν r • chanWeight Fq P Dom ch j r =
+      (μ + ∑ r, ν r * prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+          (powSeq (ch.z j) P.k₀)) • eqPoly (powSeq (ch.z j) P.k₀)
+      + ∑ i : Fin P.k₀, (∑ r, ν r * chanTauW Fq P Dom ch j r i) •
+          ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+            (lamData P Fq Dom ch (ch.z j)) i) := by
+  have hcw : ∀ r : Fin P.k₀ × Fin 2, ν r • chanWeight Fq P Dom ch j r =
+      (ν r * prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+          (powSeq (ch.z j) P.k₀)) • eqPoly (powSeq (ch.z j) P.k₀)
+      + ∑ i : Fin P.k₀, (ν r * chanTauW Fq P Dom ch j r i) •
+          ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+            (lamData P Fq Dom ch (ch.z j)) i) := by
+    intro r
+    rw [chanWeight_staircase_sum, smul_add, smul_smul, Finset.smul_sum]
+    congr 1
+    refine Finset.sum_congr rfl fun i _ => ?_
+    rw [smul_smul]
+  rw [Finset.sum_congr rfl (fun r _ => hcw r), Finset.sum_add_distrib,
+    ← Finset.sum_smul, Finset.sum_comm, ← add_assoc, ← add_smul]
+  congr 1
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [← Finset.sum_smul]
+
+/-- **Chain equations for one block** (`lem:chain`): if a block's
+μ-and-ν-weighted combination vanishes, then the ω-coefficient and every
+τ-coefficient vanish — extracted by `staircase_indep`. -/
+theorem block_chain_eqns (j : Fin 2) (μ : Fq) (ν : Fin P.k₀ × Fin 2 → Fq)
+    (h : μ • eqPoly (powSeq (ch.z j) P.k₀) +
+      ∑ r, ν r • chanWeight Fq P Dom ch j r = 0) :
+    (μ + ∑ r, ν r * prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+        (powSeq (ch.z j) P.k₀)) = 0 ∧
+    ∀ i, (∑ r, ν r * chanTauW Fq P Dom ch j r i) = 0 := by
+  rw [block_combination] at h
+  have hez : eqPoly (powSeq (ch.z j) P.k₀) = ptensor (czData P Fq (ch.z j)) := by
+    rw [eqPoly_eq_ptensor]; rfl
+  rw [hez] at h
+  exact staircase_indep (czData P Fq (ch.z j)) (fun _ => drow)
+    (lamData P Fq Dom ch (ch.z j))
+    (fun i => vrow_basis (powSeq (ch.z j) P.k₀ i)) _ _ h
+
 /-- **The coupled-chains kernel condition** (`lem:coupled`, consumable form).
 A weight family `ν` over the `k₀ × {1,2}` slot/eval pairs that is killed on
 *both* blocks — each combined with that block's out-of-domain vector — must
