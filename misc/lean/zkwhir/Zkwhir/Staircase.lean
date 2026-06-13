@@ -292,6 +292,68 @@ theorem slotDiag_eq (j : Fin 2) (ν : Fin P.k₀ × Fin 2 → Fq) (m : Fin P.k�
     Finset.sum_singleton]
   rfl
 
+/-- The slot mass expanded over the two evals. -/
+theorem slotMass_expand (j : Fin 2) (ν : Fin P.k₀ × Fin 2 → Fq)
+    (ℓ : Fin P.k₀) :
+    slotMass Fq P Dom ch j ν ℓ =
+      ν (ℓ, 0) * prefixFactor P Fq Dom ch ℓ 1 (powSeq (ch.z j) P.k₀)
+    + ν (ℓ, 1) * prefixFactor P Fq Dom ch ℓ 2 (powSeq (ch.z j) P.k₀) := by
+  unfold slotMass
+  rw [Fin.sum_univ_two]
+  norm_num
+
+/-- The slot diagonal expanded over the two evals. -/
+theorem slotDiag_expand (j : Fin 2) (ν : Fin P.k₀ × Fin 2 → Fq)
+    (m : Fin P.k₀) :
+    slotDiag Fq P Dom ch j ν m =
+      ν (m, 0) * (prefixFactor P Fq Dom ch m 1 (powSeq (ch.z j) P.k₀) *
+          (1 - powSeq (ch.z j) P.k₀ m))
+    + ν (m, 1) * (prefixFactor P Fq Dom ch m 2 (powSeq (ch.z j) P.k₀) *
+          (2 - powSeq (ch.z j) P.k₀ m)) := by
+  unfold slotDiag
+  rw [Fin.sum_univ_two]
+  norm_num
+
+/-- Slot mass is linear in `ν`. -/
+theorem slotMass_smul (j : Fin 2) (c : Fq) (ν : Fin P.k₀ × Fin 2 → Fq)
+    (ℓ : Fin P.k₀) :
+    slotMass Fq P Dom ch j (fun r => c * ν r) ℓ =
+      c * slotMass Fq P Dom ch j ν ℓ := by
+  unfold slotMass
+  rw [Finset.mul_sum]
+  exact Finset.sum_congr rfl fun y _ => by ring
+
+/-- Slot diagonal is linear in `ν`. -/
+theorem slotDiag_smul (j : Fin 2) (c : Fq) (ν : Fin P.k₀ × Fin 2 → Fq)
+    (m : Fin P.k₀) :
+    slotDiag Fq P Dom ch j (fun r => c * ν r) m =
+      c * slotDiag Fq P Dom ch j ν m := by
+  unfold slotDiag
+  rw [Finset.mul_sum]
+  exact Finset.sum_congr rfl fun y _ => by ring
+
+/-- The per-slot 2×2 coupling determinant: the obstruction whose nonvanishing
+makes the two blocks pin the slot's two evals to zero. -/
+def slotDet (m : Fin P.k₀) : Fq :=
+  (prefixFactor P Fq Dom ch m 1 (powSeq (ch.z 0) P.k₀) *
+      (1 - powSeq (ch.z 0) P.k₀ m)) *
+    (prefixFactor P Fq Dom ch m 2 (powSeq (ch.z 1) P.k₀) *
+      (2 - powSeq (ch.z 1) P.k₀ m)) -
+  (prefixFactor P Fq Dom ch m 1 (powSeq (ch.z 1) P.k₀) *
+      (1 - powSeq (ch.z 1) P.k₀ m)) *
+    (prefixFactor P Fq Dom ch m 2 (powSeq (ch.z 0) P.k₀) *
+      (2 - powSeq (ch.z 0) P.k₀ m))
+
+/-- **Per-slot solve**: both blocks' diagonals vanishing at slot `m`, with the
+coupling determinant nonzero, pins the slot's two evals to zero. -/
+theorem slot_solve (ν : Fin P.k₀ × Fin 2 → Fq) (m : Fin P.k₀)
+    (hdet : slotDet Fq P Dom ch m ≠ 0)
+    (h0 : slotDiag Fq P Dom ch 0 ν m = 0)
+    (h1 : slotDiag Fq P Dom ch 1 ν m = 0) :
+    ν (m, 0) = 0 ∧ ν (m, 1) = 0 := by
+  rw [slotDiag_expand] at h0 h1
+  exact two_by_two_zero hdet h0 h1
+
 /-- **A block's chain equation in triangular slot form**: assembling the
 filter-form chain coefficient, the slot-mass regroup, and the diagonal
 regroup. -/
