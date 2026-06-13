@@ -365,6 +365,49 @@ theorem slotDet_factor [Nonempty {x // x ∈ Dom}] (m : Fin P.k₀) :
   rw [prefixFactor_eq, prefixFactor_eq, prefixFactor_eq, prefixFactor_eq]
   ring
 
+/-- The `zdet` as a polynomial in `z₁` (with `a = z₀^{2^m}` a parameter and
+`e = 2^m`): its roots are the `zdet`-vanishing values of `z₁`. -/
+def zdetPoly (a : Fq) (e : ℕ) : Polynomial Fq :=
+  Polynomial.C (a * (1 - a)) *
+      ((3 * Polynomial.X ^ e - 1) * (2 - Polynomial.X ^ e)) -
+    Polynomial.C ((3 * a - 1) * (2 - a)) *
+      (Polynomial.X ^ e * (1 - Polynomial.X ^ e))
+
+/-- `zdet_m` is the evaluation of `zdetPoly` at `z₁`. -/
+theorem zdet_eq_eval (m : Fin P.k₀) :
+    zdet Fq P Dom ch m =
+      Polynomial.eval (ch.z 1)
+        (zdetPoly Fq (powSeq (ch.z 0) P.k₀ m) (2 ^ (m : ℕ))) := by
+  unfold zdet zdetPoly
+  simp only [eqf_one, eqf_two, Polynomial.eval_sub, Polynomial.eval_mul,
+    Polynomial.eval_C, Polynomial.eval_add, Polynomial.eval_pow,
+    Polynomial.eval_X, Polynomial.eval_ofNat, Polynomial.eval_one, powSeq]
+  ring
+
+/-- The constant coefficient of `zdetPoly` is `−2a(1−a)`. -/
+theorem zdetPoly_coeff_zero (a : Fq) (e : ℕ) (he : 0 < e) :
+    (zdetPoly Fq a e).coeff 0 = -(2 * (a * (1 - a))) := by
+  rw [Polynomial.coeff_zero_eq_eval_zero]
+  unfold zdetPoly
+  simp only [Polynomial.eval_sub, Polynomial.eval_mul, Polynomial.eval_C,
+    Polynomial.eval_add, Polynomial.eval_pow, Polynomial.eval_X,
+    Polynomial.eval_ofNat, Polynomial.eval_one, zero_pow he.ne']
+  ring
+
+/-- `zdetPoly` is nonzero when `a ∉ {0, 1}` (char ≠ 2): its constant
+coefficient is nonzero. -/
+theorem zdetPoly_ne_zero (h2 : (2 : Fq) ≠ 0) (a : Fq) (e : ℕ) (he : 0 < e)
+    (ha0 : a ≠ 0) (ha1 : a ≠ 1) : zdetPoly Fq a e ≠ 0 := by
+  intro h
+  have hc := zdetPoly_coeff_zero Fq a e he
+  rw [h, Polynomial.coeff_zero] at hc
+  have : (2 : Fq) * (a * (1 - a)) = 0 := by linear_combination hc
+  rcases mul_eq_zero.mp this with h' | h'
+  · exact h2 h'
+  · rcases mul_eq_zero.mp h' with h'' | h''
+    · exact ha0 h''
+    · exact ha1 (sub_eq_zero.mp h'').symm
+
 /-- **Per-slot solve**: both blocks' diagonals vanishing at slot `m`, with the
 coupling determinant nonzero, pins the slot's two evals to zero. -/
 theorem slot_solve (ν : Fin P.k₀ × Fin 2 → Fq) (m : Fin P.k₀)
