@@ -435,6 +435,21 @@ theorem eq_zero_of_trace_pairing_span {Fp Fq : Type*} [Field Fp] [Field Fq]
   | add x y _ _ hx hy => rw [add_mul, map_add, hx, hy, add_zero]
   | smul r x _ hx => rw [smul_mul_assoc, map_smul, hx, smul_zero]
 
+/-- **Contrapositive of `eq_zero_of_trace_pairing_span`** (`lem:termslice` /
+`lem:fullslice` Step 4 core): if the `lam` span `Fq` over `Fp` and `X ≠ 0`, then
+some trace pairing `tr(lam i · X)` is nonzero — the `Fp`-form `x ↦ tr(x · X)` is
+nonzero on the spanning family. This turns `F_θ ≠ 0` (an `Fq`-fact) plus SPREAD
+into `tr ∘ F_θ ≠ 0` (the `Fp`-fact `prop:pinbound` consumes). -/
+theorem exists_trace_ne_zero_of_span {Fp Fq : Type*} [Field Fp] [Field Fq]
+    [Algebra Fp Fq] [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq]
+    {ι : Type*} (lam : ι → Fq)
+    (hspan : Submodule.span Fp (Set.range lam) = ⊤)
+    (X : Fq) (hX : X ≠ 0) : ∃ i, Algebra.trace Fp Fq (lam i * X) ≠ 0 := by
+  by_contra h
+  refine hX (eq_zero_of_trace_pairing_span lam hspan X fun i => ?_)
+  by_contra hi
+  exact h ⟨i, hi⟩
+
 /-- **A functional vanishing on the common kernel lies in the span of the
 functionals** (the finite-dimensional annihilator/coannihilator duality;
 `lem:confine`/`lem:nodechannel` core). If `f` kills every vector killed by all
