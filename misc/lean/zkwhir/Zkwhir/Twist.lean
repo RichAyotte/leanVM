@@ -144,4 +144,52 @@ theorem aVec_eq (x lam : Fq) :
     gammaD x (fun b => vrow x b + lam * drow b) = lam := by
   rw [aVec_eq, gammaD_add, gammaD_smul, gammaD_vrow, gammaD_drow]; ring
 
+/-- The per-slot functional family selecting `γ^d` on the `d`-slots `S` and
+`γ^c` elsewhere (the coefficient functional `φ_S`). -/
+def dCoeff {k : ℕ} (x : Fin k → Fq) (S : Finset (Fin k)) :
+    Fin k → (Bool → Fq) → Fq := fun i => if i ∈ S then gammaD (x i) else gammaC
+
+theorem dCoeff_hlin {k : ℕ} (x : Fin k → Fq) (S : Finset (Fin k)) :
+    ∀ (i : Fin k) (w : Bool → Fq),
+      dCoeff x S i w =
+        w false * dCoeff x S i (eBool false) + w true * dCoeff x S i (eBool true) := by
+  intro i w
+  unfold dCoeff
+  split_ifs
+  · exact gammaD_linBool (x i) w
+  · exact gammaC_linBool w
+
+/-- **Coefficient of `v^{(r)} = ⊗(c_i + a_i d)`**: `φ_S(v) = ∏_{i∈S} a_i`. -/
+theorem tcoeff_vTensor {k : ℕ} (x a : Fin k → Fq) (S : Finset (Fin k)) :
+    tcoeff (dCoeff x S)
+        (ptensor (fun i => fun b => vrow (x i) b + a i * drow b)) =
+      ∏ i ∈ S, a i := by
+  rw [tcoeff_ptensor (dCoeff x S) (dCoeff_hlin x S)]
+  rw [show (∏ i, dCoeff x S i (fun b => vrow (x i) b + a i * drow b)) =
+      ∏ i, (if i ∈ S then a i else 1) from by
+    refine Finset.prod_congr rfl fun i _ => ?_
+    unfold dCoeff
+    split_ifs
+    · exact gammaD_aVec (x i) (a i)
+    · exact gammaC_aVec (x i) (a i)]
+  rw [← Finset.prod_filter]
+  congr 1
+  ext i; simp
+
+/-- **Coefficient of `ω = ⊗ c_i`**: `φ_S(ω) = 1` if `S = ∅`, else `0`. -/
+theorem tcoeff_omegaTensor {k : ℕ} (x : Fin k → Fq) (S : Finset (Fin k)) :
+    tcoeff (dCoeff x S) (ptensor (fun i => vrow (x i))) =
+      if S = ∅ then 1 else 0 := by
+  rw [tcoeff_ptensor (dCoeff x S) (dCoeff_hlin x S)]
+  rw [show (∏ i, dCoeff x S i (vrow (x i))) = ∏ i, (if i ∈ S then (0 : Fq) else 1) from by
+    refine Finset.prod_congr rfl fun i _ => ?_
+    unfold dCoeff
+    split_ifs
+    · exact gammaD_vrow (x i)
+    · exact gammaC_vrow (x i)]
+  split_ifs with hS
+  · subst hS; simp
+  · obtain ⟨j, hj⟩ := Finset.nonempty_iff_ne_empty.mpr hS
+    exact Finset.prod_eq_zero (Finset.mem_univ j) (by rw [if_pos hj])
+
 end ZkWhir
