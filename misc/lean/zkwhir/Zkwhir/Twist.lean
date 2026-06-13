@@ -29,4 +29,20 @@ theorem eqPoly_pow {j : ℕ} (r : ℕ) (xs : Fin j → Fq) (s : Cube j) :
   · rfl
   · exact Linearized.iterateFrobenius_one_sub r (xs i)
 
+variable {Fp : Type*} [Field Fp] [Fintype Fp] [Algebra Fp Fq] [CharP Fp p]
+
+/-- **The conjugated-row decomposition** (`cond:twist`): an `Fp`-linear map `T`
+evaluated along the Lagrange weights `λ_s = êq(α, s)` is the `t`-combination of
+the Frobenius-conjugated extension rows `η^{[r]}_s = êq(α^{[r]}, s)`, where `t`
+are the q-polynomial coefficients of `T` (Ore's theorem). -/
+theorem T_eval_eqPoly {j : ℕ} (hcard : Fintype.card Fp = p) (d : ℕ)
+    (hd : Fintype.card Fq = p ^ d) (hdeg : Module.finrank Fp Fq = d)
+    (T : Fq →ₗ[Fp] Fq) (α : Fin j → Fq) :
+    ∃ t : Fin d → Fq, ∀ s : Cube j,
+      T (eqPoly α s) = ∑ r, t r * eqPoly (fun i => α i ^ p ^ r.val) s := by
+  obtain ⟨t, ht⟩ := Linearized.exists_qpoly_repr hcard d hd hdeg T
+  refine ⟨t, fun s => ?_⟩
+  rw [ht (eqPoly α s)]
+  exact Finset.sum_congr rfl fun r _ => by rw [eqPoly_pow]
+
 end ZkWhir
