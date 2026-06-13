@@ -465,4 +465,17 @@ theorem eq_sum_trace_smul_dualBasis {Fp Fq : Type*} [Field Fp] [Field Fq]
   refine Finset.sum_congr rfl fun i _ => ?_
   rw [LinearMap.BilinForm.dualBasis_repr_apply, Algebra.traceForm_apply]
 
+/-- **Trace-slice of a pairing** (slice machinery): the trace twist `β` of an
+`Fp`-rational trace pairing `∑_c w_c · algebraMap(v_c)` is the `Fp`-pairing of
+`v` against the slice vector `c ↦ tr(β · w_c)`. Lets the `Fq`-valued pairing
+become a family of `Fp`-functionals (one per `β`). -/
+theorem trace_smul_pairing {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    {ι : Type*} [Fintype ι] (β : Fq) (w : ι → Fq) (v : ι → Fp) :
+    Algebra.trace Fp Fq (β * ∑ c, w c * algebraMap Fp Fq (v c)) =
+      ∑ c, v c * Algebra.trace Fp Fq (β * w c) := by
+  rw [Finset.mul_sum, map_sum]
+  refine Finset.sum_congr rfl fun c _ => ?_
+  rw [show β * (w c * algebraMap Fp Fq (v c)) = v c • (β * w c) from by
+    rw [Algebra.smul_def]; ring, map_smul, smul_eq_mul]
+
 end ZkWhir
