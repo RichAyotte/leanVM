@@ -1969,6 +1969,24 @@ theorem termCross_tr_ne_zero [FiniteDimensional (Fp P) Fq]
   rwa [show a * ch.γ ^ 2 * eqPoly ch.α s * wHat0 P Fq Dom S ch c0
       = eqPoly ch.α s * (a * ch.γ ^ 2 * wHat0 P Fq Dom S ch c0) from by ring]
 
+/-- **`W₀` class-fold decomposition** (`cond:cross2` terminal computation, tex:519):
+the `α`-fold of the terminal weight splits into the two node parts (weighted by
+`A_j = ∑_s êq(α,s)·êq(powz_j,s)` and the commitment-node position MLEs) plus the
+`γ²` cross part `ŵ(α₀,c)`. The `γ²`-component is the terminal cross form `T_ŵ`. -/
+theorem weight_fold_class_decomp (c : Cube P.m) :
+    (∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) =
+      (∑ s, eqPoly ch.α s * eqPoly (powSeq (ch.z 0) P.k₀) s) *
+          eqPoly (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m) c
+      + ch.γ * ((∑ s, eqPoly ch.α s * eqPoly (powSeq (ch.z 1) P.k₀) s) *
+          eqPoly (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m) c)
+      + ch.γ ^ 2 * wHat0 P Fq Dom S ch c := by
+  unfold wHat0
+  rw [Finset.sum_mul, Finset.sum_mul, Finset.mul_sum, Finset.mul_sum,
+    ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun s _ => ?_
+  simp only [W₀]
+  ring
+
 /-- **`lem:nodechannel` → `cond:twist`, full bridge** (parts (d)+(e)): the node
 functional is forced **untwisted** — there are scalars `θ_j` so the node functional
 equals `θ_j · êq(α, ·)` (and still lies in the node-matrix row space). Applies
