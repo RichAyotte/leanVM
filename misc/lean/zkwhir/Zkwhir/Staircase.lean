@@ -22,6 +22,24 @@ namespace ZkWhir
 
 variable (Fq : Type*) [Field Fq] [Fintype Fq]
 
+/-- The coupling function `g(x) = (1 − 2x²)/(2x − 1)` of `lem:coupled` /
+`cond:cross2` (the chain-pencil ratio `B^{(j)}_ℓ / C^{(j)}_ℓ`). -/
+def gFun (x : Fq) : Fq := (1 - 2 * x ^ 2) / (2 * x - 1)
+
+/-- **Closed form `1 + g(x) = 2x(1−x)/(2x−1)`** (the factor in `cond:cross2`'s
+nonvanishing minor, tex:535): nonzero precisely when `x ∉ {0, 1}`. -/
+theorem one_add_gFun (x : Fq) (hx : 2 * x - 1 ≠ 0) :
+    1 + gFun Fq x = 2 * x * (1 - x) / (2 * x - 1) := by
+  rw [gFun]; field_simp; ring
+
+/-- The `cond:cross2` minor factor `1 + g(x)` is nonzero when `x ∉ {0, 1}` (and
+`2x ≠ 1`, `2 ≠ 0`). -/
+theorem one_add_gFun_ne_zero (h2 : (2 : Fq) ≠ 0) (x : Fq) (hx : 2 * x - 1 ≠ 0)
+    (hx0 : x ≠ 0) (hx1 : x ≠ 1) : 1 + gFun Fq x ≠ 0 := by
+  rw [one_add_gFun Fq x hx]
+  exact div_ne_zero
+    (mul_ne_zero (mul_ne_zero h2 hx0) (sub_ne_zero.mpr (Ne.symm hx1))) hx
+
 /-- Peeling the top coordinate of a Lagrange weight: `êq` at a `snoc`-point
 and a `snoc`-vertex factors. -/
 theorem eqPoly_snoc {R : Type*} [CommRing R] {j : ℕ} (p : Fin j → R) (t : R)
