@@ -622,4 +622,40 @@ theorem coupledGen_failure_le (d : ℕ)
 
 end CoupledProb
 
+/-! ## Threading the coupled-chains core into the absorption bounds (ε₂ e3) -/
+
+section ThreadCoupled
+
+open scoped ENNReal
+
+variable (P : Params) [Algebra (Fp P) Fq] (Dom : Finset (Fp P))
+  [Nonempty {x // x ∈ Dom}] (S : Stmt P Fq) [FiniteDimensional (Fp P) Fq]
+
+/-- **ε₂ rewired through the coupled-chains core**: `GoodSetAbsorption` from
+the three probability bounds, with the ε₂ obligation stated as the concrete
+`P[¬CoupledGen]` rather than the abstract `P[¬ LinearIndependent rowWeights]`
+— since `coupledKer_of_gen ∘ rowsLI_of_coupledKer` proves
+`CoupledGen → LinearIndependent rowWeights`. -/
+theorem goodSetAbsorption_of_coupledBounds
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (ε₁ ε₂ ε₃ : ℝ≥0∞)
+    (hA : (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ¬ NodeHyp P Fq Dom ch} ≤ ε₁)
+    (hB : (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ¬ CoupledGen Fq P Dom ch} ≤ ε₂)
+    (hC : (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ¬ Pinning P Fq Dom S ch} ≤ ε₃)
+    (hsum : ε₁ + ε₂ + ε₃ ≤ εZK P Fq) :
+    GoodSetAbsorption P Fq Dom S := by
+  refine goodSetAbsorption_of_bounds P Fq Dom S h2 hmf hdom hbudget ε₁ ε₂ ε₃
+    hA ?_ hC hsum
+  refine le_trans (MeasureTheory.measure_mono ?_) hB
+  intro ch hch
+  simp only [Set.mem_setOf_eq] at hch ⊢
+  intro hcg
+  exact hch (rowsLI_of_coupledKer Fq P Dom ch (coupledKer_of_gen Fq P Dom ch hcg))
+
+end ThreadCoupled
+
 end ZkWhir
