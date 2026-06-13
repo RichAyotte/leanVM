@@ -174,6 +174,17 @@ theorem span_top_solve_algebra {ι : Type*} [Fintype ι] {E : Type*}
   obtain ⟨lam, hlam⟩ := span_top_solve v hspan t
   exact ⟨lam, by simpa [Algebra.smul_def] using hlam⟩
 
+/-- **Pointwise base-field solve**: a spanning family over `F` reaches every
+target *function* simultaneously, with base-field coefficients chosen per point.
+This is how the masks (base-field) realize an arbitrary fold (extension-valued)
+position by position. -/
+theorem exists_pointwise_span_solution {E : Type*} [CommRing E] [Algebra F E]
+    {ι : Type*} [Fintype ι] (g : ι → E)
+    (hspan : span F (Set.range g) = ⊤) {κ : Type*} (G : κ → E) :
+    ∃ w : ι → κ → F, ∀ c, ∑ i, algebraMap F E (w i c) * g i = G c := by
+  choose lam hlam using fun c => span_top_solve_algebra g hspan (G c)
+  exact ⟨fun i c => lam c i, fun c => hlam c⟩
+
 /-- **Independence from an invertible minor**: a family of vectors indexed
 by coordinates is linearly independent as soon as *some* square selection of
 coordinates has invertible determinant. This is how the staircase
