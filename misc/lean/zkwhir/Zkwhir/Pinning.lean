@@ -16,6 +16,9 @@ import Zkwhir.Statement
 import Zkwhir.Toolbox
 import Zkwhir.Absorption
 import Zkwhir.StaircaseBridge
+import Zkwhir.Staircase
+import Zkwhir.ViewSolve
+import Zkwhir.Blocks
 
 set_option linter.style.header false
 set_option linter.unusedSectionVars false
@@ -688,5 +691,11 @@ theorem exists_trace_crossForm_ne_zero [FiniteDimensional (Fp P) Fq]
     ∃ κ : MaskAssign P,
       Algebra.trace (Fp P) Fq (crossForm P Fq Dom ch (assemble P 0 (-κ)) θ) ≠ 0 :=
   exists_trace_ne_zero_of_surjective (crossFormMap P Fq Dom ch θ) hsurj
+
+/-- Some class has nonzero `α`-Lagrange weight (partition of unity). -/
+theorem exists_eqPoly_alpha_ne_zero : ∃ s : Cube P.k₀, eqPoly (ch.α) s ≠ 0 := by
+  by_contra h
+  push_neg at h
+  exact eqPoly_vec_ne_zero Fq (ch.α) (funext fun s => h s)
 
 end ZkWhir
