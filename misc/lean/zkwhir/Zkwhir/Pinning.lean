@@ -663,4 +663,30 @@ theorem prefixFactor_evalT_moment_SR (δ : Cell P → Fp P) (j : Fin 2)
   unfold momS momR
   ring
 
+/-- **`F_θ` as an `Fp`-linear map on masks**: `κ ↦ F_θ(assemble 0 (−κ))`. Its
+surjectivity (`range = ⊤`) is exactly the spanning condition that
+`exists_trace_ne_zero_of_surjective` turns into `tr∘F_θ ≠ 0` (Step 4). -/
+def crossFormMap (θ : Fin 2 → Fq) : MaskAssign P →ₗ[Fp P] Fq where
+  toFun κ := crossForm P Fq Dom ch (assemble P 0 (-κ)) θ
+  map_add' κ₁ κ₂ := by
+    show crossForm P Fq Dom ch (assemble P 0 (-(κ₁ + κ₂))) θ =
+      crossForm P Fq Dom ch (assemble P 0 (-κ₁)) θ +
+        crossForm P Fq Dom ch (assemble P 0 (-κ₂)) θ
+    rw [neg_add, assemble_zero_add, crossForm_add]
+  map_smul' a κ := by
+    show crossForm P Fq Dom ch (assemble P 0 (-(a • κ))) θ =
+      a • crossForm P Fq Dom ch (assemble P 0 (-κ)) θ
+    rw [← smul_neg, assemble_zero_smul, crossForm_smul]
+
+/-- **Step 4** (`tr∘F_θ ≠ 0` from surjectivity): if the cross-form map for `θ`
+is surjective, some view-vanishing-style mask gives a nonzero trace pairing —
+the slice nondegeneracy `lem:fullslice` needs, reduced to a spanning condition
+via the two-point machinery. -/
+theorem exists_trace_crossForm_ne_zero [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (θ : Fin 2 → Fq)
+    (hsurj : Function.Surjective (crossFormMap P Fq Dom ch θ)) :
+    ∃ κ : MaskAssign P,
+      Algebra.trace (Fp P) Fq (crossForm P Fq Dom ch (assemble P 0 (-κ)) θ) ≠ 0 :=
+  exists_trace_ne_zero_of_surjective (crossFormMap P Fq Dom ch θ) hsurj
+
 end ZkWhir
