@@ -433,4 +433,60 @@ theorem eta_telescope (z : Fq) :
   rw [hif] at h
   rw [hα, h, hcz]
 
+/-! ## The node pairing (`lem:fullslice` Step 2, the `⟨·, V⟩` functional)
+
+`nodePair δ j w = ⟨w, V_j⟩` pairs a class-vector against block `j`'s node
+values `V_{s,j} = û_s(ν_j)`. It is `Fq`-linear, so the staircase decompositions
+(`eqPoly_mixedPoint_decomp`, `eta_telescope`) pass through it: the slice value is
+`⟨êq(mixed), V_j⟩` and the terminal node pairing is `⟨êq(α), V_j⟩`. -/
+
+/-- The pairing of a class-vector against block `j`'s node values. -/
+def nodePair (δ : Cell P → Fp P) (j : Fin 2) (w : Cube P.k₀ → Fq) : Fq :=
+  ∑ s, w s * mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+
+theorem nodePair_add (δ : Cell P → Fp P) (j : Fin 2) (w w' : Cube P.k₀ → Fq) :
+    nodePair P Fq Dom ch δ j (w + w') =
+      nodePair P Fq Dom ch δ j w + nodePair P Fq Dom ch δ j w' := by
+  unfold nodePair
+  rw [← Finset.sum_add_distrib]
+  exact Finset.sum_congr rfl fun s _ => by rw [Pi.add_apply]; ring
+
+theorem nodePair_smul (δ : Cell P → Fp P) (j : Fin 2) (c : Fq)
+    (w : Cube P.k₀ → Fq) :
+    nodePair P Fq Dom ch δ j (c • w) = c * nodePair P Fq Dom ch δ j w := by
+  unfold nodePair
+  rw [Finset.mul_sum]
+  exact Finset.sum_congr rfl fun s _ => by rw [Pi.smul_apply, smul_eq_mul]; ring
+
+theorem nodePair_sum (δ : Cell P → Fp P) (j : Fin 2) {ι : Type*} (t : Finset ι)
+    (f : ι → Cube P.k₀ → Fq) :
+    nodePair P Fq Dom ch δ j (∑ i ∈ t, f i) =
+      ∑ i ∈ t, nodePair P Fq Dom ch δ j (f i) := by
+  unfold nodePair
+  simp only [Finset.sum_apply, Finset.sum_mul]
+  rw [Finset.sum_comm]
+
+/-- The slice value is the node pairing of the mixed-point Lagrange weight. -/
+theorem evalT_mixed_eq_nodePair (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀)
+    (y : Fq) :
+    evalT P Fq δ (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z j) P.k₀))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) =
+      nodePair P Fq Dom ch δ j
+        (eqPoly (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z j) P.k₀))) := by
+  rw [evalT_eq_sum_classes]; rfl
+
+/-- **The terminal node pairing telescopes**: `⟨η, V_j⟩ = ⟨êq(powz_j), V_j⟩ +
+∑_i λ_i ⟨τ^j_i, V_j⟩` — the `η`-target in node-pairing form. -/
+theorem nodePair_eta (δ : Cell P → Fp P) (j : Fin 2) :
+    nodePair P Fq Dom ch δ j (eqPoly (ch.α)) =
+      nodePair P Fq Dom ch δ j (eqPoly (powSeq (ch.z j) P.k₀))
+      + ∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => (i : ℕ) < P.k₀),
+          lamData P Fq Dom ch (ch.z j) i *
+            nodePair P Fq Dom ch δ j
+              (ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+                (lamData P Fq Dom ch (ch.z j)) i)) := by
+  rw [eta_telescope P Fq Dom ch (ch.z j), nodePair_add, nodePair_sum]
+  congr 1
+  exact Finset.sum_congr rfl fun i _ => nodePair_smul P Fq Dom ch δ j _ _
+
 end ZkWhir
