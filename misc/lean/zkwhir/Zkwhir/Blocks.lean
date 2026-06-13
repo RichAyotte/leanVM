@@ -443,6 +443,22 @@ theorem cellPoly_combo_ne_zero {T : Cube j → R} (hT : T ≠ 0) :
   rw [hzero, Polynomial.coeff_zero] at hcoeff
   exact (Finset.mem_filter.mp hb₀mem).2 hcoeff.symm
 
+/-- The degree half of `lem:binpow`: any `R`-combination of the cell
+polynomials has degree below `2^j` (each cell polynomial does). Together with
+`cellPoly_combo_ne_zero` this gives the univariate Schwartz–Zippel bound on the
+binary-power substitution `z ↦ mle T (powSeq z)`. -/
+theorem cellPoly_combo_natDegree_lt (T : Cube j → R) :
+    (∑ b : Cube j, T b • cellPoly (R := R) b).natDegree < 2 ^ j := by
+  have hpos : 0 < 2 ^ j := Nat.two_pow_pos j
+  have hle : (∑ b : Cube j, T b • cellPoly (R := R) b).natDegree ≤ 2 ^ j - 1 := by
+    refine Polynomial.natDegree_sum_le_of_forall_le _ _ ?_
+    intro b _
+    refine le_trans (Polynomial.natDegree_smul_le _ _) ?_
+    rcases cellPoly_natDegree_lt (R := R) b with hlt | hcz
+    · omega
+    · rw [hcz, Polynomial.natDegree_zero]; omega
+  omega
+
 end CellPoly
 
 /-! ## The block solver (`prop:uniform`, Stage B)
