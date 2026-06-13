@@ -121,6 +121,61 @@ theorem prefixFactor_eq (ℓ : Fin P.k₀) (y : Fq) (x : Fin P.k₀ → Fq) :
         (Finset.mem_filter.mpr ⟨Finset.mem_univ ℓ, lt_irrefl ℓ⟩) hℓ)]
     rw [if_neg (lt_irrefl ℓ), if_pos rfl]
 
+/-- **The Lagrange weight is affine in the level-`ℓ` slot**: `êq` at the mixed
+point linearly interpolates between its `y = 0` and `y = 1` values — the formal
+core of the slice tables `p_L + Y·q_L` (`lem:fullslice`/`lem:noother`). -/
+theorem eqPoly_mixedPoint_affine (ℓ : Fin P.k₀) (y : Fq) (x : Fin P.k₀ → Fq)
+    (s : Cube P.k₀) :
+    eqPoly (mixedPoint P Fq Dom ch ℓ y x) s =
+      (1 - y) * eqPoly (mixedPoint P Fq Dom ch ℓ 0 x) s +
+      y * eqPoly (mixedPoint P Fq Dom ch ℓ 1 x) s := by
+  classical
+  unfold eqPoly
+  rw [← Finset.mul_prod_erase _ _ (Finset.mem_univ ℓ),
+      ← Finset.mul_prod_erase _ _ (Finset.mem_univ ℓ),
+      ← Finset.mul_prod_erase _ _ (Finset.mem_univ ℓ)]
+  have hmix : ∀ (z : Fq) (i : Fin P.k₀), i ≠ ℓ →
+      mixedPoint P Fq Dom ch ℓ z x i = mixedPoint P Fq Dom ch ℓ y x i := by
+    intro z i hiℓ
+    unfold mixedPoint
+    by_cases h : i < ℓ
+    · rw [if_pos h, if_pos h]
+    · rw [if_neg h, if_neg h, if_neg hiℓ, if_neg hiℓ]
+  have hcommon : ∀ z : Fq, ∏ i ∈ Finset.univ.erase ℓ,
+        (if s i then mixedPoint P Fq Dom ch ℓ z x i
+         else 1 - mixedPoint P Fq Dom ch ℓ z x i) =
+      ∏ i ∈ Finset.univ.erase ℓ,
+        (if s i then mixedPoint P Fq Dom ch ℓ y x i
+         else 1 - mixedPoint P Fq Dom ch ℓ y x i) := by
+    intro z
+    refine Finset.prod_congr rfl fun i hi => ?_
+    rw [hmix z i (Finset.mem_erase.mp hi).1]
+  rw [hcommon 0, hcommon 1]
+  have hℓy : mixedPoint P Fq Dom ch ℓ y x ℓ = y := by
+    unfold mixedPoint; rw [if_neg (lt_irrefl ℓ), if_pos rfl]
+  have hℓ0 : mixedPoint P Fq Dom ch ℓ 0 x ℓ = 0 := by
+    unfold mixedPoint; rw [if_neg (lt_irrefl ℓ), if_pos rfl]
+  have hℓ1 : mixedPoint P Fq Dom ch ℓ 1 x ℓ = 1 := by
+    unfold mixedPoint; rw [if_neg (lt_irrefl ℓ), if_pos rfl]
+  rw [hℓy, hℓ0, hℓ1]
+  by_cases hsℓ : s ℓ
+  · rw [if_pos hsℓ, if_pos hsℓ, if_pos hsℓ]; ring
+  · rw [if_neg hsℓ, if_neg hsℓ, if_neg hsℓ]; ring
+
+/-- **The table evaluation is affine in the level-`ℓ` slot**: the slice value
+`evalT(mixedPoint ℓ y x)` linearly interpolates in `y`. Lifts
+`eqPoly_mixedPoint_affine` through `evalT`. -/
+theorem evalT_mixedPoint_affine (ℓ : Fin P.k₀) (y : Fq) (x : Fin P.k₀ → Fq)
+    (xs : Fin P.m → Fq) :
+    evalT P Fq T (mixedPoint P Fq Dom ch ℓ y x) xs =
+      (1 - y) * evalT P Fq T (mixedPoint P Fq Dom ch ℓ 0 x) xs +
+      y * evalT P Fq T (mixedPoint P Fq Dom ch ℓ 1 x) xs := by
+  unfold evalT
+  rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun u _ => ?_
+  rw [eqPoly_mixedPoint_affine]
+  ring
+
 /-- The Lagrange prefactor of `partialEval`: the weight of the class `s` in
 the round-`ℓ` partial evaluation at `X` with suffix `b`. -/
 def preFac (ℓ : Fin P.k₀) (X : Fq) (s b : Cube P.k₀) : Fq :=
