@@ -505,6 +505,30 @@ theorem dotFunc_injective {R ι : Type*} [CommRing R] [Fintype ι] :
   funext i
   rw [← dotFunc_single a i, ← dotFunc_single a' i, h]
 
+/-- **Row-space duality** (concrete `(ker M)^⊥ = row space`): a vector `B`
+pairing-orthogonal (standard dot product) to the common kernel of finitely many
+row vectors `rows a` lies in their span — `B = ∑_a c_a · rows a` for some
+coefficients `c`. This is `LinearMap.range_dualMap_eq_dualAnnihilator_ker`
+specialized to coordinate spaces via `dotFunc`; it turns `lem:nodechannel`'s
+`B ⊥ ker(node matrix)` into the explicit row-combination feeding `cond:twist`. -/
+theorem mem_rowspan_of_pairing_vanishes {R ι ρ : Type*} [Field R]
+    [Fintype ι] [Fintype ρ]
+    (rows : ρ → (ι → R)) (B : ι → R)
+    (h : ∀ V : ι → R, (∀ a, ∑ i, rows a i * V i = 0) → ∑ i, B i * V i = 0) :
+    ∃ c : ρ → R, ∀ i, B i = ∑ a, c a * rows a i := by
+  classical
+  have hspan : dotFunc B ∈ Submodule.span R (Set.range (fun a => dotFunc (rows a))) := by
+    refine mem_span_of_forall_ker (fun a => dotFunc (rows a)) (dotFunc B) ?_
+    intro V hV
+    rw [dotFunc_apply]
+    exact h V (fun a => by rw [← dotFunc_apply]; exact hV a)
+  rw [Submodule.mem_span_range_iff_exists_fun R] at hspan
+  obtain ⟨c, hc⟩ := hspan
+  refine ⟨c, fun i => ?_⟩
+  have heval := LinearMap.congr_fun hc (Pi.single i 1)
+  simp only [LinearMap.sum_apply, LinearMap.smul_apply, dotFunc_single, smul_eq_mul] at heval
+  exact heval.symm
+
 /-- **Slice-kernel characterization**: an `Fq` element is zero iff all its trace
 slices against an `Fp`-basis vanish (the `Fq`-condition `= 0` is the conjunction
 of `d` `Fp`-conditions). -/
