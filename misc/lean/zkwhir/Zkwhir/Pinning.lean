@@ -256,4 +256,43 @@ theorem pinning_of_dual [FiniteDimensional (Fp P) (Cube P.m → Fq)]
   rw [mem_range_iff_forall_dual]
   exact h F hq hzf hterm
 
+/-! ## Soundness of the protocol directions (`prop:pinbound`, easy direction)
+
+Every view-vanishing mask-fold lies in the protocol-killed space: the queried
+duals, the `f̂₁` out-of-domain duals, and the terminal pairing all annihilate
+`range pinFold`. (The hard converse — that these span the whole annihilator —
+is the slice argument of `lem:fullslice`/`lem:noother`.) -/
+
+/-- A view-vanishing mask-fold vanishes at the queried points. -/
+theorem pinFold_queried_zero (κ : viewKer P Fq Dom S ch) (t : Fin P.t₀) :
+    mle (pinFold P Fq Dom S ch κ)
+      (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0 := by
+  show mle (foldedF₁ P Fq Dom (assemble P 0 (-κ.1)) ch)
+    (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0
+  rw [mle_fold_eq_sum_classes]
+  refine Finset.sum_eq_zero fun s _ => ?_
+  have hqa : mle (fun c => liftT P Fq (assemble P 0 (-κ.1)) (s, c))
+      (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0 := κ.2.qa t s
+  rw [hqa, mul_zero]
+
+/-- A view-vanishing mask-fold vanishes at the `f̂₁` out-of-domain points. -/
+theorem pinFold_zf_zero (κ : viewKer P Fq Dom S ch) (j : Fin P.s₁) :
+    mle (pinFold P Fq Dom S ch κ) (powSeq (ch.zf j) P.m) = 0 :=
+  κ.2.f1ood j
+
+/-- A view-vanishing mask-fold has vanishing terminal pairing against the
+`α`-fold of the batched weight. -/
+theorem pinFold_terminal_zero (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (κ : viewKer P Fq Dom S ch) :
+    (∑ c, (pinFold P Fq Dom S ch κ) c *
+      ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) = 0 := by
+  show (∑ c, foldedF₁ P Fq Dom (assemble P 0 (-κ.1)) ch c *
+    ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) = 0
+  have hw : ∑ u, liftT P Fq (assemble P 0 (-κ.1)) u * S.w u = 0 := by
+    rw [pairing_assemble P Fq S hmf 0 (-κ.1)]; simp
+  have hmsg0 := msg0_of_reduced_view P Fq Dom S ch h2 (assemble P 0 (-κ.1))
+    κ.2.ood κ.2.msg1 κ.2.msg2 hw
+  exact terminal_pairing_eq_zero_of_msgs P Fq Dom S (assemble P 0 (-κ.1)) ch h2
+    hmsg0 κ.2.msg1 κ.2.msg2
+
 end ZkWhir
