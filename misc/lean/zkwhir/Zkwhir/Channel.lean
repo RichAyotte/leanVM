@@ -192,6 +192,36 @@ theorem prefixFactor_evalT_eq (ℓ : Fin P.k₀) (y : Fq) (x : Fin P.k₀ → Fq
           y * evalT P Fq T (mixedPoint P Fq Dom ch ℓ 1 x) xs) := by
   rw [prefixFactor_eq, evalT_mixedPoint_affine, eqf_affine_left]
 
+/-- **The moment combination of the `(ℓ, y)`-family** (`lem:fullslice`, Step 2):
+integrating the quadratic-in-`y` summand against weights `w` over points `pts`
+collapses to the moments `m₀ = ∑ w`, `m₁ = ∑ w·pts`, `m₂ = ∑ w·pts²`, with the
+two slice values `E₀, E₁` carrying the `(S, R)` coefficients of the paper. -/
+theorem prefixFactor_evalT_moment {ι : Type*} [Fintype ι] (w pts : ι → Fq)
+    (ℓ : Fin P.k₀) (x : Fin P.k₀ → Fq) (xs : Fin P.m → Fq) :
+    (∑ t, w t * (prefixFactor P Fq Dom ch ℓ (pts t) x *
+        evalT P Fq T (mixedPoint P Fq Dom ch ℓ (pts t) x) xs)) =
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+          eqf Fq (ch.α i) (x i)) *
+        (evalT P Fq T (mixedPoint P Fq Dom ch ℓ 0 x) xs *
+            ((1 - x ℓ) * (∑ t, w t)
+              + (3 * x ℓ - 2) * (∑ t, w t * pts t)
+              - (2 * x ℓ - 1) * (∑ t, w t * pts t ^ 2))
+          + evalT P Fq T (mixedPoint P Fq Dom ch ℓ 1 x) xs *
+            ((1 - x ℓ) * (∑ t, w t * pts t)
+              + (2 * x ℓ - 1) * (∑ t, w t * pts t ^ 2))) := by
+  simp only [prefixFactor_evalT_eq]
+  set Pf := ∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+    eqf Fq (ch.α i) (x i) with hPf
+  set E0 := evalT P Fq T (mixedPoint P Fq Dom ch ℓ 0 x) xs with hE0
+  set E1 := evalT P Fq T (mixedPoint P Fq Dom ch ℓ 1 x) xs with hE1
+  trans (∑ t, (Pf * ((1 - x ℓ) * E0) * w t
+      + Pf * ((3 * x ℓ - 2) * E0 + (1 - x ℓ) * E1) * (w t * pts t)
+      + Pf * (-(2 * x ℓ - 1) * E0 + (2 * x ℓ - 1) * E1) * (w t * pts t ^ 2)))
+  · exact Finset.sum_congr rfl fun t _ => by ring
+  · rw [Finset.sum_add_distrib, Finset.sum_add_distrib,
+      ← Finset.mul_sum, ← Finset.mul_sum, ← Finset.mul_sum]
+    ring
+
 /-- The Lagrange prefactor of `partialEval`: the weight of the class `s` in
 the round-`ℓ` partial evaluation at `X` with suffix `b`. -/
 def preFac (ℓ : Fin P.k₀) (X : Fq) (s b : Cube P.k₀) : Fq :=
