@@ -650,6 +650,37 @@ theorem crossForm_theta_smul (δ : Cell P → Fp P) (a : Fq) (θ : Fin 2 → Fq)
     crossForm P Fq Dom ch δ (a • θ) = a * crossForm P Fq Dom ch δ θ := by
   unfold crossForm; simp only [Pi.smul_apply, smul_eq_mul]; ring
 
+/-- **`cond:cross2` injectivity heart (Cramer).** If two mask perturbations
+`δ, δ''` give a nonzero `2×2` node-pairing minor, then the only direction `θ`
+killing `F_θ` at both is `θ = 0` — i.e. `θ ↦ F_θ` is injective. This is the
+abstract content of the cross-form non-degeneracy (tex:529–545): the SZ argument
+exhibits such a minor, and this lemma turns it into `F_θ ≠ 0` for every `θ ≠ 0`. -/
+theorem crossForm_eq_zero_pair_imp_theta_zero (δ δ'' : Cell P → Fp P)
+    (θ : Fin 2 → Fq)
+    (hminor :
+      nodePair P Fq Dom ch δ 0 (eqPoly ch.α) *
+          nodePair P Fq Dom ch δ'' 1 (eqPoly ch.α) -
+        nodePair P Fq Dom ch δ 1 (eqPoly ch.α) *
+          nodePair P Fq Dom ch δ'' 0 (eqPoly ch.α) ≠ 0)
+    (h1 : crossForm P Fq Dom ch δ θ = 0)
+    (h2 : crossForm P Fq Dom ch δ'' θ = 0) :
+    θ = 0 := by
+  unfold crossForm at h1 h2
+  set g00 := nodePair P Fq Dom ch δ 0 (eqPoly ch.α) with hg00
+  set g01 := nodePair P Fq Dom ch δ 1 (eqPoly ch.α) with hg01
+  set g10 := nodePair P Fq Dom ch δ'' 0 (eqPoly ch.α) with hg10
+  set g11 := nodePair P Fq Dom ch δ'' 1 (eqPoly ch.α) with hg11
+  have hθ0 : θ 0 * (g00 * g11 - g01 * g10) = 0 := by
+    linear_combination g11 * h1 - g01 * h2
+  have hθ1 : θ 1 * (g00 * g11 - g01 * g10) = 0 := by
+    linear_combination g00 * h2 - g10 * h1
+  have e0 : θ 0 = 0 := (mul_eq_zero.mp hθ0).resolve_right hminor
+  have e1 : θ 1 = 0 := (mul_eq_zero.mp hθ1).resolve_right hminor
+  funext i
+  fin_cases i
+  · exact e0
+  · exact e1
+
 /-- `nodePair` is additive in the perturbation table. -/
 theorem nodePair_add_table (δ δ' : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
