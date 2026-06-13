@@ -159,6 +159,27 @@ theorem challenge_alpha_eqf_root_le (h2 : (2 : Fq) ≠ 0) (i : Fin P.k₀)
     (fun s hs => eqf_root_card Fq h2 (powSeq (z j) P.k₀ i) s hs)).trans ?_
   simp [fieldCard]
 
+/-- **Prime-field α₀ bound** (`hDr` measure, `cor:twistprob`): `α₀ = α_{⟨0⟩}` lies
+in the prime field (`α₀^p = α₀`) with probability at most `p/q`. By the Frobenius
+gap (`pow_pPow_ne_self_of_pow_p_ne`) this bounds `cond:twist`'s `hDr` failure. -/
+theorem challenge_alpha0_primefield_le :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom |
+        ch.α ⟨0, P.k₀_pos⟩ ^ P.p = ch.α ⟨0, P.k₀_pos⟩} ≤
+      (P.p : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞) := by
+  classical
+  refine challenge_α_coord_le P Fq Dom ⟨0, P.k₀_pos⟩
+    (fun _ => {a : Fq | a ^ P.p = a}) _ (fun z => ?_)
+  refine (uniform_pi_coord_le (ι := Fin P.k₀) ⟨0, P.k₀_pos⟩ {a : Fq | a ^ P.p = a} P.p
+    (fun s hs => ?_)).trans ?_
+  · have hsub : s ⊆ Finset.univ.filter (fun x : Fq => x ^ P.p = x) := by
+      intro a ha
+      rw [Finset.mem_filter]
+      exact ⟨Finset.mem_univ a, hs a ha⟩
+    exact le_trans (Finset.card_le_card hsub)
+      (card_pow_p_eq_self_le (K := Fq) P.pPrime.two_le)
+  · simp [fieldCard]
+
 /-- **α-prefix vanishing bound**: the product of `eqf(α_i, z_j^{2^i})` over
 `i < m` vanishes with probability at most `k₀/q`. -/
 theorem alpha_prefix_zero_le (h2 : (2 : Fq) ≠ 0) (j : Fin 2) (m : Fin P.k₀) :
