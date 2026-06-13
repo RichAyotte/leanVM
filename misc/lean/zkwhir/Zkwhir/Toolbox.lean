@@ -450,6 +450,51 @@ theorem exists_trace_ne_zero_of_span {Fp Fq : Type*} [Field Fp] [Field Fq]
   by_contra hi
   exact h ⟨i, hi⟩
 
+/-- **Frobenius gap** (`cor:twistprob` / `cond:twist` Good-set, `hDr`): in a finite
+field `K` of cardinality `p^d` with `d` prime, an element fixed by the `p^r`-power
+map for some `0 < r < d` is already fixed by the `p`-power map (it lies in the
+prime field). The fixed exponents form an additive set containing `r` and `d`;
+since `gcd(r,d) = 1` (Euler/Bézout via `r^{φ(d)} ≡ 1 mod d`), `1` is fixed too. -/
+theorem pow_p_of_pow_pPow_of_dPrime {K : Type*} [Field K] [Fintype K] {p d : ℕ}
+    (hd : Fintype.card K = p ^ d) (hdp : d.Prime)
+    {r : ℕ} (hr0 : 0 < r) (hrd : r < d) {x : K} (hx : x ^ p ^ r = x) : x ^ p = x := by
+  -- the set of "fixed exponents" `{n | x^{p^n} = x}` is additive
+  have hfix_add : ∀ a b : ℕ, x ^ p ^ a = x → x ^ p ^ b = x → x ^ p ^ (a + b) = x :=
+    fun a b ha hb => by rw [pow_add, pow_mul, ha, hb]
+  have hfix_mul : ∀ (a k : ℕ), x ^ p ^ a = x → x ^ p ^ (k * a) = x := by
+    intro a k ha
+    induction k with
+    | zero => simp
+    | succ n ih => rw [Nat.succ_mul]; exact hfix_add _ _ ih ha
+  -- `x` is fixed by `p^d` (Fermat for `K`)
+  have hfix_d : x ^ p ^ d = x := by rw [← hd]; exact FiniteField.pow_card x
+  -- Euler: `r^{φ(d)} ≡ 1 (mod d)`, so `r^{φ(d)} = d·b + 1`
+  have hd2 : 2 ≤ d := hdp.two_le
+  have hco : Nat.Coprime r d :=
+    ((Nat.Prime.coprime_iff_not_dvd hdp).mpr (Nat.not_dvd_of_pos_of_lt hr0 hrd)).symm
+  have hM : r ^ d.totient % d = 1 % d := Nat.ModEq.pow_totient hco
+  have hmod : r ^ d.totient % d = 1 := by rw [hM, Nat.mod_eq_of_lt (by omega)]
+  have hdecomp : r ^ d.totient = d * (r ^ d.totient / d) + 1 := by
+    conv_lhs => rw [← Nat.div_add_mod (r ^ d.totient) d, hmod]
+  -- `x` is fixed by `p^{r^{φ(d)}}` (a multiple of `r`) and by `p^{d·b}` (a multiple of `d`)
+  have hMpos : 0 < d.totient := Nat.totient_pos.mpr (by omega)
+  have hfixM : x ^ p ^ (r ^ d.totient) = x := by
+    rw [show r ^ d.totient = r ^ (d.totient - 1) * r from by rw [← pow_succ]; congr 1; omega]
+    exact hfix_mul r (r ^ (d.totient - 1)) hx
+  have hfixbd : x ^ p ^ (d * (r ^ d.totient / d)) = x := by
+    rw [mul_comm]; exact hfix_mul d (r ^ d.totient / d) hfix_d
+  -- combine: `x = x^{p^{r^{φ(d)}}} = (x^{p^{d·b}})^p = x^p`
+  rw [hdecomp, pow_add, pow_mul, hfixbd, pow_one] at hfixM
+  exact hfixM
+
+/-- **Frobenius gap, contrapositive form** (`hDr` as `cond:twist` consumes it): if
+`x` is *not* in the prime field (`x^p ≠ x`) then `x^{p^r} ≠ x` for every
+`0 < r < d` (`d` prime). -/
+theorem pow_pPow_ne_self_of_pow_p_ne {K : Type*} [Field K] [Fintype K] {p d : ℕ}
+    (hd : Fintype.card K = p ^ d) (hdp : d.Prime)
+    {r : ℕ} (hr0 : 0 < r) (hrd : r < d) {x : K} (hx : x ^ p ≠ x) : x ^ p ^ r ≠ x :=
+  fun h => hx (pow_p_of_pow_pPow_of_dPrime hd hdp hr0 hrd h)
+
 /-- **A functional vanishing on the common kernel lies in the span of the
 functionals** (the finite-dimensional annihilator/coannihilator duality;
 `lem:confine`/`lem:nodechannel` core). If `f` kills every vector killed by all
