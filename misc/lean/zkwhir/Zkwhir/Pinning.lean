@@ -571,4 +571,52 @@ theorem crossForm_eq_fold (δ : Cell P → Fp P) (θ : Fin 2 → Fq) :
   unfold crossForm
   rw [nodePair_alpha_eq_fold, nodePair_alpha_eq_fold]
 
+/-- `nodePair` is additive in the perturbation table. -/
+theorem nodePair_add_table (δ δ' : Cell P → Fp P) (j : Fin 2)
+    (w : Cube P.k₀ → Fq) :
+    nodePair P Fq Dom ch (δ + δ') j w =
+      nodePair P Fq Dom ch δ j w + nodePair P Fq Dom ch δ' j w := by
+  unfold nodePair
+  rw [← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun s _ => ?_
+  have hm : mle (fun c => liftT P Fq (δ + δ') (s, c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) =
+      mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) +
+        mle (fun c => liftT P Fq δ' (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) := by
+    rw [← mle_pi_add]
+    congr 1
+    funext c
+    simp [liftT, Pi.add_apply, map_add]
+  rw [hm]; ring
+
+/-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
+theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
+    (w : Cube P.k₀ → Fq) :
+    nodePair P Fq Dom ch (a • δ) j w = a • nodePair P Fq Dom ch δ j w := by
+  unfold nodePair
+  rw [Finset.smul_sum]
+  refine Finset.sum_congr rfl fun s _ => ?_
+  have hm : mle (fun c => liftT P Fq (a • δ) (s, c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) =
+      a • mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) := by
+    rw [← mle_smul_fp]
+    congr 1
+    funext c
+    simp [liftT, Pi.smul_apply, smul_eq_mul, map_mul, Algebra.smul_def]
+  rw [hm, Algebra.smul_def, Algebra.smul_def]; ring
+
+/-- `F_θ` is additive in the perturbation. -/
+theorem crossForm_add (δ δ' : Cell P → Fp P) (θ : Fin 2 → Fq) :
+    crossForm P Fq Dom ch (δ + δ') θ =
+      crossForm P Fq Dom ch δ θ + crossForm P Fq Dom ch δ' θ := by
+  unfold crossForm
+  rw [nodePair_add_table, nodePair_add_table]; ring
+
+/-- `F_θ` is homogeneous in the perturbation over `Fp`. -/
+theorem crossForm_smul (a : Fp P) (δ : Cell P → Fp P) (θ : Fin 2 → Fq) :
+    crossForm P Fq Dom ch (a • δ) θ = a • crossForm P Fq Dom ch δ θ := by
+  unfold crossForm
+  rw [nodePair_smul_table, nodePair_smul_table, Algebra.smul_def,
+    Algebra.smul_def, Algebra.smul_def]; ring
+
 end ZkWhir
