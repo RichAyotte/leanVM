@@ -1686,6 +1686,29 @@ theorem nodechannel_phi_pairing [FiniteDimensional (Fp P) Fq]
   refine Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun i _ => ?_
   rw [hvn s j]
 
+/-- The **trace-twist node functional** as an `Fp`-linear map (`cond:twist`'s
+`T_j`): `x ↦ ∑_i (∑_r c_{i,r}·tr(x·b'_r))·bvec_i`. Applied at the Lagrange weight
+`λ_s = êq(α,s)` it reproduces `lem:nodechannel`'s node functional `B_{s,j}`;
+bundled as a `LinearMap` so `condTwist` (which needs an `Fq →ₗ[Fp] Fq`) applies. -/
+def nodeTwistMap {ιβ : Type*} [Fintype ιβ] (b' : ιβ → Fq) (bvec : ιβ → Fq)
+    (c : ιβ → ιβ → Fp P) : Fq →ₗ[Fp P] Fq :=
+  ∑ i, LinearMap.smulRight
+    (∑ r, c i r • (Algebra.trace (Fp P) Fq).comp (LinearMap.mulRight (Fp P) (b' r)))
+    (bvec i)
+
+theorem nodeTwistMap_apply {ιβ : Type*} [Fintype ιβ] (b' : ιβ → Fq) (bvec : ιβ → Fq)
+    (c : ιβ → ιβ → Fp P) (x : Fq) :
+    nodeTwistMap P Fq b' bvec c x =
+      ∑ i, (∑ r, c i r * Algebra.trace (Fp P) Fq (x * b' r)) • bvec i := by
+  unfold nodeTwistMap
+  rw [LinearMap.sum_apply]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [LinearMap.smulRight_apply]
+  congr 1
+  rw [LinearMap.sum_apply]
+  refine Finset.sum_congr rfl fun r _ => ?_
+  rw [LinearMap.smul_apply, LinearMap.comp_apply, LinearMap.mulRight_apply, smul_eq_mul]
+
 /-- **The node functional lies in the row space** (`lem:nodechannel`, full): the
 trace-twist node functional `B` derived from `φ` pairs to zero with every kernel
 element of the node matrix, i.e. `B` lies in its `Fq`-row space. Combines the
