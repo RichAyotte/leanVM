@@ -1987,6 +1987,24 @@ theorem weight_fold_class_decomp (c : Cube P.m) :
   simp only [W₀]
   ring
 
+/-- **Terminal pairing node/cross split** (`cond:cross2`, tex:519-525): the
+terminal sumcheck pairing `∑_c f̂₁(c)·(∑_s êq(α,s)·W₀(s,c))` splits into the two
+node pairings `A_j·mle(f̂₁)(z_j^{2^{k₀}})` plus the `γ²` cross form
+`T_ŵ = ∑_c f̂₁(c)·ŵ(α₀,c)`. The terminal protocol direction carries exactly this
+`γ²·T_ŵ`, which is why `F_{θ^term} = γ²·T_ŵ ≠ 0` (`lem:termslice`). -/
+theorem terminal_pairing_node_decomp (T : Cell P → Fp P) :
+    (∑ c, foldedF₁ P Fq Dom T ch c * ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) =
+      (∑ s, eqPoly ch.α s * eqPoly (powSeq (ch.z 0) P.k₀) s) *
+          (∑ c, eqPoly (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m) c * foldedF₁ P Fq Dom T ch c)
+      + ch.γ * ((∑ s, eqPoly ch.α s * eqPoly (powSeq (ch.z 1) P.k₀) s) *
+          (∑ c, eqPoly (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m) c * foldedF₁ P Fq Dom T ch c))
+      + ch.γ ^ 2 * (∑ c, foldedF₁ P Fq Dom T ch c * wHat0 P Fq Dom S ch c) := by
+  refine Eq.trans (Finset.sum_congr rfl fun c _ => by rw [weight_fold_class_decomp]) ?_
+  conv_rhs => rw [Finset.mul_sum, Finset.mul_sum, Finset.mul_sum, Finset.mul_sum,
+    ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun c _ => ?_
+  ring
+
 /-- **`lem:nodechannel` → `cond:twist`, full bridge** (parts (d)+(e)): the node
 functional is forced **untwisted** — there are scalars `θ_j` so the node functional
 equals `θ_j · êq(α, ·)` (and still lies in the node-matrix row space). Applies
