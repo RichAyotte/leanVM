@@ -103,6 +103,52 @@ theorem chanWeight_staircase (j : Fin 2) (r : Fin P.k₀ × Fin 2) :
   rw [hcw, eqPoly_mixedPoint_decomp]
   simp only [smul_add, Finset.smul_sum, smul_smul]
 
+/-- The per-channel `τ`-coefficient at slot `i`: `Pf·λ_i` below the channel's
+slot, `Pf·(ŷ − z^{2^ℓ})` at it, zero above. -/
+def chanTauW (j : Fin 2) (r : Fin P.k₀ × Fin 2) (i : Fin P.k₀) : Fq :=
+  if i < r.1 then
+    prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+        (powSeq (ch.z j) P.k₀) * lamData P Fq Dom ch (ch.z j) i
+  else if i = r.1 then
+    prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+        (powSeq (ch.z j) P.k₀) *
+      ((((r.2 : ℕ) + 1 : ℕ) : Fq) - powSeq (ch.z j) P.k₀ r.1)
+  else 0
+
+/-- **`chanWeight` as a single per-slot staircase sum**: the form the
+coefficient extraction (`staircase_indep`) consumes. -/
+theorem chanWeight_staircase_sum (j : Fin 2) (r : Fin P.k₀ × Fin 2) :
+    chanWeight Fq P Dom ch j r =
+      (prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+          (powSeq (ch.z j) P.k₀)) • eqPoly (powSeq (ch.z j) P.k₀)
+      + ∑ i : Fin P.k₀, chanTauW Fq P Dom ch j r i •
+          ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+            (lamData P Fq Dom ch (ch.z j)) i) := by
+  rw [chanWeight_staircase]
+  have h : (∑ i : Fin P.k₀, chanTauW Fq P Dom ch j r i •
+        ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+          (lamData P Fq Dom ch (ch.z j)) i)) =
+      (∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < r.1),
+          (prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+              (powSeq (ch.z j) P.k₀) * lamData P Fq Dom ch (ch.z j) i) •
+            ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+              (lamData P Fq Dom ch (ch.z j)) i))
+      + (prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+            (powSeq (ch.z j) P.k₀) *
+          ((((r.2 : ℕ) + 1 : ℕ) : Fq) - powSeq (ch.z j) P.k₀ r.1)) •
+          ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+            (lamData P Fq Dom ch (ch.z j)) r.1) := by
+    simp only [chanTauW]
+    exact sum_ite_two_collapse r.1
+      (fun i => prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+        (powSeq (ch.z j) P.k₀) * lamData P Fq Dom ch (ch.z j) i)
+      (prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+          (powSeq (ch.z j) P.k₀) *
+        ((((r.2 : ℕ) + 1 : ℕ) : Fq) - powSeq (ch.z j) P.k₀ r.1))
+      (fun i => ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+        (lamData P Fq Dom ch (ch.z j)) i))
+  rw [h, add_assoc]
+
 /-- **The coupled-chains kernel condition** (`lem:coupled`, consumable form).
 A weight family `ν` over the `k₀ × {1,2}` slot/eval pairs that is killed on
 *both* blocks — each combined with that block's out-of-domain vector — must
