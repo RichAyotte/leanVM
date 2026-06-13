@@ -344,6 +344,27 @@ def slotDet (m : Fin P.k₀) : Fq :=
     (prefixFactor P Fq Dom ch m 2 (powSeq (ch.z 0) P.k₀) *
       (2 - powSeq (ch.z 0) P.k₀ m))
 
+/-- The `z`-only part of the coupling determinant (the `α`-prefix divided
+out): a polynomial in `z_0, z_1` alone. -/
+def zdet (m : Fin P.k₀) : Fq :=
+  eqf Fq 1 (powSeq (ch.z 0) P.k₀ m) * (1 - powSeq (ch.z 0) P.k₀ m) *
+      (eqf Fq 2 (powSeq (ch.z 1) P.k₀ m) * (2 - powSeq (ch.z 1) P.k₀ m)) -
+  eqf Fq 1 (powSeq (ch.z 1) P.k₀ m) * (1 - powSeq (ch.z 1) P.k₀ m) *
+      (eqf Fq 2 (powSeq (ch.z 0) P.k₀ m) * (2 - powSeq (ch.z 0) P.k₀ m))
+
+/-- **The `slotDet` factorization**: `slotDet_m = (α-prefix at z₀)·(α-prefix
+at z₁)·zdet_m` — separating the prefix vanishing from the `z`-coupling. -/
+theorem slotDet_factor [Nonempty {x // x ∈ Dom}] (m : Fin P.k₀) :
+    slotDet Fq P Dom ch m =
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+          eqf Fq (ch.α i) (powSeq (ch.z 0) P.k₀ i)) *
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+          eqf Fq (ch.α i) (powSeq (ch.z 1) P.k₀ i)) *
+      zdet Fq P Dom ch m := by
+  unfold slotDet zdet
+  rw [prefixFactor_eq, prefixFactor_eq, prefixFactor_eq, prefixFactor_eq]
+  ring
+
 /-- **Per-slot solve**: both blocks' diagonals vanishing at slot `m`, with the
 coupling determinant nonzero, pins the slot's two evals to zero. -/
 theorem slot_solve (ν : Fin P.k₀ × Fin 2 → Fq) (m : Fin P.k₀)
