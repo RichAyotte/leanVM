@@ -892,6 +892,26 @@ theorem crossForm_add_table (δ δ' : Cell P → Fp P) (θ : Fin 2 → Fq) :
   rw [nodePair_add_table, nodePair_add_table]
   ring
 
+/-- **`lem:fullslice` Step 4 (trace conclusion).** If the cross form factors as
+`F(π,v) = γ²·E'(π)·G(v)` (Step 3), the multipliers `E'(π)` span `Fq` over `Fp`
+(condition (i)/SPREAD), and `tr ∘ F = 0`, then `F ≡ 0`. Trace duality
+(`eq_zero_of_trace_pairing_span`) forces `γ²·G(v) = 0` for every `v`, hence `F`
+vanishes identically — the contradiction with `cond:cross2` (`F_θ ≠ 0`). -/
+theorem fullslice_step4 [FiniteDimensional (Fp P) Fq] [Algebra.IsSeparable (Fp P) Fq]
+    {ιπ ιv : Type*} (E' : ιπ → Fq) (G : ιv → Fq) (γ2 : Fq) (F : ιπ → ιv → Fq)
+    (hfact : ∀ π v, F π v = γ2 * E' π * G v)
+    (hspan : Submodule.span (Fp P) (Set.range E') = ⊤)
+    (htr : ∀ π v, Algebra.trace (Fp P) Fq (F π v) = 0) :
+    ∀ π v, F π v = 0 := by
+  intro π v
+  have hg : γ2 * G v = 0 := by
+    refine eq_zero_of_trace_pairing_span E' hspan (γ2 * G v) (fun π' => ?_)
+    have hE : E' π' * (γ2 * G v) = F π' v := by rw [hfact]; ring
+    rw [hE]; exact htr π' v
+  rw [hfact]
+  calc γ2 * E' π * G v = E' π * (γ2 * G v) := by ring
+    _ = 0 := by rw [hg, mul_zero]
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
