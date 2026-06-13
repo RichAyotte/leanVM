@@ -1410,4 +1410,77 @@ theorem multiBlockMask_pairing_zero
   rw [map_sum] at h0
   exact h0
 
+/-- **The slice pairing isolates the node coefficients** (`lem:nodechannel`):
+pairing the confinement slice values `tr(β·w_c)` against a block fiber `vs` with
+vanishing queried and `f̂₁` evaluations kills the queried and `f̂₁` coefficient
+families, leaving only the node coefficients `cn` paired with `vs`'s node
+values. -/
+theorem confine_pairing_node_slice {ιβ : Type*} [Fintype ιβ]
+    (b : Module.Basis ιβ (Fp P) Fq) (β : Fq) (w : Cube P.m → Fq)
+    (cq : Fin P.t₀ → Fp P) (cn : Fin 2 → ιβ → Fp P) (cz : Fin P.s₁ → ιβ → Fp P)
+    (hcoeff : ∀ c0, IsBlockPos P c0 → Algebra.trace (Fp P) Fq (β * w c0) =
+        (∑ t, cq t * eqPoly (powSeq (ch.qs t : Fp P) P.m) c0)
+        + (∑ j, ∑ i, cn j i * Algebra.trace (Fp P) Fq
+            (b i * eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) c0))
+        + (∑ k, ∑ i, cz k i * Algebra.trace (Fp P) Fq
+            (b i * eqPoly (powSeq (ch.zf k) P.m) c0)))
+    {vs : Cube P.m → Fp P} (hvblk : ∀ c, vs c ≠ 0 → IsBlockPos P c)
+    (hvq : ∀ t, mle vs (powSeq (ch.qs t : Fp P) P.m) = 0)
+    (hvz : ∀ k, mle (fun c => algebraMap (Fp P) Fq (vs c)) (powSeq (ch.zf k) P.m) = 0) :
+    (∑ c, Algebra.trace (Fp P) Fq (β * w c) * vs c) =
+      ∑ j, ∑ i, cn j i * Algebra.trace (Fp P) Fq
+        (b i * mle (fun c => algebraMap (Fp P) Fq (vs c))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) := by
+  -- replace each block slice value by its coefficient combination
+  rw [show (∑ c, Algebra.trace (Fp P) Fq (β * w c) * vs c) =
+      ∑ c, ((∑ t, cq t * eqPoly (powSeq (ch.qs t : Fp P) P.m) c)
+        + (∑ j, ∑ i, cn j i * Algebra.trace (Fp P) Fq
+            (b i * eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) c))
+        + (∑ k, ∑ i, cz k i * Algebra.trace (Fp P) Fq
+            (b i * eqPoly (powSeq (ch.zf k) P.m) c))) * vs c from ?_]
+  · simp only [add_mul]
+    rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+    -- the queried family vanishes (vs has zero queried evaluation)
+    have hA : (∑ c, (∑ t, cq t * eqPoly (powSeq (ch.qs t : Fp P) P.m) c) * vs c) = 0 := by
+      simp only [Finset.sum_mul]
+      rw [Finset.sum_comm]
+      refine Finset.sum_eq_zero fun t _ => ?_
+      rw [show (∑ c, cq t * eqPoly (powSeq (ch.qs t : Fp P) P.m) c * vs c) =
+          cq t * mle vs (powSeq (ch.qs t : Fp P) P.m) from by
+        unfold mle; rw [Finset.mul_sum]
+        exact Finset.sum_congr rfl fun c _ => by ring, hvq t, mul_zero]
+    -- the `f̂₁` family vanishes (vs has zero `f̂₁` evaluation)
+    have hC : (∑ c, (∑ k, ∑ i, cz k i * Algebra.trace (Fp P) Fq
+        (b i * eqPoly (powSeq (ch.zf k) P.m) c)) * vs c) = 0 := by
+      simp only [Finset.sum_mul]
+      rw [Finset.sum_comm]
+      refine Finset.sum_eq_zero fun k _ => ?_
+      rw [Finset.sum_comm]
+      refine Finset.sum_eq_zero fun i _ => ?_
+      rw [show (∑ c, cz k i * Algebra.trace (Fp P) Fq
+            (b i * eqPoly (powSeq (ch.zf k) P.m) c) * vs c) =
+          cz k i * Algebra.trace (Fp P) Fq
+            (b i * mle (fun c => algebraMap (Fp P) Fq (vs c)) (powSeq (ch.zf k) P.m))
+          from by
+        rw [show mle (fun c => algebraMap (Fp P) Fq (vs c)) (powSeq (ch.zf k) P.m) =
+            ∑ c, eqPoly (powSeq (ch.zf k) P.m) c * algebraMap (Fp P) Fq (vs c) from rfl,
+          trace_smul_pairing, Finset.mul_sum]
+        exact Finset.sum_congr rfl fun c _ => by ring, hvz k, mul_zero, map_zero, mul_zero]
+    rw [hA, hC, zero_add, add_zero]
+    -- the node family survives, paired against the node values
+    simp only [Finset.sum_mul]
+    rw [Finset.sum_comm]
+    refine Finset.sum_congr rfl fun j _ => ?_
+    rw [Finset.sum_comm]
+    refine Finset.sum_congr rfl fun i _ => ?_
+    rw [show mle (fun c => algebraMap (Fp P) Fq (vs c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) =
+        ∑ c, eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) c * algebraMap (Fp P) Fq (vs c) from rfl,
+      trace_smul_pairing, Finset.mul_sum]
+    exact Finset.sum_congr rfl fun c _ => by ring
+  · refine Finset.sum_congr rfl fun c _ => ?_
+    by_cases hb : IsBlockPos P c
+    · rw [hcoeff c hb]
+    · have hvc : vs c = 0 := by by_contra hh; exact hb (hvblk c hh)
+      rw [hvc, mul_zero, mul_zero]
+
 end ZkWhir
