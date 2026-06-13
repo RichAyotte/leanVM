@@ -1647,4 +1647,104 @@ theorem nodechannel_phi_pairing [FiniteDimensional (Fp P) Fq]
   refine Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun i _ => ?_
   rw [hvn s j]
 
+/-- **The node functional lies in the row space** (`lem:nodechannel`, full): the
+trace-twist node functional `B` derived from `φ` pairs to zero with every kernel
+element of the node matrix, i.e. `B` lies in its `Fq`-row space. Combines the
+node-channel pairing identity, the trace-twist regrouping, and the `θ`-variation
+over the (`Fq`-closed) kernel. -/
+theorem nodechannel_rowspace [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hnode : NodeHyp P Fq Dom ch)
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
+    ∃ B : Cube P.k₀ → Fin 2 → Fq,
+      ∀ V : Cube P.k₀ → Fin 2 → Fq,
+        (∀ j, oodRow P Fq Dom ch j V = 0) →
+        (∀ ℓ, msgRow P Fq Dom ch ℓ 1 V = 0) →
+        (∀ ℓ, msgRow P Fq Dom ch ℓ 2 V = 0) →
+        (∑ s, ∑ j, B s j * V s j) = 0 := by
+  obtain ⟨w, hw, Cn, hpair⟩ :=
+    nodechannel_phi_pairing P Fq Dom S ch h2 hmf hdom hbudget hnode hspread b φ hφ
+  set β' := LinearMap.BilinForm.dualBasis (Algebra.traceForm (Fp P) Fq)
+    (traceForm_nondegenerate (Fp P) Fq) b with hβ'
+  set B : Cube P.k₀ → Fin 2 → Fq := fun s j =>
+    ∑ i, (∑ r, Cn (b r) j i * Algebra.trace (Fp P) Fq (eqPoly ch.α s * β' r)) • b i
+    with hB
+  -- the trace-twist identity, per class
+  have hBid : ∀ (V : Cube P.k₀ → Fin 2 → Fq) (s : Cube P.k₀),
+      Algebra.trace (Fp P) Fq (eqPoly ch.α s * ∑ r, β' r *
+        algebraMap (Fp P) Fq (∑ j, ∑ i, Cn (b r) j i *
+          Algebra.trace (Fp P) Fq (b i * V s j))) =
+      ∑ j, Algebra.trace (Fp P) Fq (B s j * V s j) := by
+    intro V s
+    rw [trace_smul_pairing]
+    rw [show (∑ r, (∑ j, ∑ i, Cn (b r) j i * Algebra.trace (Fp P) Fq (b i * V s j)) *
+          Algebra.trace (Fp P) Fq (eqPoly ch.α s * β' r)) =
+        ∑ j, ∑ i, (∑ r, Cn (b r) j i * Algebra.trace (Fp P) Fq (eqPoly ch.α s * β' r)) *
+          Algebra.trace (Fp P) Fq (b i * V s j) from by
+      simp only [Finset.sum_mul]
+      rw [Finset.sum_comm]
+      refine Finset.sum_congr rfl fun j _ => ?_
+      rw [Finset.sum_comm]
+      exact Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun r _ => by ring]
+    refine Finset.sum_congr rfl fun j _ => ?_
+    rw [hB]
+    rw [show Algebra.trace (Fp P) Fq ((∑ i, (∑ r, Cn (b r) j i *
+          Algebra.trace (Fp P) Fq (eqPoly ch.α s * β' r)) • b i) * V s j) =
+        ∑ i, (∑ r, Cn (b r) j i * Algebra.trace (Fp P) Fq (eqPoly ch.α s * β' r)) *
+          Algebra.trace (Fp P) Fq (b i * V s j) from by
+      rw [Finset.sum_mul, map_sum]
+      refine Finset.sum_congr rfl fun i _ => ?_
+      rw [smul_mul_assoc, map_smul, smul_eq_mul]]
+  -- summed identity: `∑_s tr(λ_s Φ(V)) = tr(∑_{s,j} B_{s,j} V_{s,j})`
+  have hsum : ∀ V : Cube P.k₀ → Fin 2 → Fq,
+      (∑ s, Algebra.trace (Fp P) Fq (eqPoly ch.α s * ∑ r, β' r *
+        algebraMap (Fp P) Fq (∑ j, ∑ i, Cn (b r) j i *
+          Algebra.trace (Fp P) Fq (b i * V s j)))) =
+      Algebra.trace (Fp P) Fq (∑ s, ∑ j, B s j * V s j) := by
+    intro V
+    rw [map_sum]
+    refine Finset.sum_congr rfl fun s _ => ?_
+    rw [map_sum, hBid V s]
+  refine ⟨B, fun V hood hmsg1 hmsg2 => ?_⟩
+  rw [trace_eq_zero_iff (Fp := Fp P)]
+  intro θ
+  -- `θ·V` is again in the kernel (the node matrix is `Fq`-linear)
+  have hθood : ∀ j, oodRow P Fq Dom ch j (fun s j => θ * V s j) = 0 := by
+    intro j
+    rw [show oodRow P Fq Dom ch j (fun s j => θ * V s j) =
+        θ * oodRow P Fq Dom ch j V from by
+      unfold oodRow; rw [Finset.mul_sum]
+      exact Finset.sum_congr rfl fun s _ => by ring, hood j, mul_zero]
+  have hmsgScale : ∀ (ℓ : Fin P.k₀) (y : Fq),
+      msgRow P Fq Dom ch ℓ y (fun s j => θ * V s j) =
+        θ * msgRow P Fq Dom ch ℓ y V := by
+    intro ℓ y
+    unfold msgRow
+    rw [show (∑ s, eqPoly (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z 0) P.k₀)) s *
+          (θ * V s 0)) =
+        θ * ∑ s, eqPoly (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z 0) P.k₀)) s * V s 0
+        from by rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun s _ => by ring,
+      show (∑ s, eqPoly (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z 1) P.k₀)) s *
+          (θ * V s 1)) =
+        θ * ∑ s, eqPoly (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z 1) P.k₀)) s * V s 1
+        from by rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun s _ => by ring]
+    ring
+  have hθmsg1 : ∀ ℓ, msgRow P Fq Dom ch ℓ 1 (fun s j => θ * V s j) = 0 :=
+    fun ℓ => by rw [hmsgScale ℓ 1, hmsg1 ℓ, mul_zero]
+  have hθmsg2 : ∀ ℓ, msgRow P Fq Dom ch ℓ 2 (fun s j => θ * V s j) = 0 :=
+    fun ℓ => by rw [hmsgScale ℓ 2, hmsg2 ℓ, mul_zero]
+  have hp := hpair (fun s j => θ * V s j) hθood hθmsg1 hθmsg2
+  rw [hsum (fun s j => θ * V s j)] at hp
+  rw [show θ * (∑ s, ∑ j, B s j * V s j) = ∑ s, ∑ j, B s j * (θ * V s j) from by
+    rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun s _ => ?_
+    rw [Finset.mul_sum]
+    exact Finset.sum_congr rfl fun j _ => by ring]
+  exact hp
+
 end ZkWhir
