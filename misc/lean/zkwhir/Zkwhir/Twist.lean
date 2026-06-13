@@ -321,7 +321,7 @@ theorem rigidity {k : ℕ} (x lam : Fin k → Fq) {R : Type*} [Fintype R]
     simp only [tcoeff_finsetSum, tcoeff_add, tcoeff_smul, tcoeff_vTensor,
       tcoeff_omegaTensor, tcoeff_tauTensor_pair x lam first m _ hfm,
       Finset.prod_pair hfne, Finset.insert_ne_empty, if_false, mul_zero, zero_add,
-      mul_ite, mul_one, Finset.sum_ite_eq', Finset.mem_univ, if_true] at h
+      mul_ite, Finset.sum_ite_eq', Finset.mem_univ, if_true] at h
     exact h
   rw [show (∑ r, y r * ((a r first - lam first) * a r m)) =
       (∑ r, y r * (a r first * a r m)) - lam first * (∑ r, y r * a r m) from by
@@ -340,5 +340,87 @@ theorem eqPoly_eq_vTensor {k : ℕ} (z : Fq) (β : Fin k → Fq) :
   congr 1
   funext i
   rw [vrow_affine (β i) (powSeq z k i)]
+
+/-- **`cond:twist`** (assembly): suppose an `Fp`-linear endomorphism `T` of `Fq`,
+evaluated along the Lagrange weights `λ_s = êq(α, s)`, lands in the protocol
+staircase span `{ω, τ_{m'}}` (the row space, by `lem:nodechannel`). Then — given
+the Frobenius staircase matrix `M^{(j)} = (α_m^{p^r} − z^{2^{m}})_{m>0,\,1≤r<d}`
+has trivial kernel and the Frobenius gaps `D_r = α_0^{p^r} − α_0` are nonzero for
+`1 ≤ r < d` (the Good-set genericity conditions, bounded later in the measure
+step) — `T` is forced **untwisted**: `T x = t_0·x` for a scalar `t_0`.
+
+This is the linear-algebra core of `cond:twist`: Ore's theorem
+(`exists_qpoly_repr`) writes `T x = ∑_r t_r x^{p^r}`; `eqPoly_eq_vTensor` turns the
+`p^r`-conjugate weights into `rigidity`'s staircase `v`-tensors; `rigidity` then
+extracts `∑_r t_r D_r·(α_m^{p^r} − z^{2^m}) = 0` for every slot `m > 0`; trivial
+kernel forces `t_r D_r = 0`, and `D_r ≠ 0` forces `t_r = 0` for `r ≥ 1`. -/
+theorem condTwist {k : ℕ} (hk : 0 < k)
+    (hcard : Fintype.card Fp = p) (d : ℕ) (hd0 : 0 < d)
+    (hd : Fintype.card Fq = p ^ d) (hdeg : Module.finrank Fp Fq = d)
+    (T : Fq →ₗ[Fp] Fq) (z : Fq) (α : Fin k → Fq)
+    (cω : Fq) (ct : Fin k → Fq)
+    (hrow : (fun s => T (eqPoly α s)) =
+        cω • ptensor (fun i => vrow (powSeq z k i)) +
+          ∑ m', ct m' • ptensor (stairVec (fun i => vrow (powSeq z k i)) (fun _ => drow)
+            (fun i => α i - powSeq z k i) m'))
+    (hker : ∀ c : Fin d → Fq, c ⟨0, hd0⟩ = 0 →
+        (∀ m : Fin k, (⟨0, hk⟩ : Fin k) < m →
+          ∑ r, c r * (α m ^ p ^ (r : ℕ) - powSeq z k m) = 0) → c = 0)
+    (hDr : ∀ r : Fin d, (r : ℕ) ≠ 0 →
+        α ⟨0, hk⟩ ^ p ^ (r : ℕ) - α ⟨0, hk⟩ ≠ 0) :
+    ∃ c : Fq, ∀ x, T x = c * x := by
+  -- Ore: q-polynomial coefficients of `T`.
+  obtain ⟨t, ht⟩ := Linearized.exists_qpoly_repr hcard d hd hdeg T
+  -- `T` along the weights is the `t`-combination of the conjugate weights.
+  have hTsum : (fun s => T (eqPoly α s)) =
+      ∑ r : Fin d, t r • (eqPoly (fun i => α i ^ p ^ (r : ℕ)) : Cube k → Fq) := by
+    funext s
+    rw [ht (eqPoly α s)]
+    conv_rhs => rw [Finset.sum_apply]
+    refine Finset.sum_congr rfl fun r _ => ?_
+    rw [Pi.smul_apply, smul_eq_mul, eqPoly_pow]
+  -- Rewrite into `rigidity`'s staircase `v`-form and identify with the row space.
+  have heq : (∑ r : Fin d, t r • ptensor (fun i => fun b =>
+        vrow (powSeq z k i) b + (α i ^ p ^ (r : ℕ) - powSeq z k i) * drow b)) =
+      cω • ptensor (fun i => vrow (powSeq z k i)) +
+        ∑ m', ct m' • ptensor (stairVec (fun i => vrow (powSeq z k i)) (fun _ => drow)
+          (fun i => α i - powSeq z k i) m') := by
+    rw [← hrow, hTsum]
+    refine Finset.sum_congr rfl fun r _ => ?_
+    rw [eqPoly_eq_vTensor z (fun i => α i ^ p ^ (r : ℕ))]
+  -- `rigidity` per slot `m > 0`, rewritten with the kernel coefficients `c_r = t_r·D_r`.
+  have hkereq : ∀ m : Fin k, (⟨0, hk⟩ : Fin k) < m →
+      ∑ r : Fin d, (t r * (α ⟨0, hk⟩ ^ p ^ (r : ℕ) - α ⟨0, hk⟩)) *
+        (α m ^ p ^ (r : ℕ) - powSeq z k m) = 0 := by
+    intro m hm
+    have hrig := rigidity (fun i => powSeq z k i) (fun i => α i - powSeq z k i)
+      (fun (r : Fin d) i => α i ^ p ^ (r : ℕ) - powSeq z k i) t ⟨0, hk⟩ m hm cω ct heq
+    rw [← hrig]
+    refine Finset.sum_congr rfl fun r _ => ?_
+    show t r * (α ⟨0, hk⟩ ^ p ^ (r : ℕ) - α ⟨0, hk⟩) * (α m ^ p ^ (r : ℕ) - powSeq z k m)
+        = t r * (((α ⟨0, hk⟩ ^ p ^ (r : ℕ) - powSeq z k ⟨0, hk⟩)
+            - (α ⟨0, hk⟩ - powSeq z k ⟨0, hk⟩)) * (α m ^ p ^ (r : ℕ) - powSeq z k m))
+    ring
+  -- The coefficient vector `c_r = t_r·D_r` is in the (trivial) kernel, hence zero.
+  have hc0 : (fun r : Fin d => t r * (α ⟨0, hk⟩ ^ p ^ (r : ℕ) - α ⟨0, hk⟩)) ⟨0, hd0⟩ = 0 := by
+    simp
+  have hceq : (fun r : Fin d => t r * (α ⟨0, hk⟩ ^ p ^ (r : ℕ) - α ⟨0, hk⟩)) = 0 :=
+    hker _ hc0 hkereq
+  -- `D_r ≠ 0` for `r ≥ 1` forces the twist coefficients `t_r = 0`.
+  have htr : ∀ r : Fin d, (r : ℕ) ≠ 0 → t r = 0 := by
+    intro r hr
+    have hzero : t r * (α ⟨0, hk⟩ ^ p ^ (r : ℕ) - α ⟨0, hk⟩) = 0 := by
+      have := congrFun hceq r; simpa using this
+    rcases mul_eq_zero.mp hzero with h | h
+    · exact h
+    · exact absurd h (hDr r hr)
+  -- Only the `r = 0` term survives: `T x = t_0·x`.
+  refine ⟨t ⟨0, hd0⟩, fun x => ?_⟩
+  rw [ht x, Finset.sum_eq_single (⟨0, hd0⟩ : Fin d)]
+  · simp
+  · intro r _ hr
+    have hrne : (r : ℕ) ≠ 0 := fun h => hr (Fin.ext h)
+    rw [htr r hrne, zero_mul]
+  · intro h; exact absurd (Finset.mem_univ _) h
 
 end ZkWhir
