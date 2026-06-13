@@ -868,6 +868,20 @@ theorem nodePair_eta_rho_tau (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k�
   rw [hfull, hge, add_assoc,
     Finset.sum_filter_add_sum_filter_not Finset.univ (fun i : Fin P.k₀ => i < ℓ)]
 
+/-- **The cross form in the `ρ/τ` staircase basis** (`lem:fullslice` Step 2/3
+interface): `F_θ(δ) = ∑_j θ_j (⟨ρ^{(j)}_ℓ, V⟩ + ∑_{i ≥ ℓ} λ^{(j)}_i ⟨τ^{(j)}_i, V⟩)`,
+the form against which the matched moment combination is compared. -/
+theorem crossForm_eq_rho_tau (δ : Cell P → Fp P) (θ : Fin 2 → Fq) (ℓ : Fin P.k₀) :
+    crossForm P Fq Dom ch δ θ =
+      θ 0 * (nodePairRho P Fq Dom ch δ 0 ℓ +
+          ∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => ℓ ≤ i),
+            lamData P Fq Dom ch (ch.z 0) i * nodePairTau P Fq Dom ch δ 0 i) +
+      θ 1 * (nodePairRho P Fq Dom ch δ 1 ℓ +
+          ∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => ℓ ≤ i),
+            lamData P Fq Dom ch (ch.z 1) i * nodePairTau P Fq Dom ch δ 1 i) := by
+  unfold crossForm
+  rw [nodePair_eta_rho_tau P Fq Dom ch δ 0 ℓ, nodePair_eta_rho_tau P Fq Dom ch δ 1 ℓ]
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
