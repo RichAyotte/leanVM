@@ -777,4 +777,17 @@ theorem crossFormMap_surjective [FiniteDimensional (Fp P) Fq]
   rw [key, hsum, hbj0]
   field_simp
 
+/-- **Step 4 of `lem:fullslice`, fully discharged**: under the node genericity
+and the mask budget, the trace of the cross-form is nonzero for every `θ ≠ 0` —
+`tr∘F_θ ≠ 0`, the slice nondegeneracy that `prop:pinbound` consumes. -/
+theorem exists_trace_crossForm_ne_zero_of_nodeHyp [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (hnode : NodeHyp P Fq Dom ch)
+    (hbudget : Module.finrank (Fp P) Fq * 2 ≤ 2 ^ P.a) (θ : Fin 2 → Fq)
+    (hθ : θ ≠ 0) :
+    ∃ κ : MaskAssign P,
+      Algebra.trace (Fp P) Fq
+        (crossForm P Fq Dom ch (assemble P 0 (-κ)) θ) ≠ 0 :=
+  exists_trace_crossForm_ne_zero P Fq Dom ch θ
+    (crossFormMap_surjective P Fq Dom ch hnode hbudget θ hθ)
+
 end ZkWhir
