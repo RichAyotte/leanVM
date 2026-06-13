@@ -556,6 +556,30 @@ theorem nodePair_alpha_eq_fold (δ : Cell P → Fp P) (j : Fin 2) :
   rw [← evalT_alpha_eq_mle_fold P Fq Dom δ ch, evalT_eq_sum_classes]
   rfl
 
+/-- The telescoped node-pairing `⟨ρ^j_ℓ, V_j⟩`. -/
+def nodePairRho (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀) : Fq :=
+  nodePair P Fq Dom ch δ j (eqPoly (powSeq (ch.z j) P.k₀))
+  + ∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+      lamData P Fq Dom ch (ch.z j) i *
+        nodePair P Fq Dom ch δ j
+          (ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+            (lamData P Fq Dom ch (ch.z j)) i))
+
+/-- The slot node-pairing `⟨τ^j_ℓ, V_j⟩`. -/
+def nodePairTau (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀) : Fq :=
+  nodePair P Fq Dom ch δ j
+    (ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+      (lamData P Fq Dom ch (ch.z j)) ℓ))
+
+/-- **The node functional `g^j_ℓ(y)`** in `ρ/τ` shorthand: `⟨ρ, V⟩ + (y − ζ)·⟨τ, V⟩`. -/
+theorem evalT_mixed_rho_tau (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀)
+    (y : Fq) :
+    evalT P Fq δ (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z j) P.k₀))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) =
+      nodePairRho P Fq Dom ch δ j ℓ
+      + (y - powSeq (ch.z j) P.k₀ ℓ) * nodePairTau P Fq Dom ch δ j ℓ := by
+  rw [evalT_mixed_nodePair_decomp]; rfl
+
 /-- **The cross-form** `F_θ`: the `θ`-weighted pairing of the extension rows
 against the perturbation's node values. -/
 def crossForm (δ : Cell P → Fp P) (θ : Fin 2 → Fq) : Fq :=
@@ -618,5 +642,25 @@ theorem crossForm_smul (a : Fp P) (δ : Cell P → Fp P) (θ : Fin 2 → Fq) :
   unfold crossForm
   rw [nodePair_smul_table, nodePair_smul_table, Algebra.smul_def,
     Algebra.smul_def, Algebra.smul_def]; ring
+
+/-- **The (S,R) moment form** (`lem:fullslice` Step 2, the node-part of the
+moment combination): the `μ`-weighted block-`j` slice term equals the `α`-prefix
+times `⟨ρ, V⟩·S + ⟨τ, V⟩·R`, where `S = momS`, `R = momR` are the moment
+coefficients. This is what the η-matching equates to `θ_j·⟨η_j, V_j⟩`. -/
+theorem prefixFactor_evalT_moment_SR (δ : Cell P → Fp P) (j : Fin 2)
+    (ℓ : Fin P.k₀) (w pts : Fin 3 → Fq) :
+    (∑ t, w t * (prefixFactor P Fq Dom ch ℓ (pts t) (powSeq (ch.z j) P.k₀) *
+        evalT P Fq δ (mixedPoint P Fq Dom ch ℓ (pts t) (powSeq (ch.z j) P.k₀))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))) =
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+          eqf Fq (ch.α i) (powSeq (ch.z j) P.k₀ i)) *
+        (nodePairRho P Fq Dom ch δ j ℓ *
+            momS Fq (powSeq (ch.z j) P.k₀ ℓ) (∑ t, w t) (∑ t, w t * pts t)
+          + nodePairTau P Fq Dom ch δ j ℓ *
+            momR Fq (powSeq (ch.z j) P.k₀ ℓ) (∑ t, w t) (∑ t, w t * pts t)
+              (∑ t, w t * pts t ^ 2)) := by
+  rw [prefixFactor_evalT_moment, evalT_mixed_rho_tau, evalT_mixed_rho_tau]
+  unfold momS momR
+  ring
 
 end ZkWhir
