@@ -1289,4 +1289,46 @@ theorem confine_slice_coeffs [FiniteDimensional (Fp P) Fq]
   rw [hinl, hq', hn', hz', zero_add] at happ
   rw [← happ]; ring
 
+/-! ## The multi-class node probe (`lem:nodechannel`)
+
+The node-channel argument places a *per-class* block fiber `vf s` on each class
+`s` simultaneously, realizing prescribed node values. Its fold is the
+`λ`-combination `∑_s λ_s · (lift vf_s)`, and its view vanishes exactly when the
+node values lie in the kernel of the node matrix. -/
+
+/-- The multi-class block probe: place `−vf s` on the block of each class `s`. -/
+def multiBlockMask (vf : Cube P.k₀ → Cube P.m → Fp P) : MaskAssign P :=
+  fun u => -(vf u.1.1 u.1.2)
+
+/-- The assembled table of the multi-class probe is `vf s` on class `s` (using
+that each `vf s` is block-supported). -/
+theorem assemble_multiBlockMask {vf : Cube P.k₀ → Cube P.m → Fp P}
+    (hvf : ∀ s c, vf s c ≠ 0 → IsBlockPos P c) (s : Cube P.k₀) (c : Cube P.m) :
+    assemble P 0 (- multiBlockMask P vf) (s, c) = vf s c := by
+  unfold assemble
+  by_cases hm : IsMask P (s, c)
+  · rw [dif_pos hm]; show - -(vf s c) = vf s c; rw [neg_neg]
+  · rw [dif_neg hm]
+    have hcnb : ¬ IsBlockPos P c := fun hb => hm (Or.inr hb)
+    have hvc : vf s c = 0 := by by_contra hh; exact hcnb (hvf s c hh)
+    rw [hvc]; rfl
+
+/-- The per-class fiber extension of the multi-class probe. -/
+theorem multiBlockMask_fiber_mle {vf : Cube P.k₀ → Cube P.m → Fp P}
+    (hvf : ∀ s c, vf s c ≠ 0 → IsBlockPos P c) (s : Cube P.k₀)
+    (pt : Fin P.m → Fq) :
+    mle (fun c => liftT P Fq (assemble P 0 (- multiBlockMask P vf)) (s, c)) pt =
+      mle (fun c => algebraMap (Fp P) Fq (vf s c)) pt := by
+  congr 1; funext c; unfold liftT; rw [assemble_multiBlockMask P hvf s c]
+
+/-- The fold of the multi-class probe is the `λ`-combination of the per-class
+lifts. -/
+theorem foldedF₁_multiBlockMask {vf : Cube P.k₀ → Cube P.m → Fp P}
+    (hvf : ∀ s c, vf s c ≠ 0 → IsBlockPos P c) (c : Cube P.m) :
+    foldedF₁ P Fq Dom (assemble P 0 (- multiBlockMask P vf)) ch c =
+      ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (vf s c) := by
+  unfold foldedF₁
+  refine Finset.sum_congr rfl fun s _ => ?_
+  unfold liftT; rw [assemble_multiBlockMask P hvf s c]
+
 end ZkWhir
