@@ -192,4 +192,29 @@ theorem tcoeff_omegaTensor {k : ℕ} (x : Fin k → Fq) (S : Finset (Fin k)) :
   · obtain ⟨j, hj⟩ := Finset.nonempty_iff_ne_empty.mpr hS
     exact Finset.prod_eq_zero (Finset.mem_univ j) (by rw [if_pos hj])
 
+/-- **Coefficient of `τ_{m'}` at the singleton `S = {m}`**: `φ_{m}(τ_{m'}) = [m'=m]`. -/
+theorem tcoeff_tauTensor_single {k : ℕ} (x lam : Fin k → Fq) (m m' : Fin k) :
+    tcoeff (dCoeff x {m})
+        (ptensor (stairVec (fun i => vrow (x i)) (fun _ => drow) lam m')) =
+      if m' = m then 1 else 0 := by
+  rw [tcoeff_ptensor (dCoeff x {m}) (dCoeff_hlin x {m})]
+  split_ifs with hmm
+  · subst hmm
+    refine Finset.prod_eq_one fun i _ => ?_
+    by_cases hi : i = m'
+    · subst hi
+      rw [show stairVec (fun i => vrow (x i)) (fun _ => drow) lam i i = drow from by
+        unfold stairVec; rw [if_neg (lt_irrefl i), if_pos rfl]]
+      unfold dCoeff; rw [if_pos (Finset.mem_singleton_self i)]; exact gammaD_drow (x i)
+    · unfold dCoeff; rw [if_neg (by rw [Finset.mem_singleton]; exact hi)]
+      unfold stairVec
+      by_cases hilt : i < m'
+      · rw [if_pos hilt]; exact gammaC_aVec (x i) (lam i)
+      · rw [if_neg hilt, if_neg hi]; exact gammaC_vrow (x i)
+  · refine Finset.prod_eq_zero (Finset.mem_univ m') ?_
+    rw [show stairVec (fun i => vrow (x i)) (fun _ => drow) lam m' m' = drow from by
+      unfold stairVec; rw [if_neg (lt_irrefl m'), if_pos rfl]]
+    unfold dCoeff; rw [if_neg (by rw [Finset.mem_singleton]; exact hmm)]
+    exact gammaC_drow
+
 end ZkWhir
