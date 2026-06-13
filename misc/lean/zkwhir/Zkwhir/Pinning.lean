@@ -59,6 +59,71 @@ theorem foldedF₁_smul (c : Fp P) (T : Cell P → Fp P) :
   rw [Pi.smul_apply, smul_eq_mul, map_mul, Algebra.smul_def]
   ring
 
+/-- `liftT` is homogeneous over `Fp`. -/
+theorem liftT_smul (c : Fp P) (T : Cell P → Fp P) :
+    liftT P Fq (c • T) = c • liftT P Fq T := by
+  funext u
+  simp only [liftT, Pi.smul_apply, smul_eq_mul, map_mul, Algebra.smul_def]
+
+/-- `mle` is homogeneous over `Fp`. -/
+theorem mle_smul_fp {j : ℕ} (c : Fp P) (M : Cube j → Fq) (xs : Fin j → Fq) :
+    mle (c • M) xs = c • mle M xs := by
+  unfold mle
+  rw [Finset.smul_sum]
+  refine Finset.sum_congr rfl fun b _ => ?_
+  rw [Pi.smul_apply, Algebra.smul_def, Algebra.smul_def]; ring
+
+/-- `evalT` is homogeneous over `Fp`. -/
+theorem evalT_smul (c : Fp P) (T : Cell P → Fp P) (ys : Fin P.k₀ → Fq)
+    (xs : Fin P.m → Fq) :
+    evalT P Fq (c • T) ys xs = c • evalT P Fq T ys xs := by
+  unfold evalT
+  rw [Finset.smul_sum]
+  refine Finset.sum_congr rfl fun u _ => ?_
+  rw [liftT_smul, Pi.smul_apply, Algebra.smul_def, Algebra.smul_def]; ring
+
+/-- `partialEval` is homogeneous over `Fp`. -/
+theorem partialEval_smul_fp (c : Fp P) (G : Cell P → Fq) (ℓ : Fin P.k₀) (X : Fq)
+    (b : Cube P.k₀) (cc : Cube P.m) :
+    partialEval P Fq Dom ch (c • G) ℓ X b cc =
+      c • partialEval P Fq Dom ch G ℓ X b cc := by
+  unfold partialEval
+  rw [Finset.smul_sum]
+  refine Finset.sum_congr rfl fun s _ => ?_
+  rw [Pi.smul_apply, Algebra.smul_def, Algebra.smul_def]; ring
+
+/-- The out-of-domain answer is homogeneous over `Fp`. -/
+theorem oodAnswer_smul (c : Fp P) (T : Cell P → Fp P) (z : Fq) :
+    oodAnswer P Fq (c • T) z = c • oodAnswer P Fq T z := by
+  unfold oodAnswer; rw [evalT_smul]
+
+/-- The query answer is homogeneous over `Fp`. -/
+theorem queryAnswer_smul (c : Fp P) (T : Cell P → Fp P) (t : Fin P.t₀)
+    (s : Cube P.k₀) :
+    queryAnswer P Fq Dom (c • T) ch t s =
+      c • queryAnswer P Fq Dom T ch t s := by
+  unfold queryAnswer
+  have hfun : (fun cc => liftT P Fq (c • T) (s, cc)) =
+      c • (fun cc => liftT P Fq T (s, cc)) := by
+    funext cc; rw [liftT_smul]; rfl
+  rw [hfun, mle_smul_fp]
+
+/-- The sumcheck message is homogeneous over `Fp` (the weight `W₀` is fixed, so
+the perturbation enters linearly). -/
+theorem hPoly_smul (c : Fp P) (T : Cell P → Fp P) (ℓ : Fin P.k₀) (X : Fq) :
+    hPoly P Fq Dom S (c • T) ch ℓ X = c • hPoly P Fq Dom S T ch ℓ X := by
+  unfold hPoly
+  rw [Finset.smul_sum]
+  refine Finset.sum_congr rfl fun b _ => ?_
+  rw [Finset.smul_sum]
+  refine Finset.sum_congr rfl fun cc _ => ?_
+  rw [liftT_smul, partialEval_smul_fp, Algebra.smul_def, Algebra.smul_def]; ring
+
+/-- The folded `f̂₁` out-of-domain answer is homogeneous over `Fp`. -/
+theorem mle_foldedF₁_smul (c : Fp P) (T : Cell P → Fp P) (xs : Fin P.m → Fq) :
+    mle (foldedF₁ P Fq Dom (c • T) ch) xs = c • mle (foldedF₁ P Fq Dom T ch) xs := by
+  rw [foldedF₁_smul, mle_smul_fp]
+
 /-- **The fold map**: the `Fp`-linear map sending a mask `κ` to the fold of the
 pure-mask perturbation `assemble 0 (−κ)`. Its range, restricted to the
 view-vanishing masks, is the space the primal `Pinning` must hit. -/
