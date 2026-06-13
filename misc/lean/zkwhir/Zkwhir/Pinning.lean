@@ -2005,6 +2005,24 @@ theorem terminal_pairing_node_decomp (T : Cell P → Fp P) :
   refine Finset.sum_congr rfl fun c _ => ?_
   ring
 
+/-- **`F_{θ^term} = γ²·T_ŵ`** (`cond:cross2`, tex:525): for a view-vanishing table
+(all sumcheck messages zero), the terminal node combination equals `−γ²` times the
+terminal cross form `T_ŵ`. So the *pure* node combination `θ^term` is **not** in
+`ann(W')` unless `T_ŵ = 0` — the terminal protocol direction supplies the missing
+cross form. -/
+theorem terminal_node_eq_neg_cross (T : Cell P → Fp P) (h2 : (2 : Fq) ≠ 0)
+    (hmsg0 : ∀ ℓ, hPoly P Fq Dom S T ch ℓ 0 = 0)
+    (hmsg1 : ∀ ℓ, hPoly P Fq Dom S T ch ℓ 1 = 0)
+    (hmsg2 : ∀ ℓ, hPoly P Fq Dom S T ch ℓ 2 = 0) :
+    (∑ s, eqPoly ch.α s * eqPoly (powSeq (ch.z 0) P.k₀) s) *
+          (∑ c, eqPoly (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m) c * foldedF₁ P Fq Dom T ch c)
+      + ch.γ * ((∑ s, eqPoly ch.α s * eqPoly (powSeq (ch.z 1) P.k₀) s) *
+          (∑ c, eqPoly (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m) c * foldedF₁ P Fq Dom T ch c))
+      = -(ch.γ ^ 2 * (∑ c, foldedF₁ P Fq Dom T ch c * wHat0 P Fq Dom S ch c)) := by
+  have h := terminal_pairing_eq_zero_of_msgs P Fq Dom S T ch h2 hmsg0 hmsg1 hmsg2
+  rw [terminal_pairing_node_decomp] at h
+  linear_combination h
+
 /-- **`lem:nodechannel` → `cond:twist`, full bridge** (parts (d)+(e)): the node
 functional is forced **untwisted** — there are scalars `θ_j` so the node functional
 equals `θ_j · êq(α, ·)` (and still lies in the node-matrix row space). Applies
