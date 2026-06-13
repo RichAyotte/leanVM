@@ -145,6 +145,20 @@ theorem challenge_α_coord_le (i : Fin P.k₀) (B : (Fin 2 → Fq) → Set Fq)
   · rw [add_zero]
     exact hB z
 
+/-- **Per-factor α-root bound**: a single `eqf(α_i, z_j^{2^i})` vanishes with
+probability at most `1/q`. -/
+theorem challenge_alpha_eqf_root_le (h2 : (2 : Fq) ≠ 0) (i : Fin P.k₀)
+    (j : Fin 2) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom |
+        eqf Fq (ch.α i) (powSeq (ch.z j) P.k₀ i) = 0} ≤
+      1 / (fieldCard Fq : ℝ≥0∞) := by
+  refine challenge_α_coord_le P Fq Dom i
+    (fun z => {a : Fq | eqf Fq a (powSeq (z j) P.k₀ i) = 0}) _ (fun z => ?_)
+  refine (uniform_pi_coord_le i {a : Fq | eqf Fq a (powSeq (z j) P.k₀ i) = 0} 1
+    (fun s hs => eqf_root_card Fq h2 (powSeq (z j) P.k₀ i) s hs)).trans ?_
+  simp [fieldCard]
+
 /-- **Exact count of roots of unity in a finite field**:
 `#{x : x^m = 1} = gcd(m, q − 1)`. -/
 theorem card_pow_eq_one_eq_gcd {F : Type*} [Field F] [Fintype F]
