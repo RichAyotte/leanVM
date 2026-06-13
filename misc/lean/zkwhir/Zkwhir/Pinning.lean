@@ -13,6 +13,8 @@ Part of the `GoodSetAbsorption` formalization campaign.
 -/
 import Mathlib
 import Zkwhir.Statement
+import Zkwhir.Toolbox
+import Zkwhir.Absorption
 
 set_option linter.style.header false
 set_option linter.unusedSectionVars false
@@ -23,7 +25,7 @@ namespace ZkWhir
 
 variable (P : Params) (Fq : Type*) [Field Fq] [Fintype Fq]
   [Algebra (Fp P) Fq] (Dom : Finset (Fp P)) [Nonempty {x // x ∈ Dom}]
-  (ch : Challenges P Fq Dom)
+  (S : Stmt P Fq) (ch : Challenges P Fq Dom)
 
 /-- `assemble` with zero data is additive in the mask. -/
 theorem assemble_zero_add (m₁ m₂ : MaskAssign P) :
@@ -138,5 +140,120 @@ def foldMap : MaskAssign P →ₗ[Fp P] (Cube P.m → Fq) where
     show foldedF₁ P Fq Dom (assemble P 0 (-(c • κ))) ch =
       c • foldedF₁ P Fq Dom (assemble P 0 (-κ)) ch
     rw [← smul_neg, assemble_zero_smul, foldedF₁_smul]
+
+/-! ## The view-vanishing masks as a subspace -/
+
+/-- `mle` is additive. -/
+theorem mle_pi_add {j : ℕ} (M₁ M₂ : Cube j → Fq) (xs : Fin j → Fq) :
+    mle (M₁ + M₂) xs = mle M₁ xs + mle M₂ xs := by
+  unfold mle
+  rw [← Finset.sum_add_distrib]
+  exact Finset.sum_congr rfl fun b _ => by rw [Pi.add_apply]; ring
+
+/-- Zero data and zero mask assemble to the zero table. -/
+theorem assemble_zero_zero : assemble P 0 (0 : MaskAssign P) = 0 := by
+  funext u; unfold assemble
+  by_cases h : IsMask P u <;> simp [h]
+
+theorem liftT_zero : liftT P Fq (0 : Cell P → Fp P) = 0 := by
+  funext u; simp [liftT]
+
+theorem oodAnswer_zero (z : Fq) : oodAnswer P Fq (0 : Cell P → Fp P) z = 0 := by
+  unfold oodAnswer evalT; simp [liftT]
+
+theorem foldedF₁_zero : foldedF₁ P Fq Dom (0 : Cell P → Fp P) ch = 0 := by
+  funext c'; unfold foldedF₁; simp [liftT]
+
+theorem hPoly_zero (ℓ : Fin P.k₀) (X : Fq) :
+    hPoly P Fq Dom S (0 : Cell P → Fp P) ch ℓ X = 0 := by
+  unfold hPoly
+  refine Finset.sum_eq_zero fun b _ => Finset.sum_eq_zero fun cc _ => ?_
+  have hz : partialEval P Fq Dom ch (liftT P Fq (0 : Cell P → Fp P)) ℓ X b cc = 0 := by
+    rw [liftT_zero]; unfold partialEval; simp
+  rw [hz]; ring
+
+theorem queryAnswer_zero (t : Fin P.t₀) (s : Cube P.k₀) :
+    queryAnswer P Fq Dom (0 : Cell P → Fp P) ch t s = 0 := by
+  unfold queryAnswer; simp [liftT_zero, mle]
+
+/-- The view of the zero table vanishes. -/
+theorem viewVanishes_zero_table : ViewVanishes P Fq Dom S ch 0 :=
+  ⟨fun j => oodAnswer_zero P Fq (ch.z j),
+   fun ℓ => hPoly_zero P Fq Dom S ch ℓ 1,
+   fun ℓ => hPoly_zero P Fq Dom S ch ℓ 2,
+   fun t s => queryAnswer_zero P Fq Dom ch t s,
+   fun j => by rw [foldedF₁_zero]; unfold mle; simp⟩
+
+/-- **The view-vanishing masks** form an `Fp`-subspace: those `κ` whose
+pure-mask perturbation `assemble 0 (−κ)` has vanishing reduced view. The
+domain of the pinning fold map `ψ`. -/
+def viewKer : Submodule (Fp P) (MaskAssign P) where
+  carrier := {κ | ViewVanishes P Fq Dom S ch (assemble P 0 (-κ))}
+  zero_mem' := by
+    show ViewVanishes P Fq Dom S ch (assemble P 0 (-0))
+    rw [neg_zero, assemble_zero_zero]
+    exact viewVanishes_zero_table P Fq Dom S ch
+  add_mem' := by
+    intro κ₁ κ₂ h₁ h₂
+    show ViewVanishes P Fq Dom S ch (assemble P 0 (-(κ₁ + κ₂)))
+    rw [neg_add, assemble_zero_add]
+    exact ⟨fun j => by rw [oodAnswer_add, h₁.ood j, h₂.ood j, add_zero],
+      fun ℓ => by rw [hPoly_add, h₁.msg1 ℓ, h₂.msg1 ℓ, add_zero],
+      fun ℓ => by rw [hPoly_add, h₁.msg2 ℓ, h₂.msg2 ℓ, add_zero],
+      fun t s => by rw [queryAnswer_add, h₁.qa t s, h₂.qa t s, add_zero],
+      fun j => by rw [foldedF₁_add, mle_pi_add, h₁.f1ood j, h₂.f1ood j, add_zero]⟩
+  smul_mem' := by
+    intro c κ h
+    show ViewVanishes P Fq Dom S ch (assemble P 0 (-(c • κ)))
+    rw [← smul_neg, assemble_zero_smul]
+    exact ⟨fun j => by rw [oodAnswer_smul, h.ood j, smul_zero],
+      fun ℓ => by rw [hPoly_smul, h.msg1 ℓ, smul_zero],
+      fun ℓ => by rw [hPoly_smul, h.msg2 ℓ, smul_zero],
+      fun t s => by rw [queryAnswer_smul, h.qa t s, smul_zero],
+      fun j => by rw [mle_foldedF₁_smul, h.f1ood j, smul_zero]⟩
+
+/-- Membership in `viewKer` is exactly view-vanishing. -/
+theorem mem_viewKer (κ : MaskAssign P) :
+    κ ∈ viewKer P Fq Dom S ch ↔
+      ViewVanishes P Fq Dom S ch (assemble P 0 (-κ)) := Iff.rfl
+
+/-- **The pinning fold map `ψ`**: the fold map restricted to the view-vanishing
+masks. `Pinning` is exactly the statement that `−F` is in its range for every
+protocol-killed `F`. -/
+def pinFold : viewKer P Fq Dom S ch →ₗ[Fp P] (Cube P.m → Fq) :=
+  (foldMap P Fq Dom ch).domRestrict (viewKer P Fq Dom S ch)
+
+/-- **Reduction of `Pinning` to range membership**: if every protocol-killed
+`F` has `−F` in the range of `ψ`, then `Pinning` holds. -/
+theorem pinning_of_forall_range
+    (h : ∀ F : Cube P.m → Fq,
+        (∀ t, mle F (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) →
+        (∀ j, mle F (powSeq (ch.zf j) P.m) = 0) →
+        ((∑ c, F c * ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) = 0) →
+        (-F) ∈ LinearMap.range (pinFold P Fq Dom S ch)) :
+    Pinning P Fq Dom S ch := by
+  intro F hq hzf hterm
+  obtain ⟨κ, hκ⟩ := h F hq hzf hterm
+  refine ⟨κ.1, κ.2, ?_⟩
+  rw [show (fun c => -F c) = -F from rfl]
+  exact hκ
+
+/-- **The dual form of `Pinning`** (the primal↔dual keystone): `Pinning`
+follows once every protocol direction — every functional vanishing on all
+view-vanishing mask-folds — also annihilates `−F`. This is the statement
+`prop:pinbound` establishes (`ann(W') = protocol span`). -/
+theorem pinning_of_dual [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    (h : ∀ F : Cube P.m → Fq,
+        (∀ t, mle F (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) →
+        (∀ j, mle F (powSeq (ch.zf j) P.m) = 0) →
+        ((∑ c, F c * ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) = 0) →
+        ∀ φ : Module.Dual (Fp P) (Cube P.m → Fq),
+          (∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) →
+          φ (-F) = 0) :
+    Pinning P Fq Dom S ch := by
+  apply pinning_of_forall_range
+  intro F hq hzf hterm
+  rw [mem_range_iff_forall_dual]
+  exact h F hq hzf hterm
 
 end ZkWhir
