@@ -1097,4 +1097,22 @@ theorem confine_trace_pairing_confineKer [FiniteDimensional (Fp P) Fq]
     confine_pairing_zero P Fq Dom S ch h2 hmf hspread φ hφ
   exact ⟨w, hw, fun v hv => hpair v hv.1 hv.2.1 hv.2.2.1 hv.2.2.2⟩
 
+/-- **Slice functional vanishing** (`lem:confine`, slice form): each trace twist
+`β` of the trace-dual `w` gives an `Fp`-functional `v ↦ ∑_c v_c · tr(β · w_c)` on
+`Cube m → Fp` that vanishes on the confinement kernel. This is the family of
+`Fp`-forms that `mem_span_of_forall_ker` confines to the protocol span. -/
+theorem confine_sliceVec_vanishes [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
+    ∃ w : Cube P.m → Fq,
+      (∀ g, φ g = Algebra.trace (Fp P) Fq (∑ c, w c * g c)) ∧
+      ∀ (β : Fq), ∀ v ∈ confineKer P Fq Dom ch,
+        (∑ c, v c * Algebra.trace (Fp P) Fq (β * w c)) = 0 := by
+  obtain ⟨w, hw, hpair⟩ :=
+    confine_trace_pairing_confineKer P Fq Dom S ch h2 hmf hspread φ hφ
+  refine ⟨w, hw, fun β v hv => ?_⟩
+  rw [← trace_smul_pairing, hpair v hv, mul_zero, map_zero]
+
 end ZkWhir
