@@ -478,6 +478,17 @@ theorem trace_smul_pairing {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
   rw [show β * (w c * algebraMap Fp Fq (v c)) = v c • (β * w c) from by
     rw [Algebra.smul_def]; ring, map_smul, smul_eq_mul]
 
+/-- The functional on `ι → R` given by dotting against a vector `a`. -/
+def dotFunc {R ι : Type*} [CommRing R] [Fintype ι] (a : ι → R) :
+    Module.Dual R (ι → R) := ∑ i, a i • LinearMap.proj i
+
+theorem dotFunc_apply {R ι : Type*} [CommRing R] [Fintype ι] (a v : ι → R) :
+    dotFunc a v = ∑ i, a i * v i := by
+  unfold dotFunc
+  rw [LinearMap.sum_apply]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [LinearMap.smul_apply, LinearMap.proj_apply, smul_eq_mul]
+
 /-- **Slice-kernel characterization**: an `Fq` element is zero iff all its trace
 slices against an `Fp`-basis vanish (the `Fq`-condition `= 0` is the conjunction
 of `d` `Fp`-conditions). -/
