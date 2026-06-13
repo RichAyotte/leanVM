@@ -1856,4 +1856,85 @@ theorem nodeRowVec_inr_pairing (q : Fin P.k₀ × Fin 2) (V : Cube P.k₀ × Fin
   rw [if_neg (by decide : (1 : Fin 2) ≠ 0)]
   ring
 
+/-- **`lem:nodechannel` → `cond:twist` bridge** (parts (c)): the bundled
+trace-twist node functionals `T_j`, evaluated along the Lagrange weights, land in
+the staircase span `{ω, τ_{m'}}` (over `z_j`). Combines the row-space duality
+(`mem_rowspan_of_pairing_vanishes`) of `nodechannel_rowspace`'s `B ⊥ ker` with the
+fact that every node-matrix row lies in the staircase span
+(`eqPoly_*_mem_staircaseSpan`). This is exactly `condTwist_span`'s hypothesis. -/
+theorem nodechannel_in_staircaseSpan [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hnode : NodeHyp P Fq Dom ch)
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
+    ∃ T : Fin 2 → (Fq →ₗ[Fp P] Fq), ∀ j : Fin 2,
+      (fun s => T j (eqPoly ch.α s)) ∈
+        Submodule.span Fq (insert (ptensor (czData P Fq (ch.z j)))
+          (Set.range (fun m' => ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+            (lamData P Fq Dom ch (ch.z j)) m')))) := by
+  obtain ⟨T, hT⟩ :=
+    nodechannel_rowspace P Fq Dom S ch h2 hmf hdom hbudget hnode hspread b φ hφ
+  -- the node functional `B' (s,j) = T j (êq α s)` pairs to zero with `ker`
+  have hpair : ∀ V : Cube P.k₀ × Fin 2 → Fq,
+      (∀ a, ∑ p, nodeRowVec P Fq Dom ch a p * V p = 0) →
+      ∑ p, (fun p => T p.2 (eqPoly ch.α p.1)) p * V p = 0 := by
+    intro V hV
+    rw [Fintype.sum_prod_type]
+    refine hT (fun s j => V (s, j)) (fun j => ?_) (fun ℓ => ?_) (fun ℓ => ?_)
+    · have h := hV (Sum.inl j); rw [nodeRowVec_inl_pairing] at h; exact h
+    · have h := hV (Sum.inr (ℓ, 0)); rw [nodeRowVec_inr_pairing] at h
+      simpa only [Matrix.cons_val_zero] using h
+    · have h := hV (Sum.inr (ℓ, 1)); rw [nodeRowVec_inr_pairing] at h
+      simp only [Matrix.cons_val_one, Matrix.head_cons] at h; exact h
+  obtain ⟨c, hc⟩ := mem_rowspan_of_pairing_vanishes (nodeRowVec P Fq Dom ch)
+    (fun p => T p.2 (eqPoly ch.α p.1)) hpair
+  refine ⟨T, fun j => ?_⟩
+  -- write the weight-evaluation as a combination of the row vectors at component `j`
+  have hfun : (fun s => T j (eqPoly ch.α s)) =
+      ∑ a, c a • (fun s => nodeRowVec P Fq Dom ch a (s, j)) := by
+    funext s
+    rw [Finset.sum_apply]
+    simp only [Pi.smul_apply, smul_eq_mul]
+    exact hc (s, j)
+  rw [hfun]
+  refine Submodule.sum_mem _ fun a _ => Submodule.smul_mem _ _ ?_
+  cases a with
+  | inl j' =>
+    by_cases hjj : j = j'
+    · subst hjj
+      rw [show (fun s => nodeRowVec P Fq Dom ch (Sum.inl j) (s, j)) =
+          eqPoly (powSeq (ch.z j) P.k₀) from by
+        funext s; dsimp only [nodeRowVec]; rw [if_pos rfl]]
+      exact eqPoly_powSeq_mem_staircaseSpan P Fq Dom ch (ch.z j)
+    · rw [show (fun s => nodeRowVec P Fq Dom ch (Sum.inl j') (s, j)) = 0 from by
+        funext s; simp only [nodeRowVec, Pi.zero_apply]; rw [if_neg hjj]]
+      exact Submodule.zero_mem _
+  | inr q =>
+    obtain ⟨ℓ, yi⟩ := q
+    by_cases hj0 : j = 0
+    · subst hj0
+      rw [show (fun s => nodeRowVec P Fq Dom ch (Sum.inr (ℓ, yi)) (s, (0 : Fin 2))) =
+          prefixFactor P Fq Dom ch ℓ (![(1 : Fq), 2] yi) (powSeq (ch.z 0) P.k₀) •
+            eqPoly (mixedPoint P Fq Dom ch ℓ (![(1 : Fq), 2] yi) (powSeq (ch.z 0) P.k₀)) from by
+        funext s
+        simp only [nodeRowVec, Fin.isValue, ↓reduceIte]
+        rw [Pi.smul_apply, smul_eq_mul]]
+      exact Submodule.smul_mem _ _
+        (eqPoly_mixedPoint_mem_staircaseSpan P Fq Dom ch ℓ (![(1 : Fq), 2] yi) (ch.z 0))
+    · have hj1 : j = 1 := by omega
+      subst hj1
+      rw [show (fun s => nodeRowVec P Fq Dom ch (Sum.inr (ℓ, yi)) (s, (1 : Fin 2))) =
+          (ch.γ * prefixFactor P Fq Dom ch ℓ (![(1 : Fq), 2] yi) (powSeq (ch.z 1) P.k₀)) •
+            eqPoly (mixedPoint P Fq Dom ch ℓ (![(1 : Fq), 2] yi) (powSeq (ch.z 1) P.k₀)) from by
+        funext s
+        simp only [nodeRowVec, Fin.isValue, ↓reduceIte]
+        rw [if_neg (by decide : (1 : Fin 2) ≠ 0), Pi.smul_apply, smul_eq_mul]
+        ring]
+      exact Submodule.smul_mem _ _
+        (eqPoly_mixedPoint_mem_staircaseSpan P Fq Dom ch ℓ (![(1 : Fq), 2] yi) (ch.z 1))
+
 end ZkWhir
