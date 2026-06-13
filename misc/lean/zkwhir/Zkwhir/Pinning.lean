@@ -512,4 +512,33 @@ theorem evalT_mixed_nodePair_decomp (δ : Cell P → Fp P) (j : Fin 2)
   congr 1
   exact Finset.sum_congr rfl fun i _ => nodePair_smul P Fq Dom ch δ j _ _
 
+/-! ## The (S, R) moment matrix and its minor (`lem:fullslice` Step 2 solve)
+
+The moment-to-`(S, R)` map sends `(m₀, m₁, m₂)` to the staircase coefficients
+`S = (1−ζ)m₀ + (2ζ−1)m₁` and `R = −ζ(1−ζ)m₀ + (1−2ζ²)m₁ + (2ζ−1)m₂`. The
+η-matching at the top two levels is solvable when the 3×3 minor on
+`(S¹, R¹, R²)` is nonzero; specialized at `ζ₁ = 0` it equals `ζ₂(1−ζ₂)`,
+witnessing that the minor is not identically zero (the Schwartz–Zippel input to
+the slice-condition probability). -/
+
+/-- The `(S, R)` staircase coefficients of a moment vector at slot value `ζ`. -/
+def momS (ζ m₀ m₁ : Fq) : Fq := (1 - ζ) * m₀ + (2 * ζ - 1) * m₁
+
+def momR (ζ m₀ m₁ m₂ : Fq) : Fq :=
+  -(ζ * (1 - ζ)) * m₀ + (1 - 2 * ζ ^ 2) * m₁ + (2 * ζ - 1) * m₂
+
+/-- **The Step-2 minor at `ζ₁ = 0`** is `ζ₂(1−ζ₂)`: the 3×3 determinant of the
+coefficient matrix of `(S¹, R¹, R²)` in `(m₀, m₁, m₂)`, specialized at `ζ₁ = 0`,
+is nonzero whenever `ζ₂ ∉ {0, 1}`. -/
+theorem moment_minor_det_at_zero (ζ : Fq) :
+    Matrix.det !![(1 : Fq), -1, 0;
+        0, 1, -1;
+        -(ζ * (1 - ζ)), 1 - 2 * ζ ^ 2, 2 * ζ - 1] = ζ * (1 - ζ) := by
+  rw [Matrix.det_fin_three]
+  simp only [Matrix.of_apply, Matrix.cons_val', Matrix.cons_val_zero,
+    Matrix.cons_val_one, Matrix.head_cons, Matrix.head_fin_const,
+    Matrix.cons_val_fin_one, Matrix.empty_val', Matrix.cons_val_two,
+    Matrix.tail_cons]
+  ring
+
 end ZkWhir
