@@ -64,26 +64,42 @@ theorem eqPoly_vec_snoc {j : ℕ} (p : Fin j → Fq) (t : Fq) (b : Bool) :
 
 section Decouple
 
-variable (P : Params) [Fintype Fq] [Algebra (Fp P) Fq]
+variable (P : Params) [Algebra (Fp P) Fq]
   (Dom : Finset (Fp P)) (ch : Challenges P Fq Dom)
 
-/-- The single-point staircase family: the weight vectors of the first
-out-of-domain point and of its mixed points (`lem:staircase`). -/
-def stairFamily : (Unit ⊕ Fin P.k₀ × Fin 2) → Cube P.k₀ → Fq
-  | Sum.inl _ => fun s => eqPoly (powSeq (ch.z 0) P.k₀) s
-  | Sum.inr (ℓ, y) => fun s =>
-      eqPoly (mixedPoint P Fq Dom ch ℓ (((y : ℕ) + 1 : ℕ) : Fq)
-        (powSeq (ch.z 0) P.k₀)) s
+/-- The channel weight vector of a slot/eval pair `r = (ℓ, y)` at the point
+`z_j`: `prefixFactor · êq(mixed point)` — the per-block component of a
+coupled node-system row (`thm:twopoint`). -/
+def chanWeight (j : Fin 2) (r : Fin P.k₀ × Fin 2) : Cube P.k₀ → Fq :=
+  fun s => prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+      (powSeq (ch.z j) P.k₀) *
+    eqPoly (mixedPoint P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+      (powSeq (ch.z j) P.k₀)) s
 
-/-- **Component decoupling**: independence of the full two-point row system
-follows from independence of the single-point staircase family together with
-non-vanishing of the first-channel prefix factors. The second component then
-only needs that Lagrange vectors are nonzero. -/
-theorem rowsLI_of_stairLI
-    (hstair : LinearIndependent Fq (stairFamily Fq P Dom ch))
-    (hpre : ∀ (ℓ : Fin P.k₀) (y : Fin 2),
-      prefixFactor P Fq Dom ch ℓ (((y : ℕ) + 1 : ℕ) : Fq)
-        (powSeq (ch.z 0) P.k₀) ≠ 0) :
+/-- **The coupled-chains kernel condition** (`lem:coupled`, consumable form).
+A weight family `ν` over the `k₀ × {1,2}` slot/eval pairs that is killed on
+*both* blocks — each combined with that block's out-of-domain vector — must
+vanish.
+
+This is the genuine two-point hypothesis. Per `rem:identities` the
+single-point projection of the rows spans only `k₀ + 1` of the `2k₀ + 1`
+needed dimensions, so no single component can be independent on its own: the
+coupling through `γ` (the diagonal differences of `lem:coupled`) is what
+makes the full `2k₀ + 2` rows independent. -/
+def CoupledKer : Prop :=
+  ∀ ν : Fin P.k₀ × Fin 2 → Fq,
+    (∃ μ₁ : Fq, μ₁ • (fun s => eqPoly (powSeq (ch.z 0) P.k₀) s) +
+      ∑ r, ν r • chanWeight Fq P Dom ch 0 r = 0) →
+    (∃ μ₂ : Fq, μ₂ • (fun s => eqPoly (powSeq (ch.z 1) P.k₀) s) +
+      ∑ r, (ch.γ * ν r) • chanWeight Fq P Dom ch 1 r = 0) →
+    ν = 0
+
+/-- **Row independence from the coupled-chains kernel** (`thm:twopoint`,
+consumable form): the `2k₀ + 2` node-system rows are linearly independent as
+soon as the coupled-chains kernel condition holds. This is the sound
+formulation that `coupled_blocks` provides — the two components are *not*
+independent separately (`rem:identities`); the `γ`-coupling is essential. -/
+theorem rowsLI_of_coupledKer (hker : CoupledKer Fq P Dom ch) :
     LinearIndependent Fq (rowWeights P Fq Dom ch) := by
   classical
   rw [Fintype.linearIndependent_iff]
@@ -94,107 +110,94 @@ theorem rowsLI_of_stairLI
     intro s j'
     have h := congrFun (congrFun hsum s) j'
     simpa [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using h
-  -- component 0 is a combination of the staircase family
-  have hcomb : ∑ i, (Sum.elim (fun _ : Unit => g (Sum.inl 0))
-      (fun ℓy : Fin P.k₀ × Fin 2 => g (Sum.inr ℓy) *
-        prefixFactor P Fq Dom ch ℓy.1 (((ℓy.2 : ℕ) + 1 : ℕ) : Fq)
-          (powSeq (ch.z 0) P.k₀)) i) • stairFamily Fq P Dom ch i = 0 := by
+  -- block 0 equation
+  have hb0 : (g (Sum.inl 0)) • (fun s => eqPoly (powSeq (ch.z 0) P.k₀) s) +
+      ∑ r, (g (Sum.inr r)) • chanWeight Fq P Dom ch 0 r = 0 := by
     funext s
     have h0 := happ s 0
-    rw [Fintype.sum_sum_type] at h0 ⊢
-    simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply]
+    rw [Fintype.sum_sum_type] at h0
     have hinl : ∀ j : Fin 2, g (Sum.inl j) *
         rowWeights P Fq Dom ch (Sum.inl j) s 0 =
         if j = 0 then g (Sum.inl 0) * eqPoly (powSeq (ch.z 0) P.k₀) s
         else 0 := by
       intro j
       by_cases hj : j = 0
-      · subst hj
-        simp [rowWeights]
+      · subst hj; simp [rowWeights]
       · have : (0 : Fin 2) ≠ j := fun h => hj h.symm
         simp [rowWeights, this, hj]
-    have hinr : ∀ ℓy : Fin P.k₀ × Fin 2, g (Sum.inr ℓy) *
-        rowWeights P Fq Dom ch (Sum.inr ℓy) s 0 =
-        (g (Sum.inr ℓy) *
-          prefixFactor P Fq Dom ch ℓy.1 (((ℓy.2 : ℕ) + 1 : ℕ) : Fq)
-            (powSeq (ch.z 0) P.k₀)) *
-          eqPoly (mixedPoint P Fq Dom ch ℓy.1 (((ℓy.2 : ℕ) + 1 : ℕ) : Fq)
-            (powSeq (ch.z 0) P.k₀)) s := by
-      intro ℓy
-      obtain ⟨ℓ, y⟩ := ℓy
-      simp [rowWeights]
-      ring
+    have hinr : ∀ r : Fin P.k₀ × Fin 2, g (Sum.inr r) *
+        rowWeights P Fq Dom ch (Sum.inr r) s 0 =
+        g (Sum.inr r) * chanWeight Fq P Dom ch 0 r s := by
+      intro r; obtain ⟨ℓ, y⟩ := r; simp [rowWeights, chanWeight]
     rw [Finset.sum_congr rfl fun j _ => hinl j,
-      Finset.sum_congr rfl fun ℓy _ => hinr ℓy] at h0
-    rw [Finset.sum_ite_eq' Finset.univ (0 : Fin 2)
-      (fun _ => g (Sum.inl 0) * eqPoly (powSeq (ch.z 0) P.k₀) s),
+      Finset.sum_congr rfl fun r _ => hinr r,
+      Finset.sum_ite_eq' Finset.univ (0 : Fin 2)
+        (fun _ => g (Sum.inl 0) * eqPoly (powSeq (ch.z 0) P.k₀) s),
       if_pos (Finset.mem_univ _)] at h0
-    have hstair_inl : ∀ u : Unit, stairFamily Fq P Dom ch (Sum.inl u) =
-        fun s => eqPoly (powSeq (ch.z 0) P.k₀) s := fun _ => rfl
-    have hstair_inr : ∀ ℓy : Fin P.k₀ × Fin 2,
-        stairFamily Fq P Dom ch (Sum.inr ℓy) =
-        fun s => eqPoly (mixedPoint P Fq Dom ch ℓy.1
-          (((ℓy.2 : ℕ) + 1 : ℕ) : Fq) (powSeq (ch.z 0) P.k₀)) s := by
-      intro ℓy
-      obtain ⟨ℓ, y⟩ := ℓy
-      rfl
-    simp only [Sum.elim_inl, Sum.elim_inr, hstair_inl, hstair_inr]
-    simpa using h0
-  -- the staircase kills component-0 coefficients
-  have hkill := Fintype.linearIndependent_iff.mp hstair _ hcomb
-  have hg0 : g (Sum.inl 0) = 0 := by
-    have := hkill (Sum.inl ())
-    simpa using this
-  have hgr : ∀ ℓy : Fin P.k₀ × Fin 2, g (Sum.inr ℓy) = 0 := by
-    intro ℓy
-    have h := hkill (Sum.inr ℓy)
-    simp only [Sum.elim_inr] at h
-    rcases mul_eq_zero.mp h with h | h
-    · exact h
-    · exact absurd h (hpre ℓy.1 ℓy.2)
-  -- component 1 kills the last coefficient
-  have hg1 : g (Sum.inl 1) = 0 := by
-    have hvec : (fun s : Cube P.k₀ =>
-        eqPoly (powSeq (ch.z 1) P.k₀) s) ≠ 0 :=
-      eqPoly_vec_ne_zero Fq _
-    have h1 : ∀ s, g (Sum.inl 1) * eqPoly (powSeq (ch.z 1) P.k₀) s = 0 := by
-      intro s
-      have h := happ s 1
-      rw [Fintype.sum_sum_type] at h
-      have hinl : ∀ j : Fin 2, g (Sum.inl j) *
-          rowWeights P Fq Dom ch (Sum.inl j) s 1 =
-          if j = 1 then g (Sum.inl 1) * eqPoly (powSeq (ch.z 1) P.k₀) s
-          else 0 := by
-        intro j
-        by_cases hj : j = 1
-        · subst hj
-          simp [rowWeights]
-        · have : (1 : Fin 2) ≠ j := fun h' => hj h'.symm
-          simp [rowWeights, this, hj]
-      rw [Finset.sum_congr rfl fun j _ => hinl j,
-        Finset.sum_ite_eq' Finset.univ (1 : Fin 2)
-          (fun _ => g (Sum.inl 1) * eqPoly (powSeq (ch.z 1) P.k₀) s),
-        if_pos (Finset.mem_univ _)] at h
-      have hzero : ∑ ℓy : Fin P.k₀ × Fin 2, g (Sum.inr ℓy) *
-          rowWeights P Fq Dom ch (Sum.inr ℓy) s 1 = 0 :=
-        Finset.sum_eq_zero fun ℓy _ => by rw [hgr ℓy, zero_mul]
-      rw [hzero, add_zero] at h
-      exact h
-    by_contra hne
-    apply hvec
+    simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_apply,
+      Pi.zero_apply]
+    exact h0
+  -- block 1 equation
+  have hb1 : (g (Sum.inl 1)) • (fun s => eqPoly (powSeq (ch.z 1) P.k₀) s) +
+      ∑ r, (ch.γ * g (Sum.inr r)) • chanWeight Fq P Dom ch 1 r = 0 := by
     funext s
-    have := h1 s
-    rcases mul_eq_zero.mp this with h | h
-    · exact absurd h hne
+    have h1 := happ s 1
+    rw [Fintype.sum_sum_type] at h1
+    have hinl : ∀ j : Fin 2, g (Sum.inl j) *
+        rowWeights P Fq Dom ch (Sum.inl j) s 1 =
+        if j = 1 then g (Sum.inl 1) * eqPoly (powSeq (ch.z 1) P.k₀) s
+        else 0 := by
+      intro j
+      by_cases hj : j = 1
+      · subst hj; simp [rowWeights]
+      · have : (1 : Fin 2) ≠ j := fun h => hj h.symm
+        simp [rowWeights, this, hj]
+    have hinr : ∀ r : Fin P.k₀ × Fin 2, g (Sum.inr r) *
+        rowWeights P Fq Dom ch (Sum.inr r) s 1 =
+        (ch.γ * g (Sum.inr r)) * chanWeight Fq P Dom ch 1 r s := by
+      intro r; obtain ⟨ℓ, y⟩ := r; simp [rowWeights, chanWeight]; ring
+    rw [Finset.sum_congr rfl fun j _ => hinl j,
+      Finset.sum_congr rfl fun r _ => hinr r,
+      Finset.sum_ite_eq' Finset.univ (1 : Fin 2)
+        (fun _ => g (Sum.inl 1) * eqPoly (powSeq (ch.z 1) P.k₀) s),
+      if_pos (Finset.mem_univ _)] at h1
+    simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_apply,
+      Pi.zero_apply]
+    exact h1
+  -- the kernel condition kills the slot coefficients
+  have hν : (fun r => g (Sum.inr r)) = 0 :=
+    hker _ ⟨g (Sum.inl 0), hb0⟩ ⟨g (Sum.inl 1), hb1⟩
+  have hgr : ∀ r, g (Sum.inr r) = 0 := fun r => congrFun hν r
+  -- each out-of-domain coefficient then vanishes
+  have hg0 : g (Sum.inl 0) = 0 := by
+    have hz : g (Sum.inl 0) • (fun s => eqPoly (powSeq (ch.z 0) P.k₀) s) =
+        (0 : Cube P.k₀ → Fq) := by
+      have hsum0 : (∑ r, (g (Sum.inr r)) • chanWeight Fq P Dom ch 0 r) = 0 :=
+        Finset.sum_eq_zero fun r _ => by rw [hgr r, zero_smul]
+      rw [hsum0, add_zero] at hb0
+      exact hb0
+    rcases smul_eq_zero.mp hz with h | h
     · exact h
+    · exact absurd h (eqPoly_vec_ne_zero Fq _)
+  have hg1 : g (Sum.inl 1) = 0 := by
+    have hz : g (Sum.inl 1) • (fun s => eqPoly (powSeq (ch.z 1) P.k₀) s) =
+        (0 : Cube P.k₀ → Fq) := by
+      have hsum1 : (∑ r, (ch.γ * g (Sum.inr r)) •
+          chanWeight Fq P Dom ch 1 r) = 0 :=
+        Finset.sum_eq_zero fun r _ => by rw [hgr r, mul_zero, zero_smul]
+      rw [hsum1, add_zero] at hb1
+      exact hb1
+    rcases smul_eq_zero.mp hz with h | h
+    · exact h
+    · exact absurd h (eqPoly_vec_ne_zero Fq _)
   -- conclude for every index
   intro r
-  rcases r with j | ℓy
+  rcases r with j | r
   · have : j = 0 ∨ j = 1 := by omega
     rcases this with h | h <;> rw [h]
     · exact hg0
     · exact hg1
-  · exact hgr ℓy
+  · exact hgr r
 
 end Decouple
 
