@@ -11,6 +11,7 @@ import Mathlib
 import Zkwhir.Statement
 import Zkwhir.Channel
 import Zkwhir.ViewSolve
+import Zkwhir.StaircaseBridge
 
 set_option linter.style.header false
 set_option linter.unusedSectionVars false
@@ -75,6 +76,32 @@ def chanWeight (j : Fin 2) (r : Fin P.k₀ × Fin 2) : Cube P.k₀ → Fq :=
       (powSeq (ch.z j) P.k₀) *
     eqPoly (mixedPoint P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
       (powSeq (ch.z j) P.k₀)) s
+
+/-- **`chanWeight` in the `ω/τ` staircase basis**: the per-channel expansion
+that the coefficient extraction (via `staircase_indep`) consumes. The prefix
+factor scales the whole mixed-point staircase decomposition. -/
+theorem chanWeight_staircase (j : Fin 2) (r : Fin P.k₀ × Fin 2) :
+    chanWeight Fq P Dom ch j r =
+      (prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+          (powSeq (ch.z j) P.k₀)) • eqPoly (powSeq (ch.z j) P.k₀)
+      + (∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < r.1),
+          (prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+              (powSeq (ch.z j) P.k₀) * lamData P Fq Dom ch (ch.z j) i) •
+            ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+              (lamData P Fq Dom ch (ch.z j)) i))
+      + (prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+            (powSeq (ch.z j) P.k₀) *
+          ((((r.2 : ℕ) + 1 : ℕ) : Fq) - powSeq (ch.z j) P.k₀ r.1)) •
+          ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+            (lamData P Fq Dom ch (ch.z j)) r.1) := by
+  have hcw : chanWeight Fq P Dom ch j r =
+      (prefixFactor P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+        (powSeq (ch.z j) P.k₀)) •
+        eqPoly (mixedPoint P Fq Dom ch r.1 (((r.2 : ℕ) + 1 : ℕ) : Fq)
+          (powSeq (ch.z j) P.k₀)) := by
+    funext s; simp [chanWeight, smul_eq_mul]
+  rw [hcw, eqPoly_mixedPoint_decomp]
+  simp only [smul_add, Finset.smul_sum, smul_smul]
 
 /-- **The coupled-chains kernel condition** (`lem:coupled`, consumable form).
 A weight family `ν` over the `k₀ × {1,2}` slot/eval pairs that is killed on
