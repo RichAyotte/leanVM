@@ -330,4 +330,21 @@ theorem trace_eq_zero_iff {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
   rw [Algebra.traceForm_apply, mul_comm]
   exact h a
 
+/-- **A surjective `Fq`-form has nonzero trace** (the Step-4 reduction): if
+`L : M → Fq` hits every value, then some `m` has `tr(L m) ≠ 0`. Hence
+`tr ∘ L ≠ 0` whenever `L` is surjective — the trace argument reduces to a
+spanning statement, no per-direction probability needed. -/
+theorem exists_trace_ne_zero_of_surjective {Fp Fq M : Type*} [Field Fp]
+    [Field Fq] [Algebra Fp Fq] [FiniteDimensional Fp Fq]
+    [Algebra.IsSeparable Fp Fq] (L : M → Fq) (hL : Function.Surjective L) :
+    ∃ m, Algebra.trace Fp Fq (L m) ≠ 0 := by
+  have htr : ∃ a : Fq, Algebra.trace Fp Fq a ≠ 0 := by
+    by_contra h
+    push_neg at h
+    exact one_ne_zero ((trace_eq_zero_iff (1 : Fq)).mpr
+      (fun a => by rw [mul_one]; exact h a))
+  obtain ⟨a, ha⟩ := htr
+  obtain ⟨m, hm⟩ := hL a
+  exact ⟨m, by rw [hm]; exact ha⟩
+
 end ZkWhir
