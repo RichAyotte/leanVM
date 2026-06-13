@@ -145,6 +145,23 @@ theorem challenge_α_coord_le (i : Fin P.k₀) (B : (Fin 2 → Fq) → Set Fq)
   · rw [add_zero]
     exact hB z
 
+/-- **Full `α`-event on the sumcheck challenges**: any event depending only on the
+folding challenge `α` is bounded by its uniform marginal — the bridge from
+`challengePMF` to the multivariate Schwartz–Zippel bound `mle_zeros_prob_le`. -/
+theorem challenge_α_event_le (Q : (Fin P.k₀ → Fq) → Prop) (c : ℝ≥0∞)
+    (hQ : (PMF.uniformOfFintype (Fin P.k₀ → Fq)).toOuterMeasure {α | Q α} ≤ c) :
+    (challengePMF P Fq Dom).toOuterMeasure {ch : Challenges P Fq Dom | Q ch.α} ≤ c := by
+  unfold challengePMF
+  refine toOuterMeasure_bind_le _ _ _ c fun z => ?_
+  refine toOuterMeasure_bind_le _ _ _ c fun γ => ?_
+  refine (toOuterMeasure_bind_le_add _ _ _ {α : Fin P.k₀ → Fq | Q α} 0 ?_).trans ?_
+  · intro α hα
+    refine le_of_eq (toOuterMeasure_bind_eq_zero fun zf => ?_)
+    refine toOuterMeasure_bind_eq_zero fun qs => ?_
+    exact toOuterMeasure_pure_eq_zero (by simpa using hα)
+  · rw [add_zero]
+    exact hQ
+
 /-- **Per-factor α-root bound**: a single `eqf(α_i, z_j^{2^i})` vanishes with
 probability at most `1/q`. -/
 theorem challenge_alpha_eqf_root_le (h2 : (2 : Fq) ≠ 0) (i : Fin P.k₀)
