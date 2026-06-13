@@ -210,6 +210,27 @@ theorem challenge_z_pair_le (i : Fin 2) (a b : Fq) :
   refine (uniform_pi_coord_le i ({a, b} : Set Fq) 2 hcard).trans ?_
   simp [fieldCard]
 
+/-- **Union bound for `challengePMF` failure** (the ε₃ assembly template): if a
+finite family of conditions `C_i` jointly imply `Good`, then `Good` fails with
+probability at most the sum of the `C_i` failure probabilities. Mirrors
+`coupledGen_failure_le`; this is the shape the `P[¬Pinning] ≤ ∑ εᵢ` bound uses to
+combine the spread / `prop:uniform` / twist / cross / slice condition failures. -/
+theorem challenge_failure_union_le {n : ℕ} (Good : Challenges P Fq Dom → Prop)
+    (C : Fin n → Challenges P Fq Dom → Prop)
+    (himp : ∀ ch, (∀ i, C i ch) → Good ch)
+    (ε : Fin n → ℝ≥0∞)
+    (hC : ∀ i, (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ C i ch} ≤ ε i) :
+    (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ Good ch} ≤ ∑ i, ε i := by
+  have hsub : {ch : Challenges P Fq Dom | ¬ Good ch} ⊆
+      ⋃ i, {ch : Challenges P Fq Dom | ¬ C i ch} := by
+    intro ch hch
+    by_contra h
+    simp only [Set.mem_iUnion, Set.mem_setOf_eq, not_exists, not_not] at h
+    exact hch (himp ch h)
+  refine (MeasureTheory.measure_mono hsub).trans ?_
+  refine (MeasureTheory.measure_iUnion_fintype_le _ _).trans ?_
+  exact Finset.sum_le_sum fun i _ => hC i
+
 /-- **Per-factor α-root bound**: a single `eqf(α_i, z_j^{2^i})` vanishes with
 probability at most `1/q`. -/
 theorem challenge_alpha_eqf_root_le (h2 : (2 : Fq) ≠ 0) (i : Fin P.k₀)
