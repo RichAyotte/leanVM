@@ -1949,6 +1949,13 @@ theorem nodechannel_in_staircaseSpan [FiniteDimensional (Fp P) Fq]
 weight `W₀`, whose terminal pairing is the cross form `T_ŵ` of `cond:cross2`. -/
 def wHat0 (c : Cube P.m) : Fq := ∑ s, eqPoly ch.α s * S.w (s, c)
 
+/-- `ŵ(α₀, c)` is the multilinear extension (in the class challenge `α`) of the
+input weight's `c`-column. This exposes `wHat0` to the multivariate Schwartz–Zippel
+chain (`challenge_mle_α_zero_le`), settling `lem:termslice`'s `ŵ(α₀,c*) ≠ 0` bound
+(`≤ k₀/q`) whenever the data column `S.w(·,c*)` is not identically zero. -/
+theorem wHat0_eq_mle (c : Cube P.m) :
+    wHat0 P Fq Dom S ch c = mle (fun s => S.w (s, c)) ch.α := rfl
+
 /-- The **fold-table family** of `lem:noother` Step 1 (tex:616): the slice table
 `w_{ℓ,x,t}(c) = ŵ(α_{<ℓ}, x, (t, c))`, the partial evaluation of the input weight
 at the round-`ℓ` mixed point. The single-class perturbations invisible to the view
