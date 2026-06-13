@@ -541,4 +541,34 @@ theorem moment_minor_det_at_zero (ζ : Fq) :
     Matrix.tail_cons]
   ring
 
+/-! ## The cross-form `F_θ` (`lem:fullslice` Step 3, foundation)
+
+`F_θ(δ) = ∑_j θ_j·⟨η_j, V_j⟩` pairs the extension rows against the
+perturbation's node values. Since `η_j = êq(α, ·)`, its block-`j` pairing is the
+fold `f̂₁` evaluated at the commitment node `z_j^{2^k₀}`; so `F_θ` is a `θ`-combination
+of fold values — the quantity the cross-coupling (`cond:cross2`) and the slice
+trace argument (`lem:fullslice` Step 4) constrain. -/
+
+/-- The η-pairing of block `j` is the fold `f̂₁` at the commitment node. -/
+theorem nodePair_alpha_eq_fold (δ : Cell P → Fp P) (j : Fin 2) :
+    nodePair P Fq Dom ch δ j (eqPoly (ch.α)) =
+      mle (foldedF₁ P Fq Dom δ ch) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) := by
+  rw [← evalT_alpha_eq_mle_fold P Fq Dom δ ch, evalT_eq_sum_classes]
+  rfl
+
+/-- **The cross-form** `F_θ`: the `θ`-weighted pairing of the extension rows
+against the perturbation's node values. -/
+def crossForm (δ : Cell P → Fp P) (θ : Fin 2 → Fq) : Fq :=
+  θ 0 * nodePair P Fq Dom ch δ 0 (eqPoly (ch.α)) +
+    θ 1 * nodePair P Fq Dom ch δ 1 (eqPoly (ch.α))
+
+/-- `F_θ` in fold form: a `θ`-combination of the fold at the two commitment
+nodes. -/
+theorem crossForm_eq_fold (δ : Cell P → Fp P) (θ : Fin 2 → Fq) :
+    crossForm P Fq Dom ch δ θ =
+      θ 0 * mle (foldedF₁ P Fq Dom δ ch) (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m) +
+        θ 1 * mle (foldedF₁ P Fq Dom δ ch) (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m) := by
+  unfold crossForm
+  rw [nodePair_alpha_eq_fold, nodePair_alpha_eq_fold]
+
 end ZkWhir
