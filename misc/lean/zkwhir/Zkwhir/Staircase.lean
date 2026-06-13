@@ -575,4 +575,51 @@ theorem coupledKer_of_gen (hgen : CoupledGen Fq P Dom ch) :
 
 end Decouple
 
+/-! ## The coupled-genericity failure bound (ε₂, step e skeleton) -/
+
+section CoupledProb
+
+open scoped ENNReal
+
+variable (P : Params) [Algebra (Fp P) Fq] (Dom : Finset (Fp P))
+  [Nonempty {x // x ∈ Dom}]
+
+/-- **The coupled-genericity failure bound** (`cor:twopointprob`, assembly):
+`P[¬CoupledGen]` is bounded by the `γ = 0` probability plus the sum of the
+per-slot determinant-vanishing probabilities. This isolates the remaining
+Schwartz–Zippel work to the per-slot and `γ` events. -/
+theorem coupledGen_failure_le (d : ℕ)
+    (hγ : (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ch.γ = 0} ≤ 1 / (fieldCard Fq : ℝ≥0∞))
+    (hslot : ∀ m : Fin P.k₀, (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | slotDet Fq P Dom ch m = 0} ≤
+        (d : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞)) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ¬ CoupledGen Fq P Dom ch} ≤
+      1 / (fieldCard Fq : ℝ≥0∞) +
+        (P.k₀ : ℝ≥0∞) * d / (fieldCard Fq : ℝ≥0∞) := by
+  classical
+  have hsub : {ch : Challenges P Fq Dom | ¬ CoupledGen Fq P Dom ch} ⊆
+      {ch : Challenges P Fq Dom | ch.γ = 0} ∪
+        ⋃ m ∈ (Finset.univ : Finset (Fin P.k₀)),
+          {ch : Challenges P Fq Dom | slotDet Fq P Dom ch m = 0} := by
+    intro ch hch
+    simp only [CoupledGen, Set.mem_setOf_eq, not_and_or, not_forall,
+      not_not] at hch
+    rcases hch with hγ0 | ⟨m, hm⟩
+    · exact Or.inl hγ0
+    · exact Or.inr (Set.mem_biUnion (Finset.mem_univ m) hm)
+  refine (MeasureTheory.measure_mono hsub).trans ?_
+  refine (MeasureTheory.measure_union_le _ _).trans (add_le_add hγ ?_)
+  refine (MeasureTheory.measure_biUnion_finset_le _ _).trans ?_
+  calc ∑ m : Fin P.k₀, (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom | slotDet Fq P Dom ch m = 0}
+      ≤ ∑ _m : Fin P.k₀, (d : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞) :=
+        Finset.sum_le_sum fun m _ => hslot m
+    _ = (P.k₀ : ℝ≥0∞) * ((d : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞)) := by
+        rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+    _ = (P.k₀ : ℝ≥0∞) * d / (fieldCard Fq : ℝ≥0∞) := by rw [mul_div_assoc]
+
+end CoupledProb
+
 end ZkWhir
