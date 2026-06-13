@@ -12,3 +12,4 @@ import Zkwhir.NodeProb
 import Zkwhir.StaircaseTensor
 import Zkwhir.StaircaseBridge
 import Zkwhir.SlotProb
+import Zkwhir.Pinning
