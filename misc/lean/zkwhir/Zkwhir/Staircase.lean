@@ -64,6 +64,14 @@ theorem eqPoly_cons {R : Type*} [CommRing R] {j : ℕ} (t : R) (p : Fin j → R)
   rw [Fin.prod_univ_succ]
   simp only [Fin.cons_zero, Fin.cons_succ]
 
+/-- Splitting a sum over `Cube (j+1)` by the first coordinate (the cube analog of
+`Fin.sum_univ_succ`, for the Schwartz–Zippel induction). -/
+theorem sum_cube_succ {M : Type*} [AddCommMonoid M] {j : ℕ} (g : Cube (j + 1) → M) :
+    ∑ b : Cube (j + 1), g b =
+      ∑ b0 : Bool, ∑ brest : Cube j, g (Fin.cons b0 brest) := by
+  rw [← (Fin.consEquiv (fun _ : Fin (j + 1) => Bool)).sum_comp g, Fintype.sum_prod_type]
+  rfl
+
 /-- **Partition of unity**: the Lagrange weights at any point sum to `1`. -/
 theorem eqPoly_sum_eq_one {j : ℕ} (p : Fin j → Fq) :
     ∑ s : Cube j, eqPoly p s = 1 := by
