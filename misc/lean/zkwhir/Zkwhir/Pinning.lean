@@ -19,6 +19,7 @@ import Zkwhir.StaircaseBridge
 import Zkwhir.Staircase
 import Zkwhir.ViewSolve
 import Zkwhir.Blocks
+import Zkwhir.Twist
 
 set_option linter.style.header false
 set_option linter.unusedSectionVars false
@@ -1942,5 +1943,47 @@ theorem nodechannel_in_staircaseSpan [FiniteDimensional (Fp P) Fq]
         ring]
       exact Submodule.smul_mem _ _
         (eqPoly_mixedPoint_mem_staircaseSpan P Fq Dom ch ℓ (![(1 : Fq), 2] yi) (ch.z 1))
+
+/-- **`lem:nodechannel` → `cond:twist`, full bridge** (parts (d)+(e)): the node
+functional is forced **untwisted** — there are scalars `θ_j` so the node functional
+equals `θ_j · êq(α, ·)` (and still lies in the node-matrix row space). Applies
+`condTwist_span` to each bundled `T_j` (whose weights land in the staircase span
+by `nodechannel_in_staircaseSpan`); the Good-set genericity (`hker` = `M^{(j)}`
+trivial kernel, `hDr` = Frobenius gaps `α₀^{pʳ} − α₀ ≠ 0`) is deferred to the ε₃
+measure step. This is the `cond:twist` output consumed by `cond:cross2`. -/
+theorem nodechannel_untwisted [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] [CharP Fq P.p]
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hnode : NodeHyp P Fq Dom ch)
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (hk : 0 < P.k₀) (hd0 : 0 < extDeg P Fq)
+    (hcard : Fintype.card (Fp P) = P.p)
+    (hcardq : Fintype.card Fq = P.p ^ extDeg P Fq)
+    (hker : ∀ j : Fin 2, ∀ c : Fin (extDeg P Fq) → Fq, c ⟨0, hd0⟩ = 0 →
+        (∀ m : Fin P.k₀, (⟨0, hk⟩ : Fin P.k₀) < m →
+          ∑ r, c r * (ch.α m ^ P.p ^ (r : ℕ) - powSeq (ch.z j) P.k₀ m) = 0) → c = 0)
+    (hDr : ∀ j : Fin 2, ∀ r : Fin (extDeg P Fq), (r : ℕ) ≠ 0 →
+        ch.α ⟨0, hk⟩ ^ P.p ^ (r : ℕ) - ch.α ⟨0, hk⟩ ≠ 0)
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
+    ∃ θ : Fin 2 → Fq, ∀ V : Cube P.k₀ → Fin 2 → Fq,
+        (∀ j, oodRow P Fq Dom ch j V = 0) →
+        (∀ ℓ, msgRow P Fq Dom ch ℓ 1 V = 0) →
+        (∀ ℓ, msgRow P Fq Dom ch ℓ 2 V = 0) →
+        (∑ s, ∑ j, θ j * eqPoly ch.α s * V s j) = 0 := by
+  obtain ⟨T, hT, hspan⟩ :=
+    nodechannel_in_staircaseSpan P Fq Dom S ch h2 hmf hdom hbudget hnode hspread b φ hφ
+  have hθ : ∀ j : Fin 2, ∃ c : Fq, ∀ x, T j x = c * x := fun j =>
+    condTwist_span hk hcard (extDeg P Fq) hd0 hcardq rfl (T j) (ch.z j) ch.α
+      (hspan j) (hker j) (hDr j)
+  choose θ hθeq using hθ
+  refine ⟨θ, fun V hood hmsg1 hmsg2 => ?_⟩
+  rw [show (∑ s, ∑ j, θ j * eqPoly ch.α s * V s j) =
+      ∑ s, ∑ j, T j (eqPoly ch.α s) * V s j from
+    Finset.sum_congr rfl fun s _ => Finset.sum_congr rfl fun j _ => by
+      rw [hθeq j (eqPoly ch.α s)]]
+  exact hT V hood hmsg1 hmsg2
 
 end ZkWhir
