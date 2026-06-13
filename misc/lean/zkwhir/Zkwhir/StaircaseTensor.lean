@@ -83,6 +83,19 @@ theorem sum_ite_two_collapse {k : ℕ} {M : Type*} [AddCommMonoid M] [Module F M
         (Finset.mem_filter.mpr ⟨Finset.mem_univ ℓ, lt_irrefl ℓ⟩) hℓ)]
     rw [if_neg (lt_irrefl ℓ), if_pos rfl]
 
+/-- Sum a first-component–filtered sum over a product, fiber by fiber:
+`∑_{(a,b): P a} f(a,b) = ∑_{a: P a} ∑_b f(a,b)`. The regroup-by-slot
+primitive for the coupled-chains triangular system. -/
+theorem sum_filter_fst {α β M : Type*} [Fintype α] [Fintype β] [DecidableEq α]
+    [AddCommMonoid M] (P : α → Prop) [DecidablePred P] (f : α × β → M) :
+    ∑ r ∈ Finset.univ.filter (fun r : α × β => P r.1), f r =
+      ∑ a ∈ Finset.univ.filter P, ∑ b : β, f (a, b) := by
+  rw [show Finset.univ.filter (fun r : α × β => P r.1) =
+      (Finset.univ.filter P) ×ˢ Finset.univ from by
+    ext r
+    simp [Finset.mem_filter, Finset.mem_product]]
+  rw [Finset.sum_product]
+
 /-- The all-`a` data `ρ_k = a_1 ⊗ ⋯ ⊗ a_k`. -/
 def aVec {k : ℕ} (c d : Fin k → Bool → F) (lam : Fin k → F) : Fin k → Bool → F :=
   fun i b => c i b + lam i * d i b
