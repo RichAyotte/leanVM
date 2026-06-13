@@ -1331,4 +1331,57 @@ theorem foldedF₁_multiBlockMask {vf : Cube P.k₀ → Cube P.m → Fp P}
   refine Finset.sum_congr rfl fun s _ => ?_
   unfold liftT; rw [assemble_multiBlockMask P hvf s c]
 
+/-- **The multi-class node probe is view-vanishing** (`lem:nodechannel`): a
+per-class block fiber family with vanishing queried and `f̂₁` evaluations, and
+whose commitment-node values lie in the kernel of the node matrix
+(`oodRow`/`msgRow`), assembles to a view-vanishing perturbation. -/
+theorem multiBlockMask_viewVanishes (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    {vf : Cube P.k₀ → Cube P.m → Fp P}
+    (hvf : ∀ s c, vf s c ≠ 0 → IsBlockPos P c)
+    (hq : ∀ (s : Cube P.k₀) (t : Fin P.t₀),
+      mle (fun c => algebraMap (Fp P) Fq (vf s c))
+        (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0)
+    (hz : ∀ (s : Cube P.k₀) (k : Fin P.s₁),
+      mle (fun c => algebraMap (Fp P) Fq (vf s c)) (powSeq (ch.zf k) P.m) = 0)
+    (hood : ∀ j, oodRow P Fq Dom ch j (fun s j =>
+      mle (fun c => algebraMap (Fp P) Fq (vf s c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) = 0)
+    (hmsg1 : ∀ ℓ, msgRow P Fq Dom ch ℓ 1 (fun s j =>
+      mle (fun c => algebraMap (Fp P) Fq (vf s c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) = 0)
+    (hmsg2 : ∀ ℓ, msgRow P Fq Dom ch ℓ 2 (fun s j =>
+      mle (fun c => algebraMap (Fp P) Fq (vf s c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) = 0) :
+    ViewVanishes P Fq Dom S ch (assemble P 0 (- multiBlockMask P vf)) := by
+  have hmsg : ∀ (ℓ : Fin P.k₀) (y : Fq),
+      hPoly P Fq Dom S (assemble P 0 (- multiBlockMask P vf)) ch ℓ y =
+      msgRow P Fq Dom ch ℓ y (fun s j =>
+        mle (fun c => algebraMap (Fp P) Fq (vf s c))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) := by
+    intro ℓ y
+    rw [hPoly_channel P Fq Dom S (assemble P 0 (- multiBlockMask P vf)) ch ℓ y,
+      crossTerm_eq_of_eq_nonblock P Fq Dom S ch hmf
+        (assemble P 0 (- multiBlockMask P vf)) (0 : Cell P → Fp P)
+        (fun s c hc => by
+          rw [assemble_multiBlockMask P hvf s c]
+          have hvc : vf s c = 0 := by by_contra hh; exact hc (hvf s c hh)
+          simp [hvc]) ℓ y,
+      crossTerm_zero P Fq Dom S ch ℓ y, mul_zero, add_zero, msgRow,
+      evalT_eq_sum_classes, evalT_eq_sum_classes]
+    simp only [multiBlockMask_fiber_mle P Fq hvf]
+  refine ⟨fun j => ?_, fun ℓ => ?_, fun ℓ => ?_, fun t s => ?_, fun k => ?_⟩
+  · show evalT P Fq (assemble P 0 (- multiBlockMask P vf)) (powSeq (ch.z j) P.k₀)
+      (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = 0
+    rw [evalT_eq_sum_classes, ← hood j, oodRow]
+    refine Finset.sum_congr rfl fun s _ => ?_
+    rw [multiBlockMask_fiber_mle P Fq hvf]
+  · rw [hmsg ℓ 1]; exact hmsg1 ℓ
+  · rw [hmsg ℓ 2]; exact hmsg2 ℓ
+  · show mle (fun c => liftT P Fq (assemble P 0 (- multiBlockMask P vf)) (s, c))
+      (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0
+    rw [multiBlockMask_fiber_mle P Fq hvf]; exact hq s t
+  · rw [mle_fold_eq_sum_classes P Fq Dom (assemble P 0 (- multiBlockMask P vf)) ch]
+    refine Finset.sum_eq_zero fun s _ => ?_
+    rw [multiBlockMask_fiber_mle P Fq hvf, hz s k, mul_zero]
+
 end ZkWhir
