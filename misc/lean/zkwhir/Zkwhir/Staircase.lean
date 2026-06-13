@@ -491,6 +491,88 @@ theorem rowsLI_of_coupledKer (hker : CoupledKer Fq P Dom ch) :
     · exact hg1
   · exact hgr r
 
+/-- **Coupled-chains genericity** (the Good-set conditions for `lem:coupled`):
+the batching scalar is nonzero and every per-slot coupling determinant is
+nonzero. -/
+def CoupledGen : Prop :=
+  ch.γ ≠ 0 ∧ ∀ m : Fin P.k₀, slotDet Fq P Dom ch m ≠ 0
+
+/-- **The coupled-chains kernel triviality** (`thm:twopoint` / `lem:coupled`):
+under the genericity conditions, the coupled-chains kernel is trivial. This is
+the two-point full-rank theorem in `CoupledKer` form. -/
+theorem coupledKer_of_gen (hgen : CoupledGen Fq P Dom ch) :
+    CoupledKer Fq P Dom ch := by
+  obtain ⟨hγ, hdet⟩ := hgen
+  rintro ν ⟨μ₁, hblock0⟩ ⟨μ₂, hblock1⟩
+  -- block 0 chain equations in triangular slot form
+  have hbsc0 : ∀ m, lamData P Fq Dom ch (ch.z 0) m *
+        (∑ ℓ ∈ Finset.univ.filter (fun ℓ : Fin P.k₀ => m < ℓ),
+          slotMass Fq P Dom ch 0 ν ℓ) + slotDiag Fq P Dom ch 0 ν m = 0 :=
+    block_slot_chain Fq P Dom ch 0 μ₁ ν hblock0
+  -- block 1: divide out the nonzero batching scalar `γ`
+  have hbsc1 : ∀ m, lamData P Fq Dom ch (ch.z 1) m *
+        (∑ ℓ ∈ Finset.univ.filter (fun ℓ : Fin P.k₀ => m < ℓ),
+          slotMass Fq P Dom ch 1 ν ℓ) + slotDiag Fq P Dom ch 1 ν m = 0 := by
+    intro m
+    have h := block_slot_chain Fq P Dom ch 1 μ₂ (fun r => ch.γ * ν r) hblock1 m
+    have hsm : (∑ ℓ ∈ Finset.univ.filter (fun ℓ : Fin P.k₀ => m < ℓ),
+        slotMass Fq P Dom ch 1 (fun r => ch.γ * ν r) ℓ) =
+        ch.γ * ∑ ℓ ∈ Finset.univ.filter (fun ℓ : Fin P.k₀ => m < ℓ),
+          slotMass Fq P Dom ch 1 ν ℓ := by
+      rw [Finset.mul_sum]
+      exact Finset.sum_congr rfl fun ℓ _ => slotMass_smul Fq P Dom ch 1 ch.γ ν ℓ
+    rw [hsm, slotDiag_smul] at h
+    have hfactor : ch.γ * (lamData P Fq Dom ch (ch.z 1) m *
+        (∑ ℓ ∈ Finset.univ.filter (fun ℓ : Fin P.k₀ => m < ℓ),
+          slotMass Fq P Dom ch 1 ν ℓ) + slotDiag Fq P Dom ch 1 ν m) = 0 := by
+      linear_combination h
+    exact (mul_eq_zero.mp hfactor).resolve_left hγ
+  -- descending step: vanishing above `m` forces vanishing at `m`
+  have step : ∀ m : Fin P.k₀,
+      (∀ ℓ : Fin P.k₀, m < ℓ → ν (ℓ, 0) = 0 ∧ ν (ℓ, 1) = 0) →
+      ν (m, 0) = 0 ∧ ν (m, 1) = 0 := by
+    intro m hIH
+    have hs0 : (∑ ℓ ∈ Finset.univ.filter (fun ℓ : Fin P.k₀ => m < ℓ),
+        slotMass Fq P Dom ch 0 ν ℓ) = 0 :=
+      Finset.sum_eq_zero fun ℓ hℓ => by
+        rw [slotMass_expand, (hIH ℓ (Finset.mem_filter.mp hℓ).2).1,
+          (hIH ℓ (Finset.mem_filter.mp hℓ).2).2]; ring
+    have hs1 : (∑ ℓ ∈ Finset.univ.filter (fun ℓ : Fin P.k₀ => m < ℓ),
+        slotMass Fq P Dom ch 1 ν ℓ) = 0 :=
+      Finset.sum_eq_zero fun ℓ hℓ => by
+        rw [slotMass_expand, (hIH ℓ (Finset.mem_filter.mp hℓ).2).1,
+          (hIH ℓ (Finset.mem_filter.mp hℓ).2).2]; ring
+    have hd0 : slotDiag Fq P Dom ch 0 ν m = 0 := by
+      have := hbsc0 m; rw [hs0, mul_zero, zero_add] at this; exact this
+    have hd1 : slotDiag Fq P Dom ch 1 ν m = 0 := by
+      have := hbsc1 m; rw [hs1, mul_zero, zero_add] at this; exact this
+    exact slot_solve Fq P Dom ch ν m (hdet m) hd0 hd1
+  -- descending strong induction via the Nat measure `k₀ - 1 - m`
+  have key : ∀ d : ℕ, ∀ m : Fin P.k₀, P.k₀ - 1 - (m : ℕ) ≤ d →
+      ν (m, 0) = 0 ∧ ν (m, 1) = 0 := by
+    intro d
+    induction d with
+    | zero =>
+      intro m hm
+      refine step m fun ℓ hℓ => ?_
+      exfalso
+      have hℓlt := ℓ.isLt
+      rw [Fin.lt_def] at hℓ
+      omega
+    | succ d ih =>
+      intro m _
+      refine step m fun ℓ hℓ => ?_
+      refine ih ℓ ?_
+      rw [Fin.lt_def] at hℓ
+      have hℓlt := ℓ.isLt
+      omega
+  funext r
+  obtain ⟨ℓ, y⟩ := r
+  have hk := key P.k₀ ℓ (by have := ℓ.isLt; omega)
+  fin_cases y
+  · exact hk.1
+  · exact hk.2
+
 end Decouple
 
 end ZkWhir
