@@ -283,6 +283,37 @@ theorem eqPoly_mixedPoint_decomp (ℓ : Fin P.k₀) (y z : Fq) :
         rfl
   rw [eqPoly_eq_ptensor, hfun, stairMixed_decomp, hcz]
 
+/-- The base Lagrange weight `êq(powz)` is the `ω` element of the staircase span. -/
+theorem eqPoly_powSeq_mem_staircaseSpan (z : Fq) :
+    eqPoly (powSeq z P.k₀) ∈
+      Submodule.span Fq (insert (ptensor (czData P Fq z))
+        (Set.range (fun m' => ptensor (stairVec (czData P Fq z) (fun _ => drow)
+          (lamData P Fq Dom ch z) m')))) := by
+  have hcz : ptensor (czData P Fq z) = eqPoly (powSeq z P.k₀) := by
+    rw [eqPoly_eq_ptensor]; rfl
+  rw [← hcz]
+  exact Submodule.subset_span (Set.mem_insert _ _)
+
+/-- **Every node-matrix row lies in the staircase span** (`lem:nodechannel` →
+`cond:twist` bridge): the mixed-point Lagrange weight `êq(mixed_j(ℓ,y))` is in
+`span{ω, τ_{m'}}` — by `eqPoly_mixedPoint_decomp` it is `ω + ∑ λ·τ`, a span
+combination. So any combination of node rows (which `mem_rowspan` produces) stays
+in the span, exactly `condTwist_span`'s hypothesis. -/
+theorem eqPoly_mixedPoint_mem_staircaseSpan (ℓ : Fin P.k₀) (y z : Fq) :
+    eqPoly (mixedPoint P Fq Dom ch ℓ y (powSeq z P.k₀)) ∈
+      Submodule.span Fq (insert (ptensor (czData P Fq z))
+        (Set.range (fun m' => ptensor (stairVec (czData P Fq z) (fun _ => drow)
+          (lamData P Fq Dom ch z) m')))) := by
+  have hcz : ptensor (czData P Fq z) = eqPoly (powSeq z P.k₀) := by
+    rw [eqPoly_eq_ptensor]; rfl
+  rw [eqPoly_mixedPoint_decomp, ← hcz]
+  refine Submodule.add_mem _ (Submodule.add_mem _ ?_ ?_) ?_
+  · exact Submodule.subset_span (Set.mem_insert _ _)
+  · refine Submodule.sum_mem _ fun i _ => Submodule.smul_mem _ _ ?_
+    exact Submodule.subset_span (Set.mem_insert_of_mem _ ⟨i, rfl⟩)
+  · exact Submodule.smul_mem _ _
+      (Submodule.subset_span (Set.mem_insert_of_mem _ ⟨ℓ, rfl⟩))
+
 end Protocol
 
 end ZkWhir
