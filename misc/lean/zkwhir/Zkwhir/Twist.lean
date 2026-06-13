@@ -423,4 +423,29 @@ theorem condTwist {k : ℕ} (hk : 0 < k)
     rw [htr r hrne, zero_mul]
   · intro h; exact absurd (Finset.mem_univ _) h
 
+/-- **`cond:twist`, span form** — the bridge-friendly interface: instead of the
+explicit staircase combination, the hypothesis is membership in the staircase
+span `span{ω, τ_{m'}}`. This is what `lem:nodechannel` produces (each node-matrix
+row lies in the span, so any combination does by closure), letting `cond:twist`
+be applied without tracking explicit coefficients. -/
+theorem condTwist_span {k : ℕ} (hk : 0 < k)
+    (hcard : Fintype.card Fp = p) (d : ℕ) (hd0 : 0 < d)
+    (hd : Fintype.card Fq = p ^ d) (hdeg : Module.finrank Fp Fq = d)
+    (T : Fq →ₗ[Fp] Fq) (z : Fq) (α : Fin k → Fq)
+    (hrow : (fun s => T (eqPoly α s)) ∈
+        Submodule.span Fq (insert (ptensor (fun i => vrow (powSeq z k i)))
+          (Set.range (fun m' => ptensor (stairVec (fun i => vrow (powSeq z k i))
+            (fun _ => drow) (fun i => α i - powSeq z k i) m')))))
+    (hker : ∀ c : Fin d → Fq, c ⟨0, hd0⟩ = 0 →
+        (∀ m : Fin k, (⟨0, hk⟩ : Fin k) < m →
+          ∑ r, c r * (α m ^ p ^ (r : ℕ) - powSeq z k m) = 0) → c = 0)
+    (hDr : ∀ r : Fin d, (r : ℕ) ≠ 0 →
+        α ⟨0, hk⟩ ^ p ^ (r : ℕ) - α ⟨0, hk⟩ ≠ 0) :
+    ∃ c : Fq, ∀ x, T x = c * x := by
+  rw [Submodule.mem_span_insert] at hrow
+  obtain ⟨cω, y, hy, hxy⟩ := hrow
+  rw [Submodule.mem_span_range_iff_exists_fun Fq] at hy
+  obtain ⟨ct, hct⟩ := hy
+  exact condTwist hk hcard d hd0 hd hdeg T z α cω ct (by rw [hxy, hct]) hker hDr
+
 end ZkWhir
