@@ -912,6 +912,24 @@ theorem fullslice_step4 [FiniteDimensional (Fp P) Fq] [Algebra.IsSeparable (Fp P
   calc γ2 * E' π * G v = E' π * (γ2 * G v) := by ring
     _ = 0 := by rw [hg, mul_zero]
 
+/-- **`lem:fullslice` conclusion (the `prop:pinbound` consumer).** Given the
+Step-3 factorization `F = γ²·E'·G`, condition (i)/SPREAD (`E'` spans `Fq` over
+`Fp`), and `cond:cross2`'s nonvanishing (`F ≠ 0` somewhere), the `Fp`-form
+`tr ∘ F` is nonzero somewhere: `tr ∘ F_θ ≠ 0` for every `θ ≠ 0`. This is the
+contrapositive of `fullslice_step4` and is strictly stronger than the
+`Fq`-level `F_θ ≠ 0` of `cond:cross2` (tex:604). -/
+theorem fullslice_trace_ne_zero [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq]
+    {ιπ ιv : Type*} (E' : ιπ → Fq) (G : ιv → Fq) (γ2 : Fq) (F : ιπ → ιv → Fq)
+    (hfact : ∀ π v, F π v = γ2 * E' π * G v)
+    (hspan : Submodule.span (Fp P) (Set.range E') = ⊤)
+    (hne : ∃ π v, F π v ≠ 0) :
+    ∃ π v, Algebra.trace (Fp P) Fq (F π v) ≠ 0 := by
+  by_contra h
+  push_neg at h
+  obtain ⟨π, v, hpv⟩ := hne
+  exact hpv (fullslice_step4 P Fq E' G γ2 F hfact hspan h π v)
+
 /-- The cross channel is additive in the perturbation table (`crossTerm` pairs
 `liftT T` linearly against the fixed input weight `ŵ`): the cross-moment of
 `lem:fullslice` Step 3 is `Fp`-linear in the perturbation. -/
