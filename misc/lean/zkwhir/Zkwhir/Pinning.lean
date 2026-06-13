@@ -644,6 +644,31 @@ theorem evalT_mixed_rho_tau (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀
       + (y - powSeq (ch.z j) P.k₀ ℓ) * nodePairTau P Fq Dom ch δ j ℓ := by
   rw [evalT_mixed_nodePair_decomp]; rfl
 
+/-- **The `(S,R)` decomposition of the `eqf`-weighted moment combination**
+(`lem:fullslice` Step 2): the `μ`-combination of the node functionals
+`êq(y_t, ζ)·g^j_ℓ(y_t)` (with `g^j_ℓ(y) = ρ + (y−ζ)τ`, `ζ = z_j^{2^{ℓ-1}}`) has
+node part `S·ρ^{(j)}_ℓ + R·τ^{(j)}_ℓ`, where `S = momS`, `R = momR` are the moment
+coefficients. Combines `evalT_mixed_rho_tau` (slot decomposition of `g`) with
+`momS/momR_moment_combo` (moment expansion of the `êq` weight). -/
+theorem evalT_eqf_moment_SR {n : ℕ} (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀)
+    (μ y : Fin n → Fq) :
+    (∑ t, μ t * (eqf Fq (y t) (powSeq (ch.z j) P.k₀ ℓ) *
+        evalT P Fq δ (mixedPoint P Fq Dom ch ℓ (y t) (powSeq (ch.z j) P.k₀))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))) =
+      momS Fq (powSeq (ch.z j) P.k₀ ℓ) (∑ t, μ t) (∑ t, μ t * y t) *
+          nodePairRho P Fq Dom ch δ j ℓ +
+      momR Fq (powSeq (ch.z j) P.k₀ ℓ) (∑ t, μ t) (∑ t, μ t * y t)
+          (∑ t, μ t * y t ^ 2) * nodePairTau P Fq Dom ch δ j ℓ := by
+  have h1 : ∀ t, evalT P Fq δ (mixedPoint P Fq Dom ch ℓ (y t) (powSeq (ch.z j) P.k₀))
+      (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) =
+      nodePairRho P Fq Dom ch δ j ℓ +
+        (y t - powSeq (ch.z j) P.k₀ ℓ) * nodePairTau P Fq Dom ch δ j ℓ :=
+    fun t => evalT_mixed_rho_tau P Fq Dom ch δ j ℓ (y t)
+  simp_rw [h1]
+  conv_rhs => rw [momS_moment_combo, momR_moment_combo]
+  rw [Finset.sum_mul, Finset.sum_mul, ← Finset.sum_add_distrib]
+  exact Finset.sum_congr rfl fun t _ => by ring
+
 /-- **The cross-form** `F_θ`: the `θ`-weighted pairing of the extension rows
 against the perturbation's node values. -/
 def crossForm (δ : Cell P → Fp P) (θ : Fin 2 → Fq) : Fq :=
