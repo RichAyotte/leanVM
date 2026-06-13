@@ -380,4 +380,41 @@ theorem trace_pairing_eq_zero_iff {Fp Fq : Type*} [Field Fp] [Field Fq]
     exact hsum
   · rintro rfl w; simp
 
+/-- **Trace-dual representation** (`lem:traceorth`): every `Fp`-functional on
+`Fq^ι` is the trace pairing against some vector `v`. This lets an annihilator
+element be written as a concrete trace pairing. -/
+theorem exists_trace_pairing_rep {Fp Fq : Type*} [Field Fp] [Field Fq]
+    [Algebra Fp Fq] [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq]
+    {ι : Type*} [Fintype ι] [DecidableEq ι] (φ : Module.Dual Fp (ι → Fq)) :
+    ∃ v : ι → Fq, ∀ w : ι → Fq, φ w = Algebra.trace Fp Fq (∑ i, v i * w i) := by
+  classical
+  let B : LinearMap.BilinForm Fp (ι → Fq) :=
+    LinearMap.mk₂ Fp (fun v w => Algebra.trace Fp Fq (∑ i, v i * w i))
+      (fun v₁ v₂ w => by
+        rw [← map_add]; congr 1; rw [← Finset.sum_add_distrib]
+        exact Finset.sum_congr rfl fun i _ => by rw [Pi.add_apply]; ring)
+      (fun c v w => by
+        rw [← map_smul]; congr 1; rw [Finset.smul_sum]
+        exact Finset.sum_congr rfl fun i _ => by
+          rw [Pi.smul_apply, Algebra.smul_def, Algebra.smul_def]; ring)
+      (fun v w₁ w₂ => by
+        rw [← map_add]; congr 1; rw [← Finset.sum_add_distrib]
+        exact Finset.sum_congr rfl fun i _ => by rw [Pi.add_apply]; ring)
+      (fun c v w => by
+        rw [← map_smul]; congr 1; rw [Finset.smul_sum]
+        exact Finset.sum_congr rfl fun i _ => by
+          rw [Pi.smul_apply, Algebra.smul_def, Algebra.smul_def]; ring)
+  have hB : B.Nondegenerate := by
+    refine ⟨fun v hv => (trace_pairing_eq_zero_iff (Fp := Fp) v).mp (fun w => hv w),
+      fun w hw => (trace_pairing_eq_zero_iff (Fp := Fp) w).mp (fun v => ?_)⟩
+    have hwv := hw v
+    rw [show (∑ i, w i * v i) = (∑ i, v i * w i) from
+      Finset.sum_congr rfl fun i _ => mul_comm _ _]
+    exact hwv
+  let e := LinearMap.BilinForm.toDual B hB
+  refine ⟨e.symm φ, fun w => ?_⟩
+  have key : (e (e.symm φ)) w = φ w := by rw [e.apply_symm_apply]
+  rw [← key]
+  rfl
+
 end ZkWhir
