@@ -159,6 +159,40 @@ theorem challenge_alpha_eqf_root_le (h2 : (2 : Fq) ≠ 0) (i : Fin P.k₀)
     (fun s hs => eqf_root_card Fq h2 (powSeq (z j) P.k₀ i) s hs)).trans ?_
   simp [fieldCard]
 
+/-- **α-prefix vanishing bound**: the product of `eqf(α_i, z_j^{2^i})` over
+`i < m` vanishes with probability at most `k₀/q`. -/
+theorem alpha_prefix_zero_le (h2 : (2 : Fq) ≠ 0) (j : Fin 2) (m : Fin P.k₀) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom |
+        (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+          eqf Fq (ch.α i) (powSeq (ch.z j) P.k₀ i)) = 0} ≤
+      (P.k₀ : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞) := by
+  classical
+  have hsub : {ch : Challenges P Fq Dom |
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+        eqf Fq (ch.α i) (powSeq (ch.z j) P.k₀ i)) = 0} ⊆
+      ⋃ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+        {ch : Challenges P Fq Dom |
+          eqf Fq (ch.α i) (powSeq (ch.z j) P.k₀ i) = 0} := by
+    intro ch hch
+    simp only [Set.mem_setOf_eq, Finset.prod_eq_zero_iff] at hch
+    obtain ⟨i, hi, hi0⟩ := hch
+    exact Set.mem_biUnion hi hi0
+  refine (MeasureTheory.measure_mono hsub).trans ?_
+  refine (MeasureTheory.measure_biUnion_finset_le _ _).trans ?_
+  calc ∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+        (challengePMF P Fq Dom).toOuterMeasure
+          {ch : Challenges P Fq Dom |
+            eqf Fq (ch.α i) (powSeq (ch.z j) P.k₀ i) = 0}
+      ≤ ∑ _i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+          1 / (fieldCard Fq : ℝ≥0∞) :=
+        Finset.sum_le_sum fun i _ => challenge_alpha_eqf_root_le P Fq Dom h2 i j
+    _ ≤ ∑ _i : Fin P.k₀, 1 / (fieldCard Fq : ℝ≥0∞) :=
+        Finset.sum_le_sum_of_subset (Finset.filter_subset _ _)
+    _ = (P.k₀ : ℝ≥0∞) * (1 / (fieldCard Fq : ℝ≥0∞)) := by
+        rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+    _ = (P.k₀ : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞) := by rw [mul_one_div]
+
 /-- **Exact count of roots of unity in a finite field**:
 `#{x : x^m = 1} = gcd(m, q − 1)`. -/
 theorem card_pow_eq_one_eq_gcd {F : Type*} [Field F] [Fintype F]
