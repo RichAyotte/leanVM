@@ -105,4 +105,19 @@ theorem qpolyMap_injective [CharP Fq p] (hcard : Fintype.card Fp = p) (d : ℕ)
   rw [hQ0, coeff_zero] at hcoeff
   exact hcoeff.symm
 
+/-- **Ore's theorem** (linearized/q-polynomial representation): every `Fp`-linear
+endomorphism of `Fq = F_{p^d}` is `x ↦ ∑_{r<d} t_r x^{p^r}` for some `t : Fin d → Fq`.
+This is the algebraic input to `cond:twist`. -/
+theorem exists_qpoly_repr [CharP Fq p] (hcard : Fintype.card Fp = p) (d : ℕ)
+    (hd : Fintype.card Fq = p ^ d) (hdeg : Module.finrank Fp Fq = d)
+    (T : Fq →ₗ[Fp] Fq) :
+    ∃ t : Fin d → Fq, ∀ x, T x = ∑ r, t r * x ^ p ^ r.val := by
+  have hfin : Module.finrank Fp (Fin d → Fq) = Module.finrank Fp (Fq →ₗ[Fp] Fq) := by
+    rw [Module.finrank_pi_fintype, Module.finrank_linearMap Fp Fp Fq Fq]
+    simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, hdeg]
+  obtain ⟨t, ht⟩ :=
+    (LinearMap.injective_iff_surjective_of_finrank_eq_finrank hfin).mp
+      (qpolyMap_injective hcard d hd) T
+  exact ⟨t, fun x => by rw [← ht, qpolyMap_apply]⟩
+
 end ZkWhir.Linearized
