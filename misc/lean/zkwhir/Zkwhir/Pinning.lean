@@ -666,9 +666,16 @@ theorem prefixFactor_evalT_moment_SR (δ : Cell P → Fp P) (j : Fin 2)
   unfold momS momR
   ring
 
-/-- **`F_θ` as an `Fp`-linear map on masks**: `κ ↦ F_θ(assemble 0 (−κ))`. Its
-surjectivity (`range = ⊤`) is exactly the spanning condition that
-`exists_trace_ne_zero_of_surjective` turns into `tr∘F_θ ≠ 0` (Step 4). -/
+/-- **The raw node-pairing map on masks**: `κ ↦ crossForm(assemble 0 (−κ))`,
+the `θ`-weighted fold at the two commitment nodes as a function of the *full*
+mask. ⚠ NOTE: this is NOT the paper's `F_θ`. The paper's `F_θ` (`cond:cross2`)
+is the form on the *non-block* mask cells obtained from the identity
+`∑_j θ_j η_j(V) = −F_θ(δ_out)`, which holds *only for view-vanishing masks*
+(`channel_identity_of_viewKer`). Surjectivity of THIS map is the easy
+node-pairing nondegeneracy (witnessed by block fibers, where `δ_out = 0`); it
+does NOT give `lem:fullslice` Step 4, which lives on the view-vanishing /
+non-block-cell domain. Kept as an auxiliary; the real Step 4 goes through the
+`y`-family (`channel_moment_of_viewKer`). -/
 def crossFormMap (θ : Fin 2 → Fq) : MaskAssign P →ₗ[Fp P] Fq where
   toFun κ := crossForm P Fq Dom ch (assemble P 0 (-κ)) θ
   map_add' κ₁ κ₂ := by
@@ -681,10 +688,11 @@ def crossFormMap (θ : Fin 2 → Fq) : MaskAssign P →ₗ[Fp P] Fq where
       a • crossForm P Fq Dom ch (assemble P 0 (-κ)) θ
     rw [← smul_neg, assemble_zero_smul, crossForm_smul]
 
-/-- **Step 4** (`tr∘F_θ ≠ 0` from surjectivity): if the cross-form map for `θ`
-is surjective, some view-vanishing-style mask gives a nonzero trace pairing —
-the slice nondegeneracy `lem:fullslice` needs, reduced to a spanning condition
-via the two-point machinery. -/
+/-- **Node-pairing trace-nondegeneracy** (auxiliary, NOT `lem:fullslice` Step 4):
+if the raw node-pairing map for `θ` is surjective, some mask gives a nonzero
+trace pairing. ⚠ The witness is a block mask (`δ_out = 0`), so this is the trace
+nondegeneracy of the *raw* node pairing over all masks, not the slice statement
+`tr∘F_θ ≠ 0` on the non-block cells that `prop:pinbound` consumes. -/
 theorem exists_trace_crossForm_ne_zero [FiniteDimensional (Fp P) Fq]
     [Algebra.IsSeparable (Fp P) Fq] (θ : Fin 2 → Fq)
     (hsurj : Function.Surjective (crossFormMap P Fq Dom ch θ)) :
@@ -698,10 +706,12 @@ theorem exists_eqPoly_alpha_ne_zero : ∃ s : Cube P.k₀, eqPoly (ch.α) s ≠ 
   push_neg at h
   exact eqPoly_vec_ne_zero Fq (ch.α) (funext fun s => h s)
 
-/-- **`crossFormMap θ` is surjective for `θ ≠ 0`** (Step-4 spanning condition):
+/-- **`crossFormMap θ` is surjective for `θ ≠ 0`** (raw node-pairing spanning):
 placing a single block fiber on a class with nonzero `α`-weight, hitting the
 commitment node where `θ` is nonzero, realizes any target. Uses the node
-genericity (`NodeHyp`) and the block solver (`exists_block_fiber`). -/
+genericity (`NodeHyp`) and the block solver (`exists_block_fiber`). ⚠ The
+witness is block-supported, so `δ_out = 0`: this is surjectivity of the raw
+node pairing, NOT the non-block-cell form `F_θ` of `cond:cross2`. -/
 theorem crossFormMap_surjective [FiniteDimensional (Fp P) Fq]
     (hnode : NodeHyp P Fq Dom ch)
     (hbudget : Module.finrank (Fp P) Fq * 2 ≤ 2 ^ P.a)
@@ -777,9 +787,12 @@ theorem crossFormMap_surjective [FiniteDimensional (Fp P) Fq]
   rw [key, hsum, hbj0]
   field_simp
 
-/-- **Step 4 of `lem:fullslice`, fully discharged**: under the node genericity
-and the mask budget, the trace of the cross-form is nonzero for every `θ ≠ 0` —
-`tr∘F_θ ≠ 0`, the slice nondegeneracy that `prop:pinbound` consumes. -/
+/-- **Raw node-pairing trace-nondegeneracy from `NodeHyp`** (auxiliary): under
+node genericity and the mask budget, the trace of the raw node pairing is
+nonzero for every `θ ≠ 0`. ⚠ This is NOT `lem:fullslice` Step 4 (`tr∘F_θ ≠ 0` on
+the non-block cells); the witness is a block mask. The real Step 4 must use the
+`y`-family representation (`channel_moment_of_viewKer` + `exists_trace_pairing_rep`
++ SPREAD); see the warning on `crossFormMap`. -/
 theorem exists_trace_crossForm_ne_zero_of_nodeHyp [FiniteDimensional (Fp P) Fq]
     [Algebra.IsSeparable (Fp P) Fq] (hnode : NodeHyp P Fq Dom ch)
     (hbudget : Module.finrank (Fp P) Fq * 2 ≤ 2 ^ P.a) (θ : Fin 2 → Fq)
