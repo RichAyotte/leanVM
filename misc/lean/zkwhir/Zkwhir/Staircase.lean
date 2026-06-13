@@ -90,6 +90,14 @@ theorem mle_cons {R : Type*} [CommRing R] {j : ℕ} (T : Cube (j + 1) → R) (t 
     refine Finset.sum_congr rfl fun brest _ => ?_
     rw [eqPoly_cons]; simp only [if_true]; ring
 
+/-- `mle` is additive in the table: `mle (T − T') = mle T − mle T'` (the slope of
+the `mle_cons` decomposition is `mle (T₁ − T₀)`; needed for the SZ induction). -/
+theorem mle_sub {R : Type*} [CommRing R] {j : ℕ} (T T' : Cube j → R) (x : Fin j → R) :
+    mle (fun b => T b - T' b) x = mle T x - mle T' x := by
+  unfold mle
+  rw [← Finset.sum_sub_distrib]
+  exact Finset.sum_congr rfl fun b _ => by ring
+
 /-- **Partition of unity**: the Lagrange weights at any point sum to `1`. -/
 theorem eqPoly_sum_eq_one {j : ℕ} (p : Fin j → Fq) :
     ∑ s : Cube j, eqPoly p s = 1 := by
