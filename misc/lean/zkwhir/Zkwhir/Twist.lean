@@ -296,4 +296,37 @@ theorem tcoeff_tauTensor_pair {k : ℕ} (x lam : Fin k → Fq) (a b m' : Fin k)
       rw [if_neg (by simp [Finset.mem_insert, Finset.mem_singleton, hma, hmm])]
       exact gammaC_drow
 
+/-- **Rigidity** (`lem:rigidity`): if a combination `∑_r y_r v^{(r)}` of conjugate
+staircase tensors lies in the span `{ω, τ_{m'}}` of the base (`lam`) staircase,
+then for every slot `m` above `first` the coupled relation holds. This is what
+forces `cond:twist`'s trace-twist to be untwisted. -/
+theorem rigidity {k : ℕ} (x lam : Fin k → Fq) {R : Type*} [Fintype R]
+    (a : R → Fin k → Fq) (y : R → Fq) (first m : Fin k) (hfm : first < m)
+    (cω : Fq) (ct : Fin k → Fq)
+    (heq : (∑ r, y r • ptensor (fun i => fun b => vrow (x i) b + a r i * drow b)) =
+        cω • ptensor (fun i => vrow (x i)) +
+          ∑ m', ct m' •
+            ptensor (stairVec (fun i => vrow (x i)) (fun _ => drow) lam m')) :
+    ∑ r, y r * ((a r first - lam first) * a r m) = 0 := by
+  have hfne : first ≠ m := ne_of_lt hfm
+  have hsingle : (∑ r, y r * a r m) = ct m := by
+    have h := congrArg (tcoeff (dCoeff x {m})) heq
+    simp only [tcoeff_finsetSum, tcoeff_add, tcoeff_smul, tcoeff_vTensor,
+      tcoeff_omegaTensor, tcoeff_tauTensor_single, Finset.prod_singleton,
+      Finset.singleton_ne_empty, if_false, mul_zero, zero_add, mul_ite, mul_one,
+      Finset.sum_ite_eq', Finset.mem_univ, if_true] at h
+    exact h
+  have hpair : (∑ r, y r * (a r first * a r m)) = ct m * lam first := by
+    have h := congrArg (tcoeff (dCoeff x {first, m})) heq
+    simp only [tcoeff_finsetSum, tcoeff_add, tcoeff_smul, tcoeff_vTensor,
+      tcoeff_omegaTensor, tcoeff_tauTensor_pair x lam first m _ hfm,
+      Finset.prod_pair hfne, Finset.insert_ne_empty, if_false, mul_zero, zero_add,
+      mul_ite, mul_one, Finset.sum_ite_eq', Finset.mem_univ, if_true] at h
+    exact h
+  rw [show (∑ r, y r * ((a r first - lam first) * a r m)) =
+      (∑ r, y r * (a r first * a r m)) - lam first * (∑ r, y r * a r m) from by
+    rw [Finset.mul_sum, ← Finset.sum_sub_distrib]
+    exact Finset.sum_congr rfl fun r _ => by ring]
+  rw [hpair, hsingle]; ring
+
 end ZkWhir
