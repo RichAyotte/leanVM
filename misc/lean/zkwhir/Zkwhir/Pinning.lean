@@ -849,6 +849,25 @@ theorem nodePairRho_add_table (δ δ' : Cell P → Fp P) (j : Fin 2) (ℓ : Fin 
   rw [Finset.sum_add_distrib]
   ring
 
+/-- **The extension row in the `ρ_ℓ/τ` basis at any level** (`lem:fullslice`
+Step 2 input): `η_j = ρ^{(j)}_ℓ + ∑_{i ≥ ℓ} λ^{(j)}_i τ^{(j)}_i`, i.e. the node
+value `⟨η_j, V⟩` telescopes to `⟨ρ^{(j)}_ℓ, V⟩` plus the tail of slot pairings.
+This is the target the η-matching at the top two levels is solved against. -/
+theorem nodePair_eta_rho_tau (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀) :
+    nodePair P Fq Dom ch δ j (eqPoly (ch.α)) =
+      nodePairRho P Fq Dom ch δ j ℓ +
+        ∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => ℓ ≤ i),
+          lamData P Fq Dom ch (ch.z j) i * nodePairTau P Fq Dom ch δ j i := by
+  rw [nodePair_eta]
+  unfold nodePairRho nodePairTau
+  have hfull : (Finset.univ.filter (fun i : Fin P.k₀ => (i : ℕ) < P.k₀)) = Finset.univ :=
+    Finset.filter_true_of_mem (fun i _ => i.isLt)
+  have hge : (Finset.univ.filter (fun i : Fin P.k₀ => ℓ ≤ i)) =
+      (Finset.univ.filter (fun i : Fin P.k₀ => ¬ i < ℓ)) := by
+    apply Finset.filter_congr; intro i _; simp [not_lt]
+  rw [hfull, hge, add_assoc,
+    Finset.sum_filter_add_sum_filter_not Finset.univ (fun i : Fin P.k₀ => i < ℓ)]
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
