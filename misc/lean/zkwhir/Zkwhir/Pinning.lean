@@ -3194,4 +3194,35 @@ theorem assemble_zero_nonmask_nonblock (m : MaskAssign P) (s : Cube P.k₀) (c :
   rw [dif_neg hnm]
   rfl
 
+/-- **Non-block fold value** (`prop:pinbound` assembly): on a non-block position
+`c`, a view-vanishing mask-fold reads only the upper half (`s₀ = true`, the `R_out`
+cells) — `pinFold κ c = ∑_{s₀=true} êq(α,s)·(−κ)(s,c)`. The lower half vanishes by
+`assemble_zero_nonmask_nonblock`. This is the block/`R_out` split that lets the
+terminal-pairing condition control `w`'s non-block component in the assembly. -/
+theorem pinFold_nonblock_eq (κ : viewKer P Fq Dom S ch) (c : Cube P.m)
+    (hc : ¬ IsBlockPos P c) :
+    pinFold P Fq Dom S ch κ c =
+      ∑ s ∈ Finset.univ.filter (fun s : Cube P.k₀ => s ⟨0, P.k₀_pos⟩ = true),
+        eqPoly ch.α s * algebraMap (Fp P) Fq (assemble P 0 (-κ.1) (s, c)) := by
+  show foldedF₁ P Fq Dom (assemble P 0 (-κ.1)) ch c = _
+  unfold foldedF₁
+  rw [← Finset.sum_filter_add_sum_filter_not Finset.univ
+      (fun s : Cube P.k₀ => s ⟨0, P.k₀_pos⟩ = true)
+      (fun s => eqPoly ch.α s * liftT P Fq (assemble P 0 (-κ.1)) (s, c))]
+  have hzero : (∑ s ∈ Finset.univ.filter
+        (fun s : Cube P.k₀ => ¬ s ⟨0, P.k₀_pos⟩ = true),
+        eqPoly ch.α s * liftT P Fq (assemble P 0 (-κ.1)) (s, c)) = 0 := by
+    refine Finset.sum_eq_zero fun s hs => ?_
+    rw [Finset.mem_filter] at hs
+    have hsf : s ⟨0, P.k₀_pos⟩ = false := by
+      cases h : s ⟨0, P.k₀_pos⟩
+      · rfl
+      · exact absurd h hs.2
+    have hz0 : liftT P Fq (assemble P 0 (-κ.1)) (s, c) = 0 := by
+      show algebraMap (Fp P) Fq (assemble P 0 (-κ.1) (s, c)) = 0
+      rw [assemble_zero_nonmask_nonblock P (-κ.1) s c hc hsf, map_zero]
+    rw [hz0, mul_zero]
+  rw [hzero, add_zero]
+  rfl
+
 end ZkWhir
