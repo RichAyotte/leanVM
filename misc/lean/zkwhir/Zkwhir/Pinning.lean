@@ -2492,6 +2492,55 @@ theorem confine_slice_coeffs [FiniteDimensional (Fp P) Fq]
   rw [hinl, hq', hn', hz', zero_add] at happ
   rw [← happ]; ring
 
+/-- **The node/`zf` channel weights**, unified as an `(Fin 2 ⊕ Fin s₁)`-indexed
+family: the two commitment-node eqPoly weights `êq(pow(z_j^{2^k₀}), ·)` and the
+`s₁` `f̂₁`-node weights `êq(pow(zf_k), ·)`. This is the `W`-family fed to
+`full_block_extract` as the non-queried protocol channels. -/
+def nodeZfChannel (r : Fin 2 ⊕ Fin P.s₁) : Cube P.m → Fq :=
+  Sum.elim (fun j : Fin 2 => eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))
+           (fun k : Fin P.s₁ => eqPoly (powSeq (ch.zf k) P.m)) r
+
+/-- **Confine slice coefficients in `full_block_extract` shape** (`lem:noother`
+bridge): specialising `confine_slice_coeffs` at each basis twist `β = b i`
+packages the per-`β` block coefficients into the combined-channel `hrep` form
+that `full_block_extract` consumes — a queried part (`Fp`-rational eqPoly
+weights) plus a single `(Fin 2 ⊕ Fin s₁)`-indexed trace channel
+(`nodeZfChannel`). The only remaining gap to the protocol form is the per-channel
+Galois descent condition (`channel_descent_necessary`). -/
+theorem confine_block_hrep [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (hφ : ∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) :
+    ∃ (w : Cube P.m → Fq) (cq : ιβ → Fin P.t₀ → Fp P)
+        (cz : (Fin 2 ⊕ Fin P.s₁) → ιβ → ιβ → Fp P),
+      (∀ g, φ g = Algebra.trace (Fp P) Fq (∑ c, w c * g c)) ∧
+      ∀ (i : ιβ) (c0 : Cube P.m), IsBlockPos P c0 →
+        Algebra.trace (Fp P) Fq (b i * w c0)
+          = (∑ t, cq i t * eqPoly (powSeq (ch.qs t : Fp P) P.m) c0)
+            + ∑ r, ∑ i', cz r i i' * Algebra.trace (Fp P) Fq
+                (b i' * nodeZfChannel P Fq Dom ch r c0) := by
+  classical
+  obtain ⟨w, hw, hcoeff⟩ :=
+    confine_slice_coeffs P Fq Dom S ch h2 hmf hspread b φ hφ
+  have hfam : ∀ i : ιβ, ∃ (cq : Fin P.t₀ → Fp P) (cn : Fin 2 → ιβ → Fp P)
+      (cz : Fin P.s₁ → ιβ → Fp P), ∀ c0, IsBlockPos P c0 →
+        Algebra.trace (Fp P) Fq (b i * w c0) =
+          (∑ t, cq t * eqPoly (powSeq (ch.qs t : Fp P) P.m) c0)
+          + (∑ j, ∑ i', cn j i' * Algebra.trace (Fp P) Fq
+              (b i' * eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) c0))
+          + (∑ k, ∑ i', cz k i' * Algebra.trace (Fp P) Fq
+              (b i' * eqPoly (powSeq (ch.zf k) P.m) c0)) :=
+    fun i => hcoeff (b i)
+  choose cq cn cz hcz using hfam
+  refine ⟨w, fun i t => cq i t,
+    fun r i i' => Sum.elim (fun j => cn i j i') (fun k => cz i k i') r,
+    hw, fun i c0 hc0 => ?_⟩
+  rw [hcz i c0 hc0, Fintype.sum_sum_type]
+  simp only [nodeZfChannel, Sum.elim_inl, Sum.elim_inr]
+  ring
+
 /-! ## The multi-class node probe (`lem:nodechannel`)
 
 The node-channel argument places a *per-class* block fiber `vf s` on each class
