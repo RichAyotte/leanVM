@@ -3524,6 +3524,23 @@ theorem adjoin_top_of_spread
   rw [← Algebra.toSubmodule_eq_top, eq_top_iff, ← hspread]
   exact span_eqPoly_le_adjoin P Fq Dom ch
 
+/-- **SPREAD kills functionals vanishing on the weights** (how SPREAD is consumed):
+under SPREAD, any `Fp`-linear functional `φ` on `Fq` that vanishes on every `êq(α,s)`
+is identically zero — because the weights span all of `Fq`, so `φ` vanishes on `⊤`.
+This is the general-`Module.Dual` form of the SPREAD-nondegeneracy used throughout
+`lem:fullslice`/`lem:confine`. -/
+theorem dual_eq_zero_of_spread
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤)
+    (φ : Module.Dual (Fp P) Fq) (hφ : ∀ s, φ (eqPoly ch.α s) = 0) : φ = 0 := by
+  ext x
+  have hx : x ∈ Submodule.span (Fp P) (Set.range (eqPoly ch.α)) := by
+    rw [hspread]; exact Submodule.mem_top
+  refine Submodule.span_induction ?_ ?_ ?_ ?_ hx
+  · rintro _ ⟨s, rfl⟩; exact hφ s
+  · exact map_zero φ
+  · intro a b _ _ ha hb; simp only [map_add, ha, hb, add_zero]
+  · intro r a _ ha; simp only [map_smul, ha, smul_zero]
+
 /-- **Queried protocol dual kills `range pinFold`** (`ann(range pinFold) ⊇` protocol
 span, dual form): the queried-eval dual `g ↦ tr(b·mle g(qs_t))` annihilates every
 view-vanishing mask-fold, since `mle(pinFold κ)(qs_t) = 0` (`pinFold_queried_zero`). -/
