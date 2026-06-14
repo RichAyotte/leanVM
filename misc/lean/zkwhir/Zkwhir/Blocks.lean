@@ -622,6 +622,41 @@ theorem trace_weight_block_indep {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra 
   have h1 := congrFun hcoef 1
   simpa using h1
 
+/-- **Joint channel-weight Fp-independence over the block** (`lem:noother`, multi-weight):
+for a finite family of points `p : R → Fq` whose Galois conjugates `{σ(p_r) : (r,σ)}`
+are all distinct (the non-conjugacy Good-set condition), nonzero, and number `≤ 2^a`, a
+vanishing combination `∑_r tr(M_r·êq(pow(p_r),c)) = 0` over the block forces every
+`M_r = 0`. Proof: `algebraMap` of the vanishing trace, expanded by `trace_mul_eqPoly_powSeq`
+per `r` and reindexed over `R × Gal`, is a vanishing combination of eqPoly weights at the
+*combined conjugate* points `σ(p_r)`; block independence kills every `σ(M_r)`, so
+`M_r = (1)·M_r = 0`. This is the joint uniqueness of the confine node/zf coefficients
+(the queried channel, being `Fp`-rational, is handled separately by
+`dualBasis_queried_collapse`). -/
+theorem trace_weights_block_indep {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [IsGalois Fp Fq] {m a : ℕ} (ham : a ≤ m)
+    {R : Type*} [Fintype R] [DecidableEq R] (p M : R → Fq)
+    (hconj : Function.Injective (fun rσ : R × (Fq ≃ₐ[Fp] Fq) => rσ.2 (p rσ.1)))
+    (hp0 : ∀ r, p r ≠ 0)
+    (hcard : Fintype.card (R × (Fq ≃ₐ[Fp] Fq)) ≤ 2 ^ a)
+    (hM : ∀ c ∈ Finset.univ.filter (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true),
+        ∑ r, Algebra.trace Fp Fq (M r * eqPoly (powSeq (p r) m) c) = 0) :
+    ∀ r, M r = 0 := by
+  classical
+  have key : ∀ c ∈ Finset.univ.filter (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true),
+      ∑ rσ : R × (Fq ≃ₐ[Fp] Fq), rσ.2 (M rσ.1) * eqPoly (powSeq (rσ.2 (p rσ.1)) m) c = 0 := by
+    intro c hc
+    rw [Fintype.sum_prod_type,
+      show (∑ r, ∑ σ : Fq ≃ₐ[Fp] Fq, σ (M r) * eqPoly (powSeq (σ (p r)) m) c)
+        = ∑ r, algebraMap Fp Fq (Algebra.trace Fp Fq (M r * eqPoly (powSeq (p r) m) c)) from
+        Finset.sum_congr rfl fun r _ => (trace_mul_eqPoly_powSeq (M r) (p r) c).symm,
+      ← map_sum, hM c hc, map_zero]
+  have hcoef := eqPoly_powSeq_block_linearIndependent ham
+    (fun rσ : R × (Fq ≃ₐ[Fp] Fq) => rσ.2 (p rσ.1)) hconj
+    (fun rσ => by simpa using hp0 rσ.1) hcard (fun rσ => rσ.2 (M rσ.1)) key
+  intro r
+  have h1 := congrFun hcoef (r, 1)
+  simpa using h1
+
 /-! ## The cell polynomials
 
 `êq(pow(x, j), c)`, as a polynomial in `x`: the univariate face of a position
