@@ -1453,6 +1453,25 @@ theorem crossTerm_single_cell_Eprime (s : Cube P.k₀) (c : Cube P.m) (ℓ m : F
   rw [crossTerm_single_cell_full, prod_lt_split (m := m) (ℓ := ℓ) (hm := hm)]
   ring
 
+/-- **`if ↔ eqf` per coordinate**: the cross-form `E'` factor `if b then x else 1-x`
+is `eqf x (boolToFq b)`. Bridges the cross-channel SPREAD family (the `hspan` input
+of `crossTerm_trace_ne_zero_of_ne`, stated with `if`) to the existing `eqf`-based
+measure machinery (`challenge_alpha_eqf_root_le`, `alpha_prefix_zero_le`). -/
+theorem eqf_boolCoord (x : Fq) (b : Bool) :
+    eqf Fq x (if b then 1 else 0) = if b then x else 1 - x := by
+  cases b <;> simp [eqf]
+
+/-- **`E'(π)` as a product of `eqf` weights** (cross-channel SPREAD in `eqf` form):
+the middle product `∏ if π_j then α_j else 1-α_j` equals `∏ eqf(α_j, boolToFq π_j)`,
+the spanning family the `lem:span` / SPREAD measure bounds are phrased over. -/
+theorem Eprime_eq_eqf_prod (m ℓ : Fin P.k₀)
+    (π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool) :
+    (∏ j : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ},
+        (if π j then ch.α j.val else 1 - ch.α j.val)) =
+      ∏ j : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ},
+        eqf Fq (ch.α j.val) (if π j then 1 else 0) :=
+  Finset.prod_congr rfl fun j _ => (eqf_boolCoord Fq (ch.α j.val) (π j)).symm
+
 /-- **`E'(π)` reindexed over the middle-coordinate subtype** (preparing the
 `fullslice_step4` instantiation, whose `ιπ` is the middle-coords cube). The
 `E'(π) = ∏_{m ≤ i < ℓ} êq(α_i,s_i)` factor of `crossTerm_single_cell_Eprime`,
