@@ -324,4 +324,23 @@ theorem spread_condtwist_failure_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
   · exact spread_failure_le' P Fq Dom hcard
   · exact condtwist_failure_le P Fq Dom hdp hcardq hd0
 
+/-- **SPREAD failure measure, cancelled form**: `P[¬SPREAD] ≤ (p^{d-1})^{k₀}/q^{k₀-1}`,
+cancelling the `#Dual = q` factor of `spread_failure_le'` against one power of `q`.
+The closed `lem:span` ε₃ contribution (`= p^{d-k₀}` since `q = p^d`). -/
+theorem spread_failure_le_cancel [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Fintype (Module.Dual (Fp P) Fq)] (hcard : Fintype.card (Fp P) = P.p) :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom |
+          Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≠ ⊤} ≤
+      (P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ P.k₀ /
+        (Fintype.card Fq : ℝ≥0∞) ^ (P.k₀ - 1) := by
+  refine (spread_failure_le' P Fq Dom hcard).trans (le_of_eq ?_)
+  have hqne : (Fintype.card Fq : ℝ≥0∞) ≠ 0 := by
+    exact_mod_cast Fintype.card_ne_zero
+  have hqtop : (Fintype.card Fq : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
+  rw [show (Fintype.card Fq : ℝ≥0∞) ^ P.k₀
+      = (Fintype.card Fq : ℝ≥0∞) * (Fintype.card Fq : ℝ≥0∞) ^ (P.k₀ - 1) from by
+    rw [← pow_succ']; congr 1; have := P.k₀_pos; omega,
+    mul_div_assoc', ENNReal.mul_div_mul_left _ _ hqne hqtop]
+
 end ZkWhir
