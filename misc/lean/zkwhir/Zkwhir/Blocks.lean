@@ -235,6 +235,18 @@ theorem eqPoly_powSeq_map {R : Type*} [CommRing R] (φ : R →+* R) {j : ℕ} (z
   rw [show powSeq (φ z) j = fun k => φ (powSeq z j k) from by
     funext k; simp [powSeq, map_pow], eqPoly_map]
 
+/-- **Head-coordinate factorization of `eqPoly`** (`R_out` structure): peeling the
+first coordinate, `êq(α, s) = (if s 0 then α 0 else 1−α 0)·êq(tail α, tail s)`. With
+`s 0 = true` (the `R_out` half) this is `α 0 · êq(tail α, tail s)`, so the `R_out`
+weight family is `α 0` times the tail eqPoly family — the structural fact behind
+"`R_out` spans iff `α 0 ≠ 0` and the tail eqPolys span". Dual to `eqPoly_snoc`. -/
+theorem eqPoly_head_factor {R : Type*} [CommRing R] {j : ℕ} (α : Fin (j + 1) → R)
+    (s : Cube (j + 1)) :
+    eqPoly α s = (if s 0 then α 0 else 1 - α 0) * eqPoly (Fin.tail α) (Fin.tail s) := by
+  unfold eqPoly
+  rw [Fin.prod_univ_succ]
+  rfl
+
 /-- **Trace of a channel weight is a sum over conjugate eqPoly weights** (`lem:noother`
 linchpin): for a Galois extension `Fq/Fp`, `algebraMap (tr(M·êq(pow z, c))) = ∑_σ
 σ(M)·êq(pow(σ z), c)` over the Galois group. Combines `trace_eq_sum_automorphisms`
