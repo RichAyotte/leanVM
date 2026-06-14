@@ -275,6 +275,35 @@ theorem card_pi_subset_le {ι β : Type*} [Fintype ι] [DecidableEq ι] [Fintype
     _ = k ^ J.card * Fintype.card β ^ (Fintype.card ι - J.card) := by
         rw [Finset.prod_ite, Finset.prod_const, Finset.prod_const, hJcard, hNJcard]
 
+/-- **Joint bound over a coordinate subset `J` with per-coordinate sets**: under a
+uniform `f : ι → β`, the event `∀ j ∈ J, f j ∈ A j` (each `|A j| ≤ k`) has
+probability at most `k^{|J|}/|β|^{|J|}`. Lifts `card_pi_subset_le` via
+`uniform_toOuterMeasure_le`, cancelling the off-`J` factor `|β|^{|ι|−|J|}`. This is
+the joint-independence bound `hker`'s Moore-determinant measure needs (the root sets
+differ per coordinate). -/
+theorem uniform_pi_subset {ι β : Type*} [Fintype ι] [DecidableEq ι] [Fintype β]
+    [Nonempty β] [DecidableEq β] (J : Finset ι) (A : ι → Finset β) (k : ℕ)
+    (hA : ∀ j ∈ J, (A j).card ≤ k) :
+    (PMF.uniformOfFintype (ι → β)).toOuterMeasure {f | ∀ j ∈ J, f j ∈ A j} ≤
+      (k : ℝ≥0∞) ^ J.card / (Fintype.card β : ℝ≥0∞) ^ J.card := by
+  classical
+  have hJ : J.card ≤ Fintype.card ι := by
+    rw [← Finset.card_univ]; exact Finset.card_le_card (Finset.subset_univ J)
+  refine (uniform_toOuterMeasure_le _
+    (k ^ J.card * Fintype.card β ^ (Fintype.card ι - J.card)) (fun s hs => ?_)).trans ?_
+  · exact (Finset.card_le_card
+      (fun a ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a, hs a ha⟩)).trans
+      (card_pi_subset_le J A k hA)
+  · rw [Fintype.card_fun]
+    push_cast
+    rw [show (Fintype.card β : ℝ≥0∞) ^ Fintype.card ι
+        = (Fintype.card β : ℝ≥0∞) ^ J.card *
+          (Fintype.card β : ℝ≥0∞) ^ (Fintype.card ι - J.card)
+        from by rw [← pow_add]; congr 1; omega]
+    rw [ENNReal.mul_div_mul_right _ _
+      (pow_ne_zero _ (by exact_mod_cast Fintype.card_ne_zero))
+      (ENNReal.pow_ne_top (ENNReal.natCast_ne_top _))]
+
 /-- **Pair bound for uniform functions**: under a uniform function `ι → β`,
 a joint event on two fixed distinct coordinates whose every first-coordinate
 fiber has at most `k` outcomes has probability at most `k / |β|`. -/
