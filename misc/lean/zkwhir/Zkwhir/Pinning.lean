@@ -1505,6 +1505,42 @@ theorem Eprime_combine (m ℓ : Fin P.k₀)
   refine Finset.prod_congr rfl fun j _ => ?_
   rw [cellMidCombine_mid]
 
+/-- **The `G`-factor depends only on the rest block `sr`.** The "rest" factor of
+the cross form's cell coefficient — slot `êq(y,s_ℓ)`, low-index product
+`∏_{i<m}`, and the partial-evaluation weight at `b* = (i ≤ ℓ ? false : s_i)` —
+reads `s` only at coordinates outside the middle `{m ≤ i < ℓ}`, hence is invariant
+under the `π` block. This is the independence `fullslice_step4` needs from its
+`G : ιv → Fq`. -/
+theorem crossRest_combine_indep (m ℓ : Fin P.k₀)
+    (π π' : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool)
+    (sr : {i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)} → Bool) (c : Cube P.m) (y : Fq) :
+    ((if cellMidCombine P m ℓ π sr ℓ then y else 1 - y) *
+        (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+            (if cellMidCombine P m ℓ π sr i then ch.α i else 1 - ch.α i)) *
+        partialEval P Fq Dom ch S.w ℓ y
+          (fun i => if i ≤ ℓ then false else cellMidCombine P m ℓ π sr i) c)
+      = ((if cellMidCombine P m ℓ π' sr ℓ then y else 1 - y) *
+        (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+            (if cellMidCombine P m ℓ π' sr i then ch.α i else 1 - ch.α i)) *
+        partialEval P Fq Dom ch S.w ℓ y
+          (fun i => if i ≤ ℓ then false else cellMidCombine P m ℓ π' sr i) c) := by
+  have hagree : ∀ i : Fin P.k₀, ¬(m ≤ i ∧ i < ℓ) →
+      cellMidCombine P m ℓ π sr i = cellMidCombine P m ℓ π' sr i := by
+    intro i h; simp only [cellMidCombine, dif_neg h]
+  have hℓ : ¬(m ≤ ℓ ∧ ℓ < ℓ) := by simp
+  have hpe : (fun i => if i ≤ ℓ then false else cellMidCombine P m ℓ π sr i)
+      = (fun i => if i ≤ ℓ then false else cellMidCombine P m ℓ π' sr i) := by
+    funext i
+    by_cases hil : i ≤ ℓ
+    · simp only [if_pos hil]
+    · rw [if_neg hil, if_neg hil,
+        hagree i (by rintro ⟨_, h2⟩; exact absurd (lt_of_lt_of_le h2 (not_le.mp hil).le) (lt_irrefl i))]
+  rw [hagree ℓ hℓ, hpe]
+  congr 2
+  refine Finset.prod_congr rfl fun i hi => ?_
+  rw [Finset.mem_filter] at hi
+  rw [hagree i (by rintro ⟨h1, _⟩; exact absurd (lt_of_lt_of_le hi.2 h1) (lt_irrefl i))]
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
