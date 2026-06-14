@@ -1225,6 +1225,23 @@ theorem crossTerm_add_table (T₁ T₂ : Cell P → Fp P) (ℓ : Fin P.k₀) (y 
   rw [liftT_add, partialEval_add]
   ring
 
+/-- The cross channel is `Fp`-homogeneous in the perturbation table (companion to
+`crossTerm_add_table`): together they make the cross-moment `Fp`-linear in the
+perturbation, transporting `lem:kersurj`'s `δ_out`-arbitrariness to `F_θ`. -/
+theorem crossTerm_smul_table (c : Fp P) (T : Cell P → Fp P) (ℓ : Fin P.k₀) (y : Fq) :
+    crossTerm P Fq Dom S (c • T) ch ℓ y =
+      algebraMap (Fp P) Fq c * crossTerm P Fq Dom S T ch ℓ y := by
+  unfold crossTerm
+  rw [Finset.mul_sum]
+  refine Finset.sum_congr rfl fun b _ => ?_
+  rw [Finset.mul_sum]
+  refine Finset.sum_congr rfl fun c' _ => ?_
+  have hl : liftT P Fq (c • T) = algebraMap (Fp P) Fq c • liftT P Fq T := by
+    funext u
+    simp [liftT, Pi.smul_apply, smul_eq_mul, map_mul, Algebra.smul_def]
+  rw [hl, partialEval_smul]
+  ring
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
