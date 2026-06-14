@@ -292,6 +292,40 @@ theorem sum_eqPoly_powSeq_mul_subsetIndicator {R : Type*} [CommRing R] {m : ℕ}
   rw [sum_eqPoly_mul_subsetIndicator]
   simp only [powSeq, Finset.prod_pow_eq_pow_sum]
 
+/-- **Vandermonde nonvanishing** (`lem:noother` independence engine): if a weighted
+power sum `∑_t a_t·z_t^k` vanishes for every exponent `k < #ι` and the points `z_t`
+are distinct, then all weights `a_t` vanish. Proved by Lagrange interpolation: each
+`a_s = ∑_t a_t·basis_s(z_t)` (since `basis_s(z_t) = δ_{s,t}`), and expanding the
+degree-`<#ι` polynomial `basis_s` in monomials turns this into `∑_k coeff_k·(power
+sum)_k = 0`. This is the converse that makes the eqPoly moment vectors a genuine
+basis change. -/
+theorem vandermonde_coeffs_zero {F : Type*} [Field F] {ι : Type*} [Fintype ι]
+    [DecidableEq ι] (z : ι → F) (hz : Function.Injective z) (a : ι → F)
+    (h : ∀ k : ℕ, k < Fintype.card ι → ∑ t, a t * z t ^ k = 0) :
+    a = 0 := by
+  funext s
+  show a s = 0
+  have hinj : Set.InjOn z (Finset.univ : Finset ι) := hz.injOn
+  have hcard : (Lagrange.basis Finset.univ z s).natDegree = Fintype.card ι - 1 := by
+    rw [Lagrange.natDegree_basis hinj (Finset.mem_univ s), Finset.card_univ]
+  have hbasis : (∑ t, a t * (Lagrange.basis Finset.univ z s).eval (z t))
+      = a s * (Lagrange.basis Finset.univ z s).eval (z s) :=
+    Finset.sum_eq_single_of_mem s (Finset.mem_univ s) (fun t _ hts => by
+      rw [Lagrange.eval_basis_of_ne (Ne.symm hts) (Finset.mem_univ t), mul_zero])
+  rw [Lagrange.eval_basis_self hinj (Finset.mem_univ s), mul_one] at hbasis
+  rw [← hbasis]
+  simp_rw [Polynomial.eval_eq_sum_range, Finset.mul_sum]
+  rw [Finset.sum_comm]
+  refine Finset.sum_eq_zero fun k hk => ?_
+  rw [show (∑ t, a t * ((Lagrange.basis Finset.univ z s).coeff k * z t ^ k))
+      = (Lagrange.basis Finset.univ z s).coeff k * ∑ t, a t * z t ^ k from by
+    rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun t _ => by ring]
+  have hkc : k < Fintype.card ι := by
+    rw [Finset.mem_range, hcard] at hk
+    have hpos : 0 < Fintype.card ι := Fintype.card_pos (h := ⟨s⟩)
+    omega
+  rw [h k hkc, mul_zero]
+
 /-! ## The cell polynomials
 
 `êq(pow(x, j), c)`, as a polynomial in `x`: the univariate face of a position
