@@ -274,6 +274,80 @@ theorem sum_blockFilter_prod {R : Type*} [CommRing R] {m a : ℕ} (f : Fin m →
   · rw [if_pos hi, if_pos hi, Finset.sum_singleton]
   · rw [if_neg hi, if_neg hi, Fintype.sum_bool]; ring
 
+/-- **High-bit geometric sum**: `∑_{i ≥ a} 2^i = 2^m − 2^a` over `Fin m` (`a ≤ m`).
+The exponent the block scaling `∏_{i≥a} pow(z)_i = z^{2^m−2^a}` collapses to. -/
+theorem sum_high_two_pow {m a : ℕ} (ham : a ≤ m) :
+    ∑ i ∈ Finset.univ.filter (fun i : Fin m => a ≤ (i : ℕ)), 2 ^ (i : ℕ) = 2 ^ m - 2 ^ a := by
+  classical
+  have htot : ∑ i : Fin m, 2 ^ (i : ℕ) = 2 ^ m - 1 := by
+    rw [Fin.sum_univ_eq_sum_range (fun i => 2 ^ i) m, sum_range_two_pow]
+  have hlow : ∑ i ∈ Finset.univ.filter (fun i : Fin m => ¬ a ≤ (i : ℕ)), 2 ^ (i : ℕ)
+      = 2 ^ a - 1 := by
+    rw [show (Finset.univ.filter (fun i : Fin m => ¬ a ≤ (i : ℕ)))
+        = Finset.univ.filter (fun i : Fin m => (i : ℕ) < a) from
+      Finset.filter_congr fun i _ => by simp [not_le],
+      Finset.sum_filter, Fin.sum_univ_eq_sum_range (fun i => if i < a then 2 ^ i else 0) m,
+      ← Finset.sum_filter,
+      show (Finset.range m).filter (fun i => i < a) = Finset.range a from by
+        ext i; simp only [Finset.mem_filter, Finset.mem_range]; omega]
+    exact sum_range_two_pow a
+  have hsplit := Finset.sum_filter_add_sum_filter_not Finset.univ
+    (fun i : Fin m => a ≤ (i : ℕ)) (fun i => 2 ^ (i : ℕ))
+  have h2 : 2 ^ a ≤ 2 ^ m := Nat.pow_le_pow_right (by norm_num) ham
+  have h3 : 1 ≤ 2 ^ a := Nat.one_le_two_pow
+  rw [htot, hlow] at hsplit
+  omega
+
+/-- **The block-restricted subset-moment** (`lem:noother`, block form): over the
+block (high bits `≥ a` fixed true) and for a low subset `T ⊆ {i < a}`, the `T`-moment
+of `êq(pow(z,·))` is the scaled monomial `z^{2^m−2^a}·z^{n(T)}`. The scaling
+`z^{2^m−2^a}` is the fixed high-bit contribution; the residual `z^{n(T)}` is the
+free low-cube moment. So on the block the eqPoly weights are a *shifted* Vandermonde
+system in `z`. -/
+theorem sum_block_eqPoly_powSeq_mul_subsetIndicator {m a : ℕ} (ham : a ≤ m)
+    {R : Type*} [CommRing R] (z : R) (T : Finset (Fin m)) (hT : ∀ i ∈ T, (i : ℕ) < a) :
+    (∑ c ∈ Finset.univ.filter (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true),
+        eqPoly (powSeq z m) c * ∏ i ∈ T, (if c i then (1 : R) else 0))
+      = z ^ (2 ^ m - 2 ^ a) * z ^ (∑ i ∈ T, 2 ^ (i : ℕ)) := by
+  classical
+  have hsummand : ∀ c : Cube m,
+      eqPoly (powSeq z m) c * ∏ i ∈ T, (if c i then (1 : R) else 0)
+        = ∏ i, ((if c i then powSeq z m i else 1 - powSeq z m i) *
+            (if i ∈ T then (if c i then (1 : R) else 0) else 1)) := by
+    intro c
+    unfold eqPoly
+    rw [show (∏ i ∈ T, (if c i then (1 : R) else 0))
+        = ∏ i, (if i ∈ T then (if c i then (1 : R) else 0) else 1) from by
+      rw [Finset.prod_ite_mem, Finset.univ_inter], ← Finset.prod_mul_distrib]
+  rw [Finset.sum_congr rfl (fun c _ => hsummand c),
+    sum_blockFilter_prod (fun i b => (if b then powSeq z m i else 1 - powSeq z m i) *
+      (if i ∈ T then (if b then (1 : R) else 0) else 1))]
+  rw [show (∏ i : Fin m, (if a ≤ (i : ℕ)
+        then ((if (true : Bool) then powSeq z m i else 1 - powSeq z m i) *
+              (if i ∈ T then (if (true : Bool) then (1 : R) else 0) else 1))
+        else (((if (false : Bool) then powSeq z m i else 1 - powSeq z m i) *
+              (if i ∈ T then (if (false : Bool) then (1 : R) else 0) else 1))
+            + ((if (true : Bool) then powSeq z m i else 1 - powSeq z m i) *
+              (if i ∈ T then (if (true : Bool) then (1 : R) else 0) else 1)))))
+      = ∏ i : Fin m, (if (a ≤ (i : ℕ) ∨ i ∈ T) then powSeq z m i else 1) from by
+    refine Finset.prod_congr rfl fun i _ => ?_
+    by_cases hai : a ≤ (i : ℕ)
+    · have hiT : i ∉ T := fun h => absurd (hT i h) (by omega)
+      simp [hai, hiT]
+    · by_cases hiT : i ∈ T <;> simp [hai, hiT] <;> try ring]
+  rw [← Finset.prod_filter]
+  simp only [powSeq]
+  rw [Finset.prod_pow_eq_pow_sum, ← pow_add]
+  congr 1
+  rw [show Finset.univ.filter (fun i : Fin m => a ≤ (i : ℕ) ∨ i ∈ T)
+      = (Finset.univ.filter (fun i : Fin m => a ≤ (i : ℕ))) ∪ T from by
+    ext i; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union]]
+  rw [Finset.sum_union (by
+    rw [Finset.disjoint_left]
+    intro i hi hiT
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi
+    exact absurd (hT i hiT) (by omega)), sum_high_two_pow ham]
+
 /-- **The subset-moment of an eqPoly weight is a monomial** (`lem:noother`
 Vandermonde core): pairing the weight `c ↦ êq(x, c)` against the subset indicator
 `∏_{i∈T} c_i` yields `∏_{i∈T} x_i`. Equivalently the multilinear extension of the
