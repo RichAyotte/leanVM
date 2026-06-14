@@ -3641,6 +3641,52 @@ theorem multi_channel_block_extract {Fp Fq : Type*} [Field Fp] [Field Fq] [Algeb
   rw [step1]
   exact Finset.sum_congr rfl fun r _ => channel_term_collapse b (W r) (cz r) c (hdescent r)
 
+/-- **Full block extraction** (`lem:noother`, the complete block shape): combines the
+queried channel (`Fp`-rational, via `dualBasis_queried_collapse`) with the node/zf
+channels (via `channel_term_collapse`). If the confine slice is
+`tr(bᵢ·w_c) = (∑ₜ cq_{i,t}·Eₜ(c)) + ∑_r ∑_{i'} cz_{r,i,i'}·tr(b_{i'}·W_r(c))` on the block
+(`Eₜ ∈ Fp` the queried weights, `qsₜ ∈ Fp`-rational), and the Galois-descent condition
+holds per node/zf channel, then `w` collapses to the protocol-shape
+`w_c = ∑ₜ aqₜ·algebraMap(Eₜ(c)) + ∑_r (∑_{i'} D^r_{i'}·b_{i'})·W_r(c)` on the block, with
+uniform `Fq` coefficients `aqₜ = ∑ᵢ cq_{i,t}•b'ᵢ` and `D^r_{i'} = ∑ᵢ cz_{r,i,i'}•b'ᵢ`. This
+is exactly `confine_slice_coeffs`'s output put in protocol form on the block (the
+extraction completing `H`'s block part, modulo the descent condition). -/
+theorem full_block_extract {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq] [IsGalois Fp Fq] {m : ℕ}
+    {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ Fp Fq)
+    {t₀ : ℕ} {R : Type*} [Fintype R] (w : Cube m → Fq)
+    (E : Fin t₀ → Cube m → Fp) (W : R → Cube m → Fq)
+    (cq : ιβ → Fin t₀ → Fp) (cz : R → ιβ → ιβ → Fp) (S : Finset (Cube m))
+    (hrep : ∀ i, ∀ c ∈ S, Algebra.trace Fp Fq (b i * w c)
+        = (∑ t, cq i t * E t c)
+          + ∑ r, ∑ i', cz r i i' * Algebra.trace Fp Fq (b i' * W r c))
+    (hdescent : ∀ r, ∀ σ : Fq ≃ₐ[Fp] Fq, σ ≠ 1 →
+        ∑ i', (∑ i, cz r i i' • (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+            (traceForm_nondegenerate Fp Fq) b) i) * σ (b i') = 0) :
+    ∀ c ∈ S, w c =
+        (∑ t, (∑ i, cq i t • (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+            (traceForm_nondegenerate Fp Fq) b) i) * algebraMap Fp Fq (E t c))
+        + ∑ r, (∑ i', (∑ i, cz r i i' • (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+            (traceForm_nondegenerate Fp Fq) b) i) * b i') * W r c := by
+  classical
+  intro c hc
+  rw [eq_sum_trace_smul_dualBasis b (w c)]
+  set b' := LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+    (traceForm_nondegenerate Fp Fq) b with hb'
+  have hsplit : (∑ i, Algebra.trace Fp Fq (w c * b i) • b' i)
+      = (∑ i, (∑ t, cq i t * E t c) • b' i)
+        + ∑ i, (∑ r, ∑ i', cz r i i' * Algebra.trace Fp Fq (b i' * W r c)) • b' i := by
+    rw [← Finset.sum_add_distrib]
+    exact Finset.sum_congr rfl fun i _ => by rw [mul_comm (w c) (b i), hrep i c hc, add_smul]
+  rw [hsplit, dualBasis_queried_collapse b' cq (fun t => E t c)]
+  congr 1
+  rw [show (∑ i, (∑ r, ∑ i', cz r i i' * Algebra.trace Fp Fq (b i' * W r c)) • b' i)
+      = ∑ r, ∑ i, (∑ i', cz r i i' * Algebra.trace Fp Fq (b i' * W r c)) • b' i from by
+    rw [show (∑ i, (∑ r, ∑ i', cz r i i' * Algebra.trace Fp Fq (b i' * W r c)) • b' i)
+        = ∑ i, ∑ r, (∑ i', cz r i i' * Algebra.trace Fp Fq (b i' * W r c)) • b' i from
+      Finset.sum_congr rfl fun i _ => by rw [Finset.sum_smul], Finset.sum_comm]]
+  exact Finset.sum_congr rfl fun r _ => channel_term_collapse b (W r) (cz r) c (hdescent r)
+
 /-- **Protocol form kills `range pinFold`** (the `H`-target's necessity / easy
 direction): a `w` in protocol form pairs to zero against every view-vanishing
 mask-fold. Indeed `pinFold κ` is *itself* protocol-killed
