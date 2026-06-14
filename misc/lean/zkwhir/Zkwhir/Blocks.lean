@@ -326,6 +326,69 @@ theorem vandermonde_coeffs_zero {F : Type*} [Field F] {ι : Type*} [Fintype ι]
     omega
   rw [h k hkc, mul_zero]
 
+/-- **Every exponent below `2^m` is a subset-sum** (`lem:noother` exponent
+surjectivity): for `k < 2^m` there is a subset `T ⊆ Fin m` with `∑_{i∈T} 2^i = k`
+(binary representation). So the exponents `n(T)` of the eqPoly moments range over
+all of `{0,…,2^m−1}`, giving every Vandermonde row `(z^k)_{k<2^m}` and hence the
+full Vandermonde system once `#ι ≤ 2^m`. -/
+theorem exists_subset_sum_two_pow {m k : ℕ} (hk : k < 2 ^ m) :
+    ∃ T : Finset (Fin m), ∑ i ∈ T, 2 ^ (i : ℕ) = k := by
+  classical
+  refine ⟨Finset.univ.filter (fun i : Fin m => k.testBit i), ?_⟩
+  rw [Finset.sum_filter,
+    Fin.sum_univ_eq_sum_range (fun j => if k.testBit j then 2 ^ j else 0) m,
+    ← Finset.sum_filter]
+  have hset : (Finset.range m).filter (fun j => k.testBit j) = k.bitIndices.toFinset := by
+    ext j
+    simp only [Finset.mem_filter, Finset.mem_range, List.mem_toFinset, Nat.mem_bitIndices]
+    constructor
+    · exact fun h => h.2
+    · intro h
+      refine ⟨?_, h⟩
+      by_contra hjm
+      push_neg at hjm
+      have hf : k.testBit j = false :=
+        Nat.testBit_eq_false_of_lt (lt_of_lt_of_le hk (Nat.pow_le_pow_right (by norm_num) hjm))
+      simp [hf] at h
+  rw [hset, List.sum_toFinset _ Nat.bitIndices_nodup]
+  exact Nat.sum_map_two_pow_bitIndices k
+
+/-- **The `pow`-point eqPoly weights are linearly independent** (`lem:noother`,
+full-cube form): if the nodes `z_t` are distinct and there are at most `2^m` of
+them, then the weight functions `c ↦ êq(pow(z_t,·), c)` on `Cube m` are linearly
+independent — a vanishing `F`-combination forces all coefficients to vanish.
+Assembled from the moment identity (`sum_eqPoly_powSeq_mul_subsetIndicator`), the
+exponent surjectivity (`exists_subset_sum_two_pow`) and the Vandermonde engine
+(`vandermonde_coeffs_zero`): the `T`-moment of the vanishing combination is exactly
+the power sum `∑_t a_t·z_t^{n(T)}`, which therefore vanishes for every `k = n(T) <
+2^m`, so all `a_t = 0`. This is the channel-independence that makes the confine
+slice-coefficients unique (hence `Fp`-linear) and so extractable by the
+trace-duality tools. -/
+theorem eqPoly_powSeq_linearIndependent {F : Type*} [Field F] {m : ℕ} {ι : Type*}
+    [Fintype ι] [DecidableEq ι] (z : ι → F) (hz : Function.Injective z)
+    (hcard : Fintype.card ι ≤ 2 ^ m) (a : ι → F)
+    (hsum : ∀ c : Cube m, ∑ t, a t * eqPoly (powSeq (z t) m) c = 0) :
+    a = 0 := by
+  refine vandermonde_coeffs_zero z hz a (fun k hk => ?_)
+  obtain ⟨T, hT⟩ := exists_subset_sum_two_pow (m := m) (k := k) (lt_of_lt_of_le hk hcard)
+  have hmom : ∀ t, z t ^ k
+      = ∑ c : Cube m, eqPoly (powSeq (z t) m) c * ∏ i ∈ T, (if c i then (1 : F) else 0) := by
+    intro t; rw [sum_eqPoly_powSeq_mul_subsetIndicator, hT]
+  calc ∑ t, a t * z t ^ k
+      = ∑ t, ∑ c : Cube m,
+          a t * (eqPoly (powSeq (z t) m) c * ∏ i ∈ T, (if c i then (1 : F) else 0)) := by
+        refine Finset.sum_congr rfl fun t _ => ?_
+        rw [hmom t, Finset.mul_sum]
+    _ = ∑ c : Cube m, ∑ t,
+          a t * (eqPoly (powSeq (z t) m) c * ∏ i ∈ T, (if c i then (1 : F) else 0)) :=
+        Finset.sum_comm
+    _ = ∑ c : Cube m, (∏ i ∈ T, (if c i then (1 : F) else 0)) *
+          (∑ t, a t * eqPoly (powSeq (z t) m) c) := by
+        refine Finset.sum_congr rfl fun c _ => ?_
+        rw [Finset.mul_sum]
+        exact Finset.sum_congr rfl fun t _ => by ring
+    _ = 0 := Finset.sum_eq_zero fun c _ => by rw [hsum c, mul_zero]
+
 /-! ## The cell polynomials
 
 `êq(pow(x, j), c)`, as a polynomial in `x`: the univariate face of a position
