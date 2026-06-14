@@ -4689,6 +4689,31 @@ theorem exists_dual_of_not_spread [FiniteDimensional (Fp P) Fq]
   obtain ⟨s, hs⟩ := hc φ hne
   exact hs (hφ s)
 
+/-- **`¬tail-SPREAD ⟹` a nonzero functional vanishes on all head-erased weights** (the
+tail-SPREAD measure entry point): if the head-erased "tail" product family does not span
+`Fq` over `Fp`, there is a nonzero `Fp`-functional `φ` killing every tail product. The
+tail-SPREAD failure measure then bounds, by a union over such `φ`, the probability that
+`φ` vanishes on all tail products. A generic span/annihilator argument (mirrors
+`exists_dual_of_not_spread`). -/
+theorem exists_dual_of_not_tail_spread [FiniteDimensional (Fp P) Fq]
+    (h : Submodule.span (Fp P) (Set.range
+      (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} =>
+        ∏ i ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+          (if s.val i then ch.α i else 1 - ch.α i))) ≠ ⊤) :
+    ∃ φ : Module.Dual (Fp P) Fq, φ ≠ 0 ∧
+      ∀ s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true},
+        φ (∏ i ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+          (if s.val i then ch.α i else 1 - ch.α i)) = 0 := by
+  by_contra hc
+  push_neg at hc
+  apply h
+  rw [← Submodule.dualAnnihilator_eq_bot_iff, eq_bot_iff]
+  intro φ hφ
+  rw [Submodule.mem_bot]
+  by_contra hne
+  obtain ⟨s, hs⟩ := hc φ hne
+  exact hs ((Submodule.mem_dualAnnihilator φ).mp hφ _ (Submodule.subset_span ⟨s, rfl⟩))
+
 /-- **SPREAD dual characterization** (`lem:span`, iff form): the SPREAD condition
 `span(êq(α,·)) = ⊤` holds iff the only `Fp`-functional on `Fq` vanishing on every
 `êq(α,s)` weight is `0`. Packages `dual_eq_zero_of_spread` and `spread_of_dual`. -/
