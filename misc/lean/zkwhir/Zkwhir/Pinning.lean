@@ -883,6 +883,25 @@ theorem crossForm_ne_zero_of_minor (δ δ'' : Cell P → Fp P) (θ : Fin 2 → F
   push_neg at h
   exact hθ (crossForm_eq_zero_pair_imp_theta_zero P Fq Dom ch δ δ'' θ hminor h.1 h.2)
 
+/-- **`cond:cross2` conclusion in the `prop:pinbound` form**: a view-vanishing
+witness pair `κ, κ''` with a nonzero `2×2` node minor certifies that, for every
+`θ ≠ 0`, the pure node form `∑_j θ_j η_j` is nonzero on some view-vanishing
+mask-fold — i.e. it does not lie in `ann(W')`. The value-row Schwartz–Zippel
+argument supplies the witness pair; this packages the consequence. -/
+theorem cond_cross2_conclusion (κ κ'' : viewKer P Fq Dom S ch)
+    (θ : Fin 2 → Fq) (hθ : θ ≠ 0)
+    (hminor :
+      nodePair P Fq Dom ch (assemble P 0 (-κ.1)) 0 (eqPoly ch.α) *
+          nodePair P Fq Dom ch (assemble P 0 (-κ''.1)) 1 (eqPoly ch.α) -
+        nodePair P Fq Dom ch (assemble P 0 (-κ.1)) 1 (eqPoly ch.α) *
+          nodePair P Fq Dom ch (assemble P 0 (-κ''.1)) 0 (eqPoly ch.α) ≠ 0) :
+    ∃ ν : viewKer P Fq Dom S ch,
+      crossForm P Fq Dom ch (assemble P 0 (-ν.1)) θ ≠ 0 := by
+  rcases crossForm_ne_zero_of_minor P Fq Dom ch (assemble P 0 (-κ.1))
+    (assemble P 0 (-κ''.1)) θ hθ hminor with h | h
+  · exact ⟨κ, h⟩
+  · exact ⟨κ'', h⟩
+
 /-- `nodePair` is additive in the perturbation table. -/
 theorem nodePair_add_table (δ δ' : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
