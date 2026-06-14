@@ -3596,6 +3596,15 @@ theorem alphaMonomial_false : alphaMonomial P Fq Dom ch (fun _ => false) = 1 := 
   unfold alphaMonomial
   rw [Finset.filter_false_of_mem (fun i _ => by simp), Finset.prod_empty]
 
+/-- The singleton-subset monomial at `k` is the generator `α_k`. So each `α_k` lies
+in `range alphaMonomial` (hence in `span_Fp(range alphaMonomial)`). -/
+theorem alphaMonomial_single (k : Fin P.k₀) :
+    alphaMonomial P Fq Dom ch (fun i => i == k) = ch.α k := by
+  unfold alphaMonomial
+  have hf : Finset.univ.filter (fun i => (i == k) = true) = {k} := by
+    ext i; simp [Finset.mem_filter, Finset.mem_singleton, beq_iff_eq]
+  rw [hf, Finset.prod_singleton]
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
