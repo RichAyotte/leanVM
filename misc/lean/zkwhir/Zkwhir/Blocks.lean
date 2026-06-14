@@ -291,6 +291,25 @@ theorem basis_trace_smul_collapse {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra
   · intro σ _ hσ; rw [hvanish σ hσ, zero_mul]
   · intro h; exact absurd (Finset.mem_univ 1) h
 
+/-- **Galois automorphisms are linearly independent** (Dedekind/Artin): if a finite
+`Fq`-combination of the field automorphisms `σ ∈ Gal(Fq/Fp)` vanishes as a function
+(`∑_σ c_σ·σ(x) = 0 ∀x`), then all coefficients `c_σ = 0`. Specialises
+`linearIndependent_monoidHom` (distinct monoid homs into a domain are independent) to
+the Galois group. This is the uniqueness of conjugate decompositions underlying the
+Galois descent — the conjugate weights `{σ(W)}` carry independent coefficients. -/
+theorem aut_sum_eq_zero {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] (c : (Fq ≃ₐ[Fp] Fq) → Fq)
+    (h : ∀ x : Fq, ∑ σ : Fq ≃ₐ[Fp] Fq, c σ * σ x = 0) :
+    c = 0 := by
+  have hinj : Function.Injective (fun σ : Fq ≃ₐ[Fp] Fq => (σ : Fq →* Fq)) :=
+    fun σ τ hστ => AlgEquiv.ext (fun x => DFunLike.congr_fun hστ x)
+  have hLI : LinearIndependent Fq (fun σ : Fq ≃ₐ[Fp] Fq => ((σ : Fq →* Fq) : Fq → Fq)) :=
+    (linearIndependent_monoidHom Fq Fq).comp _ hinj
+  funext σ
+  refine Fintype.linearIndependent_iff.mp hLI c ?_ σ
+  funext x
+  simpa [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using h x
+
 /-- The `pow`-point commutes with scalar extension. -/
 theorem powSeq_algebraMap {R A : Type*} [CommRing R] [CommRing A] [Algebra R A]
     (z : R) (j : ℕ) :
