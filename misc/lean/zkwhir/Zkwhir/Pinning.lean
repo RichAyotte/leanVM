@@ -3749,6 +3749,28 @@ theorem assemble_primalMask_nonblock (v ρ : Cube P.k₀ → Cube P.m → Fp P)
   show -(if IsBlockPos P c then -(v s c) else -(ρ s c)) = ρ s c
   rw [if_neg hc, neg_neg]
 
+/-- **The primal mask cell value** (`cond:pinning` construction, unified form): after
+`assemble P 0 (-·)` the cell `(s, c)` reads the block fiber `v` on block positions,
+the `R_out` mask `ρ` on non-block `s₀ = true` positions, and `0` on the non-block
+`s₀ = false` (data) positions. This is the single foundational identity underneath
+the queried/node/message view analysis. -/
+theorem assemble_primalMask_value (v ρ : Cube P.k₀ → Cube P.m → Fp P)
+    (s : Cube P.k₀) (c : Cube P.m) :
+    assemble P 0 (- primalMask P v ρ) (s, c) =
+      if IsBlockPos P c then v s c
+      else if s ⟨0, P.k₀_pos⟩ = true then ρ s c else 0 := by
+  by_cases hc : IsBlockPos P c
+  · rw [if_pos hc, assemble_primalMask_block P v ρ hc s]
+  · rw [if_neg hc]
+    by_cases hs : s ⟨0, P.k₀_pos⟩ = true
+    · rw [if_pos hs, assemble_primalMask_nonblock P v ρ hc hs]
+    · rw [if_neg hs]
+      have hsf : s ⟨0, P.k₀_pos⟩ = false := by
+        cases h : s ⟨0, P.k₀_pos⟩
+        · rfl
+        · exact absurd h hs
+      exact assemble_zero_nonmask_nonblock P (- primalMask P v ρ) s c hc hsf
+
 /-- **The primal mask realizes the fold `-F`** (`cond:pinning` construction, fold
 half): if the block fibers `v` realize `-F` on block positions via the full SPREAD
 sum and the `R_out` masks `ρ` realize `-F` on non-block positions via the `R_out`
