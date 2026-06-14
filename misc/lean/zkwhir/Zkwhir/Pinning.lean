@@ -3249,4 +3249,20 @@ theorem terminal_pairing_F_decomp (F : Cube P.m → Fq) :
   rw [weight_fold_class_decomp]
   ring
 
+/-- **Protocol-killed linking relation** (`prop:pinbound`): a fold target `F`
+whose terminal pairing vanishes satisfies `A₀·node₀(F) + γ·A₁·node₁(F) +
+γ²·cross(F) = 0`, where `node_j(F) = mle F(z_j^{2^{k₀}})` and `cross(F) =
+∑_c F_c·ŵ(α₀,c)`. This is the exact relation the assembly uses: the terminal
+direction is `(A₀, γA₁, γ²)`-aligned, so once `w`'s node part is `θ`-untwisted
+(`nodechannel_untwisted`), this equation forces `θ` to lie along the terminal,
+absorbing it (the cross trace `tr∘F_θ ≠ 0` for `θ ≠ 0` rules out any other `θ`). -/
+theorem protocol_killed_linking (F : Cube P.m → Fq)
+    (hterm : (∑ c, F c * ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) = 0) :
+    (∑ s, eqPoly ch.α s * eqPoly (powSeq (ch.z 0) P.k₀) s) *
+          mle F (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m)
+      + ch.γ * ((∑ s, eqPoly ch.α s * eqPoly (powSeq (ch.z 1) P.k₀) s) *
+          mle F (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m))
+      + ch.γ ^ 2 * (∑ c, F c * wHat0 P Fq Dom S ch c) = 0 := by
+  rw [← terminal_pairing_F_decomp]; exact hterm
+
 end ZkWhir
