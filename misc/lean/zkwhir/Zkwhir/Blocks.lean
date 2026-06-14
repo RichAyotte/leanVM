@@ -657,6 +657,34 @@ theorem trace_weights_block_indep {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra
   have h1 := congrFun hcoef (r, 1)
   simpa using h1
 
+/-- **Uniqueness of the trace-channel representation over the block** (`lem:noother`,
+the form the extraction consumes): under the same non-conjugacy/budget conditions, the
+`Fq` coefficients `M_r` of a trace-channel sum `∑_r tr(M_r·êq(pow p_r, c))` are uniquely
+determined by its block values. Hence the per-`β` node/zf confine coefficients are
+unique, so — being the unique representation of the `Fp`-linear slice `c↦tr(β w_c)` —
+they are `Fp`-linear in `β` and extractable to uniform `Fq` weights. Difference form of
+`trace_weights_block_indep`. -/
+theorem trace_channel_unique {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [IsGalois Fp Fq] {m a : ℕ} (ham : a ≤ m)
+    {R : Type*} [Fintype R] [DecidableEq R] (p M M' : R → Fq)
+    (hconj : Function.Injective (fun rσ : R × (Fq ≃ₐ[Fp] Fq) => rσ.2 (p rσ.1)))
+    (hp0 : ∀ r, p r ≠ 0)
+    (hcard : Fintype.card (R × (Fq ≃ₐ[Fp] Fq)) ≤ 2 ^ a)
+    (hM : ∀ c ∈ Finset.univ.filter (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true),
+        (∑ r, Algebra.trace Fp Fq (M r * eqPoly (powSeq (p r) m) c))
+          = ∑ r, Algebra.trace Fp Fq (M' r * eqPoly (powSeq (p r) m) c)) :
+    M = M' := by
+  funext r
+  have h0 : ∀ r, M r - M' r = 0 := by
+    refine trace_weights_block_indep ham p (fun r => M r - M' r) hconj hp0 hcard ?_
+    intro c hc
+    rw [show (∑ r, Algebra.trace Fp Fq ((M r - M' r) * eqPoly (powSeq (p r) m) c))
+        = (∑ r, Algebra.trace Fp Fq (M r * eqPoly (powSeq (p r) m) c))
+          - ∑ r, Algebra.trace Fp Fq (M' r * eqPoly (powSeq (p r) m) c) from by
+      rw [← Finset.sum_sub_distrib]
+      exact Finset.sum_congr rfl fun r _ => by rw [sub_mul, map_sub], hM c hc, sub_self]
+  exact sub_eq_zero.mp (h0 r)
+
 /-! ## The cell polynomials
 
 `êq(pow(x, j), c)`, as a polynomial in `x`: the univariate face of a position
