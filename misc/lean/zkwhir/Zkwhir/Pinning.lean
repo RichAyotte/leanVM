@@ -3488,6 +3488,20 @@ theorem one_mem_span_eqPoly :
   rw [← eqPoly_sum_eq_one Fq ch.α]
   exact Submodule.sum_mem _ fun s _ => Submodule.subset_span ⟨s, rfl⟩
 
+/-- **Each SPREAD weight lies in `adjoin{α_i}`** (a step toward `lem:span`):
+`eqPoly α s = ∏_i (s_i ? α_i : 1−α_i)` is a polynomial in the `α_i`, hence lies in
+the `Fp`-subalgebra they generate. So `span_Fp(range êq(α,·)) ⊆ adjoin{α_i}` — the
+SPREAD span sits inside the generated subalgebra (equality with `⊤`, the genericity
+part, requires the `α_i` to generate `Fq` and the square-free monomials to span). -/
+theorem eqPoly_mem_adjoin (s : Cube P.k₀) :
+    eqPoly ch.α s ∈ Algebra.adjoin (Fp P) (Set.range ch.α) := by
+  unfold eqPoly
+  apply prod_mem
+  intro i _
+  by_cases h : s i
+  · rw [if_pos h]; exact Algebra.subset_adjoin ⟨i, rfl⟩
+  · rw [if_neg h]; exact sub_mem (one_mem _) (Algebra.subset_adjoin ⟨i, rfl⟩)
+
 /-- **Queried protocol dual kills `range pinFold`** (`ann(range pinFold) ⊇` protocol
 span, dual form): the queried-eval dual `g ↦ tr(b·mle g(qs_t))` annihilates every
 view-vanishing mask-fold, since `mle(pinFold κ)(qs_t) = 0` (`pinFold_queried_zero`). -/
