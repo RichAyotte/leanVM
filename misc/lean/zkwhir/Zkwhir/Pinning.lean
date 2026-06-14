@@ -4153,6 +4153,26 @@ theorem crossFold_pairing [FiniteDimensional (Fp P) Fq] (ψ : Cube P.m → Fq)
   refine Finset.sum_congr rfl fun c _ => ?_
   rw [← Algebra.smul_def, map_smul]
 
+/-- **`CrossSolve` from confinement-kernel fold surjectivity** (`cond:cross2`, reduction to
+the confine submodule): the confinement kernel `confineKer` (block-supported fibers vanishing
+at the queried points, commitment nodes, *and* `f̂₁` nodes) is *contained* in the
+view-neutral fibers `CrossSolve` needs (which require only queried + commitment nodes). So if
+every fold target `H` is realized by a family of `confineKer` fibers, `CrossSolve` holds. This
+expresses the `cond:cross2` content as surjectivity of the cross fold over the already-defined
+confinement submodule — connecting it to the `lem:confine` machinery. -/
+theorem crossSolve_of_confineFoldSurj
+    (h : ∀ H : Cube P.m → Fq, ∃ δ : Cube P.k₀ → Cube P.m → Fp P,
+        (∀ s, δ s ∈ confineKer P Fq Dom ch) ∧
+        (∀ c, IsBlockPos P c →
+          ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (δ s c) = H c)) :
+    CrossSolve P Fq Dom ch := by
+  intro H
+  obtain ⟨δ, hmem, hfold⟩ := h H
+  refine ⟨δ, fun s c hc => ?_, fun s t => ?_, fun s j => ?_, hfold⟩
+  · exact ((mem_confineKer P Fq Dom ch).mp (hmem s)).1 c hc
+  · exact ((mem_confineKer P Fq Dom ch).mp (hmem s)).2.1 t
+  · exact ((mem_confineKer P Fq Dom ch).mp (hmem s)).2.2.1 j
+
 /-- **`BlockFoldSolve` from the view solve and the cross-coupling** (`cond:cross2`, the
 reduction): if the queried/node view is solvable (`hview`, from `exists_block_fiber` under
 `NodeHyp`) and the cross-coupling holds (`CrossSolve`), then `BlockFoldSolve` holds. Solve
