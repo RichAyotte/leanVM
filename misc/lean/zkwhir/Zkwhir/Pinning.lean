@@ -805,6 +805,28 @@ theorem msgRow_nodeValues (δ : Cell P → Fp P) (ℓ : Fin P.k₀) (y : Fq) :
   unfold msgRow
   rw [hPoly_channel, evalT_eq_sum_classes, evalT_eq_sum_classes]
 
+/-- **A view-vanishing mask's node values kill the ood rows**: since
+`oodAnswer = 0` on `viewKer`, `oodRow_j(V(κ)) = 0`. (The message rows, by
+contrast, are pinned to `−γ²·crossTerm`.) -/
+theorem oodRow_viewKer (κ : viewKer P Fq Dom S ch) (j : Fin 2) :
+    oodRow P Fq Dom ch j
+      (fun s j' => mle (fun c => liftT P Fq (assemble P 0 (-κ.1)) (s, c))
+        (powSeq (ch.z j' ^ 2 ^ P.k₀) P.m)) = 0 := by
+  rw [oodRow_nodeValues]; exact κ.2.ood j
+
+/-- **A view-vanishing mask's message row (at `X = 1`) is pinned to the cross
+term**: since `hPoly = 0` on `viewKer`, `msgRow_ℓ(V(κ)) = −γ²·crossTerm`. This
+exhibits the cross form on the surviving (message) channel — the input to
+`lem:noother`'s membership identity. -/
+theorem msgRow_viewKer_one (κ : viewKer P Fq Dom S ch) (ℓ : Fin P.k₀) :
+    msgRow P Fq Dom ch ℓ 1
+        (fun s j' => mle (fun c => liftT P Fq (assemble P 0 (-κ.1)) (s, c))
+          (powSeq (ch.z j' ^ 2 ^ P.k₀) P.m)) =
+      - (ch.γ ^ 2 * crossTerm P Fq Dom S (assemble P 0 (-κ.1)) ch ℓ 1) := by
+  have h := msgRow_nodeValues P Fq Dom S ch (assemble P 0 (-κ.1)) ℓ 1
+  rw [κ.2.msg1 ℓ] at h
+  exact eq_neg_of_add_eq_zero_left h
+
 /-- **`cond:cross2` injectivity heart (Cramer).** If two mask perturbations
 `δ, δ''` give a nonzero `2×2` node-pairing minor, then the only direction `θ`
 killing `F_θ` at both is `θ = 0` — i.e. `θ ↦ F_θ` is injective. This is the
