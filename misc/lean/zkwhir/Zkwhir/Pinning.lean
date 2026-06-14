@@ -640,6 +640,22 @@ theorem moment_minor_general_isUnit (ζ₁ ζ₂ : Fq)
   rw [moment_minor_det_general]
   exact isUnit_iff_ne_zero.mpr (mul_ne_zero h1 h2)
 
+/-- **Point-coefficients realizing any `(S,R)` target** (`lem:fullslice` Step 2
+solve, complete moment-finding): for an invertible coefficient matrix `M` and
+distinct evaluation points `y`, every target `b` is realized by a `3`-point
+combination `μ` whose moment vector `(∑ₜ μₜ yₜ^h)ₕ` maps to `b` under `M`.
+Combines `exists_mulVec_of_isUnit_det` (matrix solve) with
+`exists_coeffs_of_moments` (Vandermonde inversion). -/
+theorem exists_points_for_target (M : Matrix (Fin 3) (Fin 3) Fq) (hM : IsUnit M.det)
+    (y : Fin 3 → Fq) (hy : Function.Injective y) (b : Fin 3 → Fq) :
+    ∃ μ : Fin 3 → Fq, M.mulVec (fun h => ∑ t, μ t * y t ^ (h : ℕ)) = b := by
+  obtain ⟨m, hm⟩ := exists_mulVec_of_isUnit_det M hM b
+  obtain ⟨μ, hμ⟩ := exists_coeffs_of_moments y hy m
+  refine ⟨μ, ?_⟩
+  have hfun : (fun h : Fin 3 => ∑ t, μ t * y t ^ (h : ℕ)) = m := by
+    funext h; exact hμ h
+  rw [hfun]; exact hm
+
 /-- **The `S`-coefficient is the moment combination of the `eqf` weight**
 (`lem:fullslice` Step 2, tex:577): with moments `m₀ = ∑ μ_t`, `m₁ = ∑ μ_t y_t`,
 the `ρ`-coefficient `momS ζ m₀ m₁` equals `∑_t μ_t · êq(y_t, ζ)`, since the
