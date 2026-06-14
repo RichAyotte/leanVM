@@ -720,6 +720,29 @@ def nodePairTau (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀) : Fq :=
     (ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
       (lamData P Fq Dom ch (ch.z j)) ℓ))
 
+/-- **Inter-level telescoping of the node `ρ`-pairing**: for `m ≤ m'`,
+`⟨ρ_{m'}, V⟩ = ⟨ρ_m, V⟩ + ∑_{m ≤ i < m'} λ_i ⟨τ_i, V⟩`. Supplies the `hρ`
+hypothesis of `eta_match_combo` (consecutive levels give a single tail term). -/
+theorem nodePairRho_diff (δ : Cell P → Fp P) (j : Fin 2) (m m' : Fin P.k₀)
+    (hmm : m ≤ m') :
+    nodePairRho P Fq Dom ch δ j m' =
+      nodePairRho P Fq Dom ch δ j m +
+        ∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < m'),
+          lamData P Fq Dom ch (ch.z j) i * nodePairTau P Fq Dom ch δ j i := by
+  unfold nodePairRho nodePairTau
+  rw [add_assoc]
+  congr 1
+  have hsub : (Finset.univ.filter (fun i : Fin P.k₀ => i < m)) ⊆
+      Finset.univ.filter (fun i : Fin P.k₀ => i < m') := fun i hi =>
+    Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+      lt_of_lt_of_le (Finset.mem_filter.mp hi).2 hmm⟩
+  rw [← Finset.sum_sdiff hsub, add_comm]
+  congr 1
+  apply Finset.sum_congr _ (fun _ _ => rfl)
+  ext i
+  simp only [Finset.mem_sdiff, Finset.mem_filter, Finset.mem_univ, true_and, not_lt]
+  tauto
+
 /-- **The node functional `g^j_ℓ(y)`** in `ρ/τ` shorthand: `⟨ρ, V⟩ + (y − ζ)·⟨τ, V⟩`. -/
 theorem evalT_mixed_rho_tau (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀)
     (y : Fq) :
