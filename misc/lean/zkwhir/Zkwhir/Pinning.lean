@@ -3750,6 +3750,23 @@ theorem span_eqPoly_eq_span_alphaMonomial :
   le_antisymm (span_eqPoly_le_span_alphaMonomial P Fq Dom ch)
     (span_alphaMonomial_le_span_eqPoly P Fq Dom ch)
 
+/-- **SPREAD follows from the degree-1 span** (`lem:span`, sufficient condition):
+if `{1, α₁, …, α_{k₀}}` already spans `Fq` over `Fp`, then the SPREAD condition
+`span(êq(α,·)) = ⊤` holds. Since `1 = alphaMonomial ∅` and each `α_k =
+alphaMonomial {k}` are monomials, the degree-1 set sits inside the monomial span,
+which equals the SPREAD span. This collapses SPREAD to the degree-1 genericity —
+the cleaner statement its measure bound is phrased over. -/
+theorem spread_of_deg1_span
+    (h : Submodule.span (Fp P) (insert (1 : Fq) (Set.range ch.α)) = ⊤) :
+    Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤ := by
+  rw [span_eqPoly_eq_span_alphaMonomial, eq_top_iff, ← h, Submodule.span_le]
+  rintro x hx
+  rcases hx with rfl | ⟨k, rfl⟩
+  · rw [SetLike.mem_coe, ← alphaMonomial_false P Fq Dom ch]
+    exact Submodule.subset_span ⟨_, rfl⟩
+  · rw [SetLike.mem_coe, ← alphaMonomial_single P Fq Dom ch k]
+    exact Submodule.subset_span ⟨_, rfl⟩
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
