@@ -150,4 +150,20 @@ theorem card_dual_eq [FiniteDimensional (Fp P) Fq]
   rw [Module.card_eq_pow_finrank (K := Fp P) (V := Module.Dual (Fp P) Fq),
     Subspace.dual_finrank_eq, ← Module.card_eq_pow_finrank (K := Fp P) (V := Fq)]
 
+/-- **SPREAD failure measure, clean form**: `P[¬SPREAD] ≤ q·(p^{d-1})^{k₀}/q^{k₀}`,
+bounding the `#{φ≠0}` factor of `spread_failure_le` by `#Dual = q` (`card_dual_eq`).
+This is the closed `lem:span` Good-set failure contribution to ε₃. -/
+theorem spread_failure_le' [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Fintype (Module.Dual (Fp P) Fq)] (hcard : Fintype.card (Fp P) = P.p) :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom |
+          Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≠ ⊤} ≤
+      (Fintype.card Fq : ℝ≥0∞) *
+        ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ P.k₀ /
+          (Fintype.card Fq : ℝ≥0∞) ^ P.k₀) := by
+  refine (spread_failure_le P Fq Dom hcard).trans ?_
+  gcongr
+  exact (Finset.card_filter_le _ _).trans_eq
+    (Finset.card_univ.trans (card_dual_eq P Fq))
+
 end ZkWhir
