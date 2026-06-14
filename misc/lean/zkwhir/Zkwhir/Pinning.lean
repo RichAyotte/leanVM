@@ -1112,6 +1112,33 @@ theorem nodeEval_kills_imp_theta_zero (κ κ'' : viewKer P Fq Dom S ch)
   obtain ⟨ν, hν⟩ := nodeEval_not_in_ann P Fq Dom S ch κ κ'' θ hθ hminor
   exact hν (hkill ν)
 
+/-- **Node→terminal absorption** (`prop:pinbound`, cond:cross2): the extracted node
+coefficients `an` are proportional to the terminal's node part `termNode` — `an_j =
+aterm·termNode_j` — provided the residual direction `an − aterm·termNode` kills every
+view-vanishing fold's node-evaluations (and the `cond:cross2` minor is nonzero). This
+is the absorption that removes the separate node channel: `nodeEval_kills_imp_theta_zero`
+forces the residual to vanish, so the node component of the trace-dual `w` is exactly
+`aterm` times the terminal weight's node part. The remaining gap is establishing the
+residual-kills-folds hypothesis (the node-cross coupling `msgRow = −γ²·crossTerm`). -/
+theorem node_absorb_of_kills (κ κ'' : viewKer P Fq Dom S ch)
+    (an termNode : Fin 2 → Fq) (aterm : Fq)
+    (hminor :
+      nodePair P Fq Dom ch (assemble P 0 (-κ.1)) 0 (eqPoly ch.α) *
+          nodePair P Fq Dom ch (assemble P 0 (-κ''.1)) 1 (eqPoly ch.α) -
+        nodePair P Fq Dom ch (assemble P 0 (-κ.1)) 1 (eqPoly ch.α) *
+          nodePair P Fq Dom ch (assemble P 0 (-κ''.1)) 0 (eqPoly ch.α) ≠ 0)
+    (hkill : ∀ ν : viewKer P Fq Dom S ch,
+      (an 0 - aterm * termNode 0) * mle (pinFold P Fq Dom S ch ν) (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m)
+        + (an 1 - aterm * termNode 1) *
+            mle (pinFold P Fq Dom S ch ν) (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m) = 0) :
+    ∀ j, an j = aterm * termNode j := by
+  have hθ := nodeEval_kills_imp_theta_zero P Fq Dom S ch κ κ''
+    (fun j => an j - aterm * termNode j) hminor hkill
+  intro j
+  have hj := congrFun hθ j
+  simp only [Pi.zero_apply, sub_eq_zero] at hj
+  exact hj
+
 /-- `nodePair` is additive in the perturbation table. -/
 theorem nodePair_add_table (δ δ' : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
