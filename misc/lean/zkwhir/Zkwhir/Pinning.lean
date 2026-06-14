@@ -3427,6 +3427,19 @@ theorem queried_zf_part_vanishes (F : Cube P.m → Fq) (aq : Fin P.t₀ → Fq)
     rw [← Finset.sum_add_distrib]; exact Finset.sum_congr rfl fun c _ => by ring,
     queried_part_vanishes P Fq Dom ch F aq hq, zf_part_vanishes P Fq Dom ch F az hz, add_zero]
 
+/-- **Terminal channel vanishes on a protocol-killed `F`** (`prop:pinbound`
+channel-wiring step): the terminal weight `∑_s êq(α,s)·W₀(s,·)`, scaled by `aterm`
+and paired against `F`, vanishes when `F`'s terminal pairing is zero. Completes the
+channel trio (queried + zf via `queried_zf_part_vanishes`, terminal here), so the
+full protocol-form expression pairs to zero against any protocol-killed `F`. -/
+theorem terminal_part_vanishes (F : Cube P.m → Fq) (aterm : Fq)
+    (hterm : (∑ c, F c * ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) = 0) :
+    (∑ c, aterm * (∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) * F c) = 0 := by
+  rw [show (∑ c, aterm * (∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) * F c)
+      = aterm * (∑ c, F c * ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) from by
+    rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun c _ => by ring,
+    hterm, mul_zero]
+
 /-- **Final step of the `prop:pinbound` assembly**: once the trace-dual `w` is in
 *protocol form* — a queried combination, a `zf` combination, and a single multiple
 `aterm` of the terminal weight `∑_s êq(α,s)W₀(s,·)` (the node part having been
