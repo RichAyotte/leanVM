@@ -268,6 +268,27 @@ theorem eqPoly_Rout_span {R : Type*} [Field R] {j : ℕ} (α : Fin (j + 1) → R
     rw [smul_smul, inv_mul_cancel₀ hα0, one_smul]]
   exact Submodule.smul_mem _ _ (Submodule.subset_span ⟨x, rfl⟩)
 
+/-- **The `R_out` half spans over the base field** (`cond:pinning` non-block solvability,
+the form the fold realization needs): for `α : Fin (j+1) → Fq` with `α 0 ≠ 0` and the tail
+eqPoly family spanning `Fq` *over `Fp`*, the `R_out` weight family `{êq(α, cons true s)}`
+spans `Fq` over `Fp`. Each `R_out` weight is `α 0 ·` (a tail eqPoly), and multiplication by
+`α 0` is an `Fp`-linear bijection of `Fq` (surjective since `α 0 ≠ 0`), so it carries the
+top span to the top span. This is what `exists_pointwise_span_solution` consumes (masks
+are `Fp`-valued, the fold is `Fq`-valued). Note the element-wise argument fails here —
+`α 0 ⁻¹ ∉ Fp` — so the `Fp`-linear `mulLeft` map is essential. -/
+theorem eqPoly_Rout_span_base {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq] {j : ℕ}
+    (α : Fin (j + 1) → Fq) (hα0 : α 0 ≠ 0)
+    (htail : Submodule.span Fp (Set.range (eqPoly (Fin.tail α))) = ⊤) :
+    Submodule.span Fp (Set.range (fun s : Cube j => eqPoly α (Fin.cons true s))) = ⊤ := by
+  have hg : (fun s : Cube j => eqPoly α (Fin.cons true s))
+      = (LinearMap.mulLeft Fp (α 0)) ∘ eqPoly (Fin.tail α) := by
+    funext s
+    rw [eqPoly_head_factor]
+    simp [Fin.cons_zero, Fin.tail_cons, Function.comp_apply, LinearMap.mulLeft_apply]
+  rw [hg, Set.range_comp, ← Submodule.map_span, htail, Submodule.map_top]
+  exact LinearMap.range_eq_top.mpr (fun y => ⟨(α 0)⁻¹ * y, by
+    rw [LinearMap.mulLeft_apply, ← mul_assoc, mul_inv_cancel₀ hα0, one_mul]⟩)
+
 /-- **Trace of a channel weight is a sum over conjugate eqPoly weights** (`lem:noother`
 linchpin): for a Galois extension `Fq/Fp`, `algebraMap (tr(M·êq(pow z, c))) = ∑_σ
 σ(M)·êq(pow(σ z), c)` over the Galois group. Combines `trace_eq_sum_automorphisms`
