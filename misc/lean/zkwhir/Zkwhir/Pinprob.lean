@@ -385,6 +385,24 @@ theorem challenge_alpha0_zero_le :
     rwa [Set.mem_singleton_iff] at hx0
   · norm_num
 
+/-- **`R_out`-SPREAD failure measure** (`εSPREAD` glue): combining the split
+`not_Rout_spread_subset` with the head bound `challenge_alpha0_zero_le`, the `R_out`-SPREAD
+failure is at most `1/q` (the `α₀ = 0` head event) plus the tail-SPREAD failure. Reduces
+`εSPREAD` to the single remaining head-erased tail-SPREAD measure. -/
+theorem Rout_spread_failure_le :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+          (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)} ≤
+      (1 : ℝ≥0∞) / (Fintype.card Fq : ℝ≥0∞) +
+      (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+          (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} =>
+            ∏ i ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+              (if s.val i then ch.α i else 1 - ch.α i))) = ⊤)} := by
+  refine (MeasureTheory.measure_mono (not_Rout_spread_subset P Fq Dom)).trans ?_
+  refine (MeasureTheory.measure_union_le _ _).trans (add_le_add ?_ le_rfl)
+  exact challenge_alpha0_zero_le P Fq Dom
+
 /-- **`GoodSetAbsorption` from the component measure bounds** (the final-assembly
 skeleton): combining the node, two-point-rank, `R_out`-SPREAD, and `cond:cross2`
 (`BlockFoldSolve`) failure bounds with the absorption assembly
