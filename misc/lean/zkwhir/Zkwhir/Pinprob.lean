@@ -141,6 +141,36 @@ theorem spread_failure_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
           spread_term_le P Fq Dom hcard (Finset.mem_filter.mp hφ).2
     _ = _ := by rw [Finset.sum_const, nsmul_eq_mul]
 
+/-- **Uniform-`α` inner bound for `hker`** (fixed `j`, `c`, with `c_{r₀} ≠ 0`): under
+a uniform `α`, the probability that `∑_r c_r(α_m^{p^r} − powz_m) = 0` holds at every
+coordinate `m > 0` is at most `(p^{d-1}/q)^{|m>0|}`. Combines `uniform_pi_subset`
+(joint over the `m>0` coordinates) with the per-coordinate root bound
+`hker_root_card_le`. -/
+theorem uniform_hker_term [DecidableEq Fq] (powz : Fin P.k₀ → Fq)
+    (c : Fin (Module.finrank (Fp P) Fq) → Fq) (r₀ : Fin (Module.finrank (Fp P) Fq))
+    (hcr : c r₀ ≠ 0) :
+    (PMF.uniformOfFintype (Fin P.k₀ → Fq)).toOuterMeasure
+      {α : Fin P.k₀ → Fq | ∀ m : Fin P.k₀, (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m →
+        ∑ r, c r * (α m ^ P.p ^ (r : ℕ) - powz m) = 0} ≤
+      (P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^
+          (Finset.univ.filter (fun m : Fin P.k₀ => (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m)).card /
+        (Fintype.card Fq : ℝ≥0∞) ^
+          (Finset.univ.filter (fun m : Fin P.k₀ => (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m)).card := by
+  classical
+  have hp1 : 1 < P.p := P.pPrime.one_lt
+  have hset : {α : Fin P.k₀ → Fq | ∀ m : Fin P.k₀, (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m →
+        ∑ r, c r * (α m ^ P.p ^ (r : ℕ) - powz m) = 0}
+      = {α : Fin P.k₀ → Fq | ∀ m ∈ Finset.univ.filter
+          (fun m : Fin P.k₀ => (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m),
+          α m ∈ Finset.univ.filter
+            (fun x : Fq => ∑ r, c r * (x ^ P.p ^ (r : ℕ) - powz m) = 0)} := by
+    ext α
+    simp only [Set.mem_setOf_eq, Finset.mem_filter, Finset.mem_univ, true_and]
+  rw [hset]
+  refine le_of_le_of_eq (uniform_pi_subset _ _ (P.p ^ (Module.finrank (Fp P) Fq - 1))
+    (fun m _ => hker_root_card_le hp1 c r₀ hcr (powz m))) ?_
+  rw [Nat.cast_pow]
+
 /-- **The dual space has `q` elements** (`#Dual = #Fq`): both are `p^d`-element
 `Fp`-spaces of the same dimension `d`. Used to simplify the SPREAD measure's
 `#{φ≠0}` factor to `≤ q`, giving `P[¬SPREAD] ≤ q·(p^{d-1})^{k₀}/q^{k₀} = p^{d-k₀}`. -/
