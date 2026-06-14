@@ -341,6 +341,24 @@ theorem trace_eq_zero_iff {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
   rw [Algebra.traceForm_apply, mul_comm]
   exact h a
 
+/-- **A trace component killed by an isolating fold family vanishes** (`lem:noother`
+descent mechanism): if a family of "fold pairings" `foldVal` is annihilated by `φ`
+(all `foldVal g = 0`) and the family *isolates* the trace pairing against `x` (for
+every `v` some fold realizes `foldVal g = tr(v·x)`), then `x = 0`. This is the precise
+reduction of the Galois-descent condition (a conjugate component of the trace-dual `w`
+vanishes) to the value-row surjectivity (`range pinFold` reaches arbitrary evaluations
+at the conjugate points — supplied by the CRT value-row, whose budget counts the `d`
+Galois conjugates). The deep content lives in discharging the isolation hypothesis. -/
+theorem eq_zero_of_trace_isolation {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq] (x : Fq) {ι : Type*}
+    (foldVal : ι → Fp) (hkill : ∀ g, foldVal g = 0)
+    (hisol : ∀ v : Fq, ∃ g, foldVal g = Algebra.trace Fp Fq (v * x)) :
+    x = 0 := by
+  rw [trace_eq_zero_iff (Fp := Fp)]
+  intro a
+  obtain ⟨g, hg⟩ := hisol a
+  rw [← hg]; exact hkill g
+
 /-- **Trace-form separates points** (`lem:noother` block conclusion): if `β·x` and
 `β·y` have equal trace for every `β`, then `x = y`. This is the nondegeneracy step
 that upgrades the per-`β` slice agreement `tr(β·w_c₀) = tr(β·(protocol)_c₀)`
