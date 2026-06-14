@@ -4186,6 +4186,28 @@ theorem crossSolve_of_confineFoldSurj
   · exact ((mem_confineKer P Fq Dom ch).mp (hmem s)).2.1 t
   · exact ((mem_confineKer P Fq Dom ch).mp (hmem s)).2.2.1 j
 
+/-- **Confinement-kernel fold surjectivity** (`cond:cross2`, the measured predicate): every
+fold target is realized by a family of confinement-kernel fibers. By
+`crossSolve_of_confineFoldSurj` this implies `CrossSolve`, so it is the sharper Good-set
+predicate whose failure measure bounds `P[¬CrossSolve]`. -/
+def ConfineFoldSurj : Prop :=
+  ∀ H : Cube P.m → Fq, ∃ δ : Cube P.k₀ → Cube P.m → Fp P,
+    (∀ s, δ s ∈ confineKer P Fq Dom ch) ∧
+    (∀ c, IsBlockPos P c →
+      ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (δ s c) = H c)
+
+/-- **`CrossSolve` failure is covered by confinement-fold-surjectivity failure**
+(`cond:cross2`, measure bridge): since `ConfineFoldSurj → CrossSolve`
+(`crossSolve_of_confineFoldSurj`), the `CrossSolve` failure event lies in the
+`ConfineFoldSurj` failure event — reducing the sole remaining measure `P[¬CrossSolve]` to
+`P[¬ConfineFoldSurj]`, the confinement-kernel cross-fold non-surjectivity. -/
+theorem not_crossSolve_subset :
+    {ch : Challenges P Fq Dom | ¬ CrossSolve P Fq Dom ch} ⊆
+      {ch : Challenges P Fq Dom | ¬ ConfineFoldSurj P Fq Dom ch} := by
+  intro ch hch
+  simp only [Set.mem_setOf_eq] at hch ⊢
+  exact fun h => hch (crossSolve_of_confineFoldSurj P Fq Dom ch h)
+
 /-- **`BlockFoldSolve` from the view solve and the cross-coupling** (`cond:cross2`, the
 reduction): if the queried/node view is solvable (`hview`, from `exists_block_fiber` under
 `NodeHyp`) and the cross-coupling holds (`CrossSolve`), then `BlockFoldSolve` holds. Solve
