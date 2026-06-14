@@ -3562,6 +3562,21 @@ theorem traceDual_unique [FiniteDimensional (Fp P) Fq] [Algebra.IsSeparable (Fp 
   rw [e w, e w'] at hg
   rw [mul_sub, map_sub, mul_comm a (w c0), mul_comm a (w' c0), hg, sub_self]
 
+/-- **eqPoly at a boolean point is a Kronecker delta** (the MLE basis property):
+`eqPoly (boolToFq c) b = [b = c]`. The multilinear weights `êq(·, b)` evaluated at a
+boolean coordinate vector pick out the matching cube vertex — a basic fact for
+boolean-point evaluations of folds and the witness constructions. -/
+theorem eqPoly_boolPoint {j : ℕ} (c b : Cube j) :
+    eqPoly (fun i => if c i then (1 : Fq) else 0) b = if b = c then 1 else 0 := by
+  unfold eqPoly
+  have hfac : ∀ i, (if b i then (if c i then (1 : Fq) else 0)
+        else (1 - if c i then (1 : Fq) else 0)) = if b i = c i then 1 else 0 := by
+    intro i; cases b i <;> cases c i <;> simp
+  simp_rw [hfac]
+  rw [Finset.prod_boole]
+  congr 1
+  simp [funext_iff]
+
 /-- **Queried protocol dual kills `range pinFold`** (`ann(range pinFold) ⊇` protocol
 span, dual form): the queried-eval dual `g ↦ tr(b·mle g(qs_t))` annihilates every
 view-vanishing mask-fold, since `mle(pinFold κ)(qs_t) = 0` (`pinFold_queried_zero`). -/
