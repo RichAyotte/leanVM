@@ -1069,6 +1069,28 @@ theorem cond_cross2_conclusion (κ κ'' : viewKer P Fq Dom S ch)
   · exact ⟨κ, h⟩
   · exact ⟨κ'', h⟩
 
+/-- **No pure node-eval direction annihilates `range pinFold`** (the absorption's
+heart): the cross form on a view-vanishing fold *is* the `θ`-weighted node-eval of
+that fold (`crossForm_eq_fold`: `F_θ(assemble(-ν)) = θ₀·mle(pinFold ν)(z₀^{2^{k₀}})
++ θ₁·mle(pinFold ν)(z₁^{2^{k₀}})`). So `cond:cross2` (a witness pair with nonzero
+`2×2` minor) gives, for every `θ ≠ 0`, a fold on which the node-eval functional is
+nonzero — i.e. `θ₀·(z₀-eval) + θ₁·(z₁-eval) ∉ ann(range pinFold)`. This forces `φ`'s
+node-eval component to be tied to the terminal direction (the only protocol
+direction carrying the nodes), which is the content of the `H` absorption. -/
+theorem nodeEval_not_in_ann (κ κ'' : viewKer P Fq Dom S ch)
+    (θ : Fin 2 → Fq) (hθ : θ ≠ 0)
+    (hminor :
+      nodePair P Fq Dom ch (assemble P 0 (-κ.1)) 0 (eqPoly ch.α) *
+          nodePair P Fq Dom ch (assemble P 0 (-κ''.1)) 1 (eqPoly ch.α) -
+        nodePair P Fq Dom ch (assemble P 0 (-κ.1)) 1 (eqPoly ch.α) *
+          nodePair P Fq Dom ch (assemble P 0 (-κ''.1)) 0 (eqPoly ch.α) ≠ 0) :
+    ∃ ν : viewKer P Fq Dom S ch,
+      θ 0 * mle (pinFold P Fq Dom S ch ν) (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m)
+        + θ 1 * mle (pinFold P Fq Dom S ch ν) (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m) ≠ 0 := by
+  obtain ⟨ν, hν⟩ := cond_cross2_conclusion P Fq Dom S ch κ κ'' θ hθ hminor
+  refine ⟨ν, ?_⟩
+  rwa [crossForm_eq_fold] at hν
+
 /-- `nodePair` is additive in the perturbation table. -/
 theorem nodePair_add_table (δ δ' : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
