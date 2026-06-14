@@ -969,6 +969,19 @@ theorem msgRow_viewKer_one (κ : viewKer P Fq Dom S ch) (ℓ : Fin P.k₀) :
   rw [κ.2.msg1 ℓ] at h
   exact eq_neg_of_add_eq_zero_left h
 
+/-- **A view-vanishing mask's message row at `X = 2` is pinned to the cross term**
+(the `X = 2` companion of `msgRow_viewKer_one`): since `hPoly = 0` on `viewKer`,
+`msgRow_ℓ(V(κ)) = −γ²·crossTerm` at `X = 2`. The assembly's moment system at the
+top levels uses both message evaluations (`X = 1` and `X = 2`). -/
+theorem msgRow_viewKer_two (κ : viewKer P Fq Dom S ch) (ℓ : Fin P.k₀) :
+    msgRow P Fq Dom ch ℓ 2
+        (fun s j' => mle (fun c => liftT P Fq (assemble P 0 (-κ.1)) (s, c))
+          (powSeq (ch.z j' ^ 2 ^ P.k₀) P.m)) =
+      - (ch.γ ^ 2 * crossTerm P Fq Dom S (assemble P 0 (-κ.1)) ch ℓ 2) := by
+  have h := msgRow_nodeValues P Fq Dom S ch (assemble P 0 (-κ.1)) ℓ 2
+  rw [κ.2.msg2 ℓ] at h
+  exact eq_neg_of_add_eq_zero_left h
+
 /-- **`cond:cross2` injectivity heart (Cramer).** If two mask perturbations
 `δ, δ''` give a nonzero `2×2` node-pairing minor, then the only direction `θ`
 killing `F_θ` at both is `θ = 0` — i.e. `θ ↦ F_θ` is injective. This is the
