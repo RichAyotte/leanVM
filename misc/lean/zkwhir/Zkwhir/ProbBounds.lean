@@ -102,6 +102,20 @@ theorem uniform_toOuterMeasure_le {α : Type*} [Fintype α] [Nonempty α]
       ≤ (k : ℝ≥0∞) * (Fintype.card α : ℝ≥0∞)⁻¹ := by gcongr
     _ = (k : ℝ≥0∞) / Fintype.card α := rfl
 
+/-- **Degree of a linearized (`q`-)polynomial** `∑_{r<d} c_r·X^{p^r}` is `≤ p^{d-1}`:
+each term `C(c_r)·X^{p^r}` has degree `≤ p^r ≤ p^{d-1}` (`r < d`). This bounds the
+root count of `hker`'s per-`c` linearized polynomial via `card_roots_le`. -/
+theorem linComb_natDegree_le {F : Type*} [Field F] {p d : ℕ} (hp : 1 ≤ p)
+    (c : Fin d → F) :
+    (∑ r : Fin d, Polynomial.C (c r) * Polynomial.X ^ p ^ (r : ℕ)).natDegree
+      ≤ p ^ (d - 1) := by
+  refine Polynomial.natDegree_sum_le_of_forall_le _ _ (fun r _ => ?_)
+  calc (Polynomial.C (c r) * Polynomial.X ^ p ^ (r : ℕ)).natDegree
+      ≤ p ^ (r : ℕ) :=
+        le_trans (Polynomial.natDegree_C_mul_le _ _)
+          (le_of_eq (Polynomial.natDegree_X_pow _))
+    _ ≤ p ^ (d - 1) := Nat.pow_le_pow_right hp (Nat.le_sub_one_of_lt r.isLt)
+
 /-- Any finite set of roots of a nonzero polynomial is bounded by its
 degree. -/
 theorem card_roots_le {F : Type*} [Field F] (g : Polynomial F) (hg : g ≠ 0)
