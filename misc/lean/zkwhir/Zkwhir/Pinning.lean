@@ -4087,6 +4087,25 @@ theorem not_rowSurj_subset :
   simp only [Set.mem_setOf_eq] at hch ⊢
   exact fun hli => hch (rowSurj_of_rowsLI P Fq Dom ch hli)
 
+/-- **`R_out`-SPREAD failure splits into head and tail** (`lem:span`, `R_out` form, measure
+bridge): by `eqPoly_Rout_span_sub`, the `R_out` weight span is `⊤` whenever `α₀ ≠ 0` and the
+head-erased "tail" product family spans. So the `R_out`-SPREAD failure event lies in the
+union of `{α₀ = 0}` (a single degree-1 event, measure `1/q`) and the tail-SPREAD failure.
+This is the subset feeding the `εSPREAD` summand of the `ε₃` bound. -/
+theorem not_Rout_spread_subset :
+    {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+        (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)} ⊆
+      {ch : Challenges P Fq Dom | ch.α ⟨0, P.k₀_pos⟩ = 0} ∪
+      {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+        (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} =>
+          ∏ i ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+            (if s.val i then ch.α i else 1 - ch.α i))) = ⊤)} := by
+  intro ch hch
+  by_contra hmem
+  simp only [Set.mem_union, Set.mem_setOf_eq, not_or, not_not] at hmem
+  obtain ⟨hα0, htail⟩ := hmem
+  exact hch (eqPoly_Rout_span_sub (Fp := Fp P) P.k₀_pos ch.α hα0 htail)
+
 /-- **Single-channel block extraction** (`lem:noother`, the extraction mechanism fully
 assembled): if on a set `S` the trace-slices of `w` are represented through one
 trace-channel `tr(bᵢ·w_c) = ∑_{i'} cz_{i,i'}·tr(b_{i'}·W_c)`, and the Galois-descent
