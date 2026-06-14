@@ -3620,6 +3620,21 @@ theorem exists_trace_rep_family [FiniteDimensional (Fp P) Fq]
   choose a ha using fun t => exists_trace_rep_single P Fq (L t)
   exact ⟨a, ha⟩
 
+/-- **Non-block fold realization** (`cond:pinning` non-block step): given `α 0 ≠ 0` and
+the tail eqPoly family spanning `Fq` over `Fp`, *any* target fold `G : Cube m → Fq` is
+realized by `R_out` mask values `x` (base-field, per cell): `∑_s algebraMap(x_s,c)·êq(α,
+cons true s) = G c`. Composes `eqPoly_Rout_span_base` (the `R_out` half spans over `Fp`)
+with `exists_pointwise_span_solution` (pointwise base-field solve). This is the non-block
+half of the primal `Pinning` mask construction — the `R_out` cells realize an arbitrary
+fold on the non-block positions. -/
+theorem exists_Rout_fold {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq] {j m : ℕ}
+    (α : Fin (j + 1) → Fq) (hα0 : α 0 ≠ 0)
+    (htail : Submodule.span Fp (Set.range (eqPoly (Fin.tail α))) = ⊤) (G : Cube m → Fq) :
+    ∃ x : Cube j → Cube m → Fp, ∀ c,
+      ∑ s : Cube j, algebraMap Fp Fq (x s c) * eqPoly α (Fin.cons true s) = G c :=
+  exists_pointwise_span_solution (fun s : Cube j => eqPoly α (Fin.cons true s))
+    (eqPoly_Rout_span_base α hα0 htail) G
+
 /-- **Single-channel block extraction** (`lem:noother`, the extraction mechanism fully
 assembled): if on a set `S` the trace-slices of `w` are represented through one
 trace-channel `tr(bᵢ·w_c) = ∑_{i'} cz_{i,i'}·tr(b_{i'}·W_c)`, and the Galois-descent
