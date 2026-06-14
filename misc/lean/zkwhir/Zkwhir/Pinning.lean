@@ -3606,6 +3606,36 @@ theorem channel_term_collapse {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp 
     refine Finset.sum_congr rfl fun i _ => ?_
     rw [← Algebra.smul_def, smul_smul, mul_comm (Algebra.trace Fp Fq (b i' * W c)) (cz i i')]
 
+/-- **Per-channel term, fully Galois-expanded** (`lem:noother`, the unconditional
+conjugate decomposition the descent operates on): the dual-basis recombination of one
+trace-channel equals `∑_σ (∑_{i'} D_{i'}·σ(b_{i'}))·σ(W_c)` — a combination over the
+Galois group of the *conjugate* weights `σ(W_c)`, weighted by the Moore coefficients
+`∑_{i'} D_{i'}·σ(b_{i'})` (`D_{i'} = ∑ᵢ cz_{i,i'}•b'ᵢ`). The descent condition is exactly
+that the `σ ≠ 1` Moore coefficients vanish, leaving the clean identity term
+(`channel_term_collapse`); this lemma makes that "before descent" structure explicit. -/
+theorem channel_term_galois {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq] [IsGalois Fp Fq] {m : ℕ}
+    {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ Fp Fq)
+    (W : Cube m → Fq) (cz : ιβ → ιβ → Fp) (c : Cube m) :
+    (∑ i, (∑ i', cz i i' * Algebra.trace Fp Fq (b i' * W c)) •
+        (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+          (traceForm_nondegenerate Fp Fq) b) i)
+      = ∑ σ : Fq ≃ₐ[Fp] Fq, (∑ i', (∑ i, cz i i' •
+          (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+            (traceForm_nondegenerate Fp Fq) b) i) * σ (b i')) * σ (W c) := by
+  classical
+  set b' := LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+    (traceForm_nondegenerate Fp Fq) b with hb'
+  rw [show (∑ i, (∑ i', cz i i' * Algebra.trace Fp Fq (b i' * W c)) • b' i)
+      = ∑ i', algebraMap Fp Fq (Algebra.trace Fp Fq (b i' * W c)) * (∑ i, cz i i' • b' i) from ?_]
+  · exact basis_trace_smul_galois (fun i => b i) (fun i' => ∑ i, cz i i' • b' i) (W c)
+  · simp_rw [Finset.sum_smul]
+    rw [Finset.sum_comm]
+    refine Finset.sum_congr rfl fun i' _ => ?_
+    rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun i _ => ?_
+    rw [← Algebra.smul_def, smul_smul, mul_comm (Algebra.trace Fp Fq (b i' * W c)) (cz i i')]
+
 /-- **Multi-channel block extraction** (`lem:noother`, the full block shape): if the
 trace-slice of `w` is represented through a *family* of trace-channels `tr(bᵢ·w_c) =
 ∑_r ∑_{i'} cz_{r,i,i'}·tr(b_{i'}·W_r(c))` on the block, and the Galois-descent condition
