@@ -334,6 +334,26 @@ theorem channel_identity_of_viewKer (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S
   exact hPoly_eq_zero_of_msgs P Fq Dom S (assemble P 0 (-κ.1)) ch h2
     hmsg0 κ.2.msg1 κ.2.msg2 ℓ y
 
+/-- **The cross term is minus the node part** (the fold identity isolated): for a
+view-vanishing mask `κ`, the channel identity rearranges to
+`γ²·crossTerm = −(node₀ + γ·node₁)` at every `(ℓ, y)`, where `node_j` is the
+`prefixFactor·evalT` term at commitment node `j`. This is the precise link the
+`prop:pinbound` absorption combines with the node channel (`nodechannel_untwisted`)
+and the cross nonvanishing (`cond:cross2`): the cross channel of a view-vanishing
+mask is fully determined by its node channel. -/
+theorem gamma2_crossTerm_eq_neg_node (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (κ : viewKer P Fq Dom S ch) (ℓ : Fin P.k₀) (y : Fq) :
+    ch.γ ^ 2 * crossTerm P Fq Dom S (assemble P 0 (-κ.1)) ch ℓ y =
+      -(prefixFactor P Fq Dom ch ℓ y (powSeq (ch.z 0) P.k₀) *
+          evalT P Fq (assemble P 0 (-κ.1))
+            (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z 0) P.k₀))
+            (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m) +
+        ch.γ * (prefixFactor P Fq Dom ch ℓ y (powSeq (ch.z 1) P.k₀) *
+          evalT P Fq (assemble P 0 (-κ.1))
+            (mixedPoint P Fq Dom ch ℓ y (powSeq (ch.z 1) P.k₀))
+            (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m))) :=
+  eq_neg_of_add_eq_zero_right (channel_identity_of_viewKer P Fq Dom S ch h2 hmf κ ℓ y)
+
 /-- **The μ-combined `(ℓ, y)`-family** (`lem:fullslice` Step 2, opening): summing
 `channel_identity_of_viewKer` against weights `w` over points `pts` keeps the
 identity at the level of the three weighted sums. Feeding the first two through
