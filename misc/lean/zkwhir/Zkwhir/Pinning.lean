@@ -3647,6 +3647,45 @@ theorem alphaMonomial_split (t : Finset (Fin P.k₀)) (e : Cube P.k₀) :
   rw [alphaMonomial_eq_prod_ite,
     ← Finset.prod_filter_mul_prod_filter_not Finset.univ (· ∈ t), h1, h2]
 
+/-- **`eqPoly` lies in the span of square-free `α`-monomials** (`lem:span`
+change-of-basis, `⊆` direction): expanding `eqPoly α s = ∏ (factor)` via
+`eqPoly_factor_split` and `Finset.prod_add` writes it as an `Fp`-combination of
+`alphaMonomial`s — each `prod_add` term is either `0` (a coordinate forced off) or
+`(±1)·alphaMonomial e` (via `alphaMonomial_split`). Hence
+`span_Fp(range êq(α,·)) ≤ span_Fp(range alphaMonomial)`. -/
+theorem eqPoly_mem_span_alphaMonomial (s : Cube P.k₀) :
+    eqPoly ch.α s ∈ Submodule.span (Fp P) (Set.range (alphaMonomial P Fq Dom ch)) := by
+  have hsplit : eqPoly ch.α s =
+      ∏ i, ((if s i then ch.α i else 1) + (if s i then (0 : Fq) else -ch.α i)) := by
+    rw [eqPoly]; exact Finset.prod_congr rfl fun i _ => eqPoly_factor_split Fq (ch.α i) (s i)
+  rw [hsplit, Finset.prod_add]
+  refine Submodule.sum_mem _ fun t _ => ?_
+  by_cases hcase : ∃ i ∈ Finset.univ \ t, s i = true
+  · obtain ⟨i, hit, hsi⟩ := hcase
+    rw [Finset.prod_eq_zero hit (by simp [hsi]), mul_zero]
+    exact Submodule.zero_mem _
+  · push_neg at hcase
+    set e : Cube P.k₀ := fun i => if i ∈ t then s i else true with he
+    have hb : (∏ i ∈ Finset.univ \ t, (if s i then (0 : Fq) else -ch.α i))
+        = (-1) ^ (Finset.univ \ t).card * ∏ i ∈ Finset.univ \ t, ch.α i := by
+      rw [Finset.prod_congr rfl (fun i hi => if_neg (hcase i hi)),
+        show (∏ i ∈ Finset.univ \ t, -ch.α i) = ∏ i ∈ Finset.univ \ t, (-1) * ch.α i from
+          Finset.prod_congr rfl fun i _ => (neg_one_mul _).symm,
+        Finset.prod_mul_distrib, Finset.prod_const]
+    have hmono : alphaMonomial P Fq Dom ch e
+        = (∏ i ∈ t, (if s i then ch.α i else 1)) * ∏ i ∈ Finset.univ \ t, ch.α i := by
+      rw [alphaMonomial_split P Fq Dom ch t e]
+      congr 1
+      · exact Finset.prod_congr rfl fun i hi => by simp only [he]; rw [if_pos hi]
+      · exact Finset.prod_congr rfl fun i hi => by
+          simp only [he]; rw [if_neg (Finset.mem_sdiff.mp hi).2, if_pos rfl]
+    have key : (∏ i ∈ t, (if s i then ch.α i else 1)) *
+        (∏ i ∈ Finset.univ \ t, (if s i then (0 : Fq) else -ch.α i))
+        = ((-1 : Fp P) ^ (Finset.univ \ t).card) • alphaMonomial P Fq Dom ch e := by
+      rw [hb, hmono, Algebra.smul_def, map_pow, map_neg, map_one]; ring
+    rw [key]
+    exact Submodule.smul_mem _ _ (Submodule.subset_span ⟨e, rfl⟩)
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
