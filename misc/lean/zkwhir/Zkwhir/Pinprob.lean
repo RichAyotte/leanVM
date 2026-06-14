@@ -445,6 +445,19 @@ theorem challenge_alpha0_zero_le :
     rwa [Set.mem_singleton_iff] at hx0
   · norm_num
 
+/-- **`BlockFoldSolve` failure measure** (`εBFS`, reduced to `cond:cross2`): by
+`not_blockFoldSolve_subset`, the `BlockFoldSolve` failure is covered by `¬NodeHyp` and
+`¬CrossSolve`, so its measure is at most `P[¬NodeHyp] + P[¬CrossSolve]`. With `P[¬NodeHyp]`
+already bounded (`ε₁`, `nodeHyp_failure_le`), the *only* remaining probability bound in the
+entire campaign is `P[¬CrossSolve]` — the `cond:cross2` measure. -/
+theorem blockFoldSolve_failure_le (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a) :
+    (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ BlockFoldSolve P Fq Dom ch} ≤
+      (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ NodeHyp P Fq Dom ch} +
+      (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ CrossSolve P Fq Dom ch} :=
+  (MeasureTheory.measure_mono (not_blockFoldSolve_subset P Fq Dom hdom hbudget)).trans
+    (MeasureTheory.measure_union_le _ _)
+
 /-- **Tail-SPREAD failure union bound** (the tail-SPREAD measure skeleton): the probability
 that the head-erased tail family misses `⊤` is at most the sum, over nonzero `Fp`-functionals
 `φ`, of `P[φ` vanishes on every tail product`]`. By `exists_dual_of_not_tail_spread`, every
