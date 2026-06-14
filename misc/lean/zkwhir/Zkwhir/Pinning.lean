@@ -3647,6 +3647,25 @@ theorem exists_full_fold {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq] {
       ∑ s : Cube k, algebraMap Fp Fq (x s c) * eqPoly α s = G c :=
   exists_pointwise_span_solution (eqPoly α) hspread G
 
+/-- **Non-block fold realization, `R_out`-subtype form** (`cond:pinning` non-block step,
+matching `pinFold_nonblock_eq`): given the `R_out`-SPREAD condition, any target fold `G`
+is realized by `R_out` mask values per cell. Built by a manual per-cell
+`span_top_solve_algebra` loop (lighter than the general `exists_pointwise_span_solution`,
+which `isDefEq`-times-out over this subtype). This is the form `pinFold_nonblock_eq`
+consumes for the non-block half of the coupled primal-`Pinning` construction. -/
+theorem exists_Rout_fold_sub
+    (hRout : Submodule.span (Fp P) (Set.range
+      (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)
+    (G : Cube P.m → Fq) :
+    ∃ x : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} → Cube P.m → Fp P, ∀ c,
+      ∑ s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true},
+        algebraMap (Fp P) Fq (x s c) * eqPoly ch.α s.val = G c := by
+  classical
+  choose lam hlam using fun c =>
+    span_top_solve_algebra (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} =>
+      eqPoly ch.α s.val) hRout (G c)
+  exact ⟨fun s c => lam c s, fun c => hlam c⟩
+
 /-- **Single-channel block extraction** (`lem:noother`, the extraction mechanism fully
 assembled): if on a set `S` the trace-slices of `w` are represented through one
 trace-channel `tr(bᵢ·w_c) = ∑_{i'} cz_{i,i'}·tr(b_{i'}·W_c)`, and the Galois-descent
