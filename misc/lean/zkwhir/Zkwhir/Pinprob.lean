@@ -524,6 +524,23 @@ theorem Rout_spread_failure_le :
   refine (MeasureTheory.measure_union_le _ _).trans (add_le_add ?_ le_rfl)
   exact challenge_alpha0_zero_le P Fq Dom
 
+/-- **`R_out`-SPREAD failure measure, closed form** (`εSPREAD`, fully reduced): combining
+`Rout_spread_failure_le` (head split) with the assembled tail bound
+`tail_spread_failure_le`, the `R_out`-SPREAD failure has measure at most
+`1/q + #{φ≠0}·(p^{d-1})^{k₀-1}/q^{k₀-1}` (no remaining tail hypotheses besides field-card
+facts). This fully discharges the `εSPREAD` obligation. -/
+theorem Rout_spread_failure_le_closed [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Fintype (Module.Dual (Fp P) Fq)] (hcard : Fintype.card (Fp P) = P.p) :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+          (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)} ≤
+      1 / (Fintype.card Fq : ℝ≥0∞) +
+        ((Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0)).card : ℝ≥0∞) *
+          ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ (P.k₀ - 1) /
+            (Fintype.card Fq : ℝ≥0∞) ^ (P.k₀ - 1)) :=
+  (Rout_spread_failure_le P Fq Dom).trans
+    (add_le_add le_rfl (tail_spread_failure_le P Fq Dom hcard))
+
 /-- **Row-dependence failure measure** (`εrow`, the two-point-rank `ε₂` term): composing
 `not_rowsLI_subset` with the coupled-genericity bound `coupledGen_failure_le`, the
 `rowWeights` linear-dependence event has measure at most `1/q + k₀·d/q` (the `γ = 0` event
