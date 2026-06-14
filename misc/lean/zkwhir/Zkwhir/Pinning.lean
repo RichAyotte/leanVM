@@ -3485,6 +3485,30 @@ theorem pinning_of_traceDualProtocolForm [FiniteDimensional (Fp P) (Cube P.m →
   obtain ⟨aq, az, aterm, hform⟩ := H' φ hφ w hw
   exact ⟨w, aq, az, aterm, hw, hform⟩
 
+/-- **Queried-channel trace identity** (`lem:noother` extraction, queried part):
+since the queried points `qs_t` are `Fp`-rational, the protocol queried weight
+`êq(powSeq(algebraMap qs_t), ·)` is the `algebraMap` of the `Fp`-weight
+`êq(powSeq(qs_t), ·)`. Hence the trace of `β` against an `Fq`-combination of these
+weights pulls each (central, `Fp`) weight out of the trace: `tr(β·∑ₜ aqₜ·êq_Fq) =
+∑ₜ êq_Fp·tr(β·aqₜ)`. This is exactly the shape of the queried term in
+`confine_slice_coeffs` (`∑ₜ Cq(β)ₜ·êq_Fp`), so matching coefficients identifies
+`Cq(β)ₜ = tr(β·aqₜ)` — the bridge from the confine's `Fp`-coefficients to the
+protocol form's uniform `Fq`-coefficient `aqₜ` (via the `1`-dim trace duality). -/
+theorem trace_smul_block_queried [FiniteDimensional (Fp P) Fq]
+    (β : Fq) (aq : Fin P.t₀ → Fq) (c0 : Cube P.m) :
+    Algebra.trace (Fp P) Fq (β * ∑ t, aq t *
+        eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c0) =
+      ∑ t, eqPoly (powSeq (ch.qs t : Fp P) P.m) c0 *
+        Algebra.trace (Fp P) Fq (β * aq t) := by
+  rw [Finset.mul_sum, map_sum]
+  refine Finset.sum_congr rfl fun t _ => ?_
+  have he : eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c0
+      = algebraMap (Fp P) Fq (eqPoly (powSeq (ch.qs t : Fp P) P.m) c0) := by
+    rw [powSeq_algebraMap, eqPoly_algebraMap]
+  rw [he, show β * (aq t * algebraMap (Fp P) Fq (eqPoly (powSeq (ch.qs t : Fp P) P.m) c0))
+      = algebraMap (Fp P) Fq (eqPoly (powSeq (ch.qs t : Fp P) P.m) c0) * (β * aq t) from by ring,
+    ← Algebra.smul_def, map_smul, smul_eq_mul]
+
 /-- **Protocol form kills `range pinFold`** (the `H`-target's necessity / easy
 direction): a `w` in protocol form pairs to zero against every view-vanishing
 mask-fold. Indeed `pinFold κ` is *itself* protocol-killed
