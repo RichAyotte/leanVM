@@ -33,4 +33,24 @@ theorem termslice_hyp_failure_le [Nonempty Fq] [DecidableEq Fq] (c0 : Cube P.m)
   simp_rw [wHat0_eq_mle]
   exact challenge_mle_α_zero_le P Fq Dom hw
 
+/-- **Per-coordinate dual-vanishing bound** (SPREAD measure): for a fixed nonzero
+`Fp`-functional `φ` on `Fq`, the coordinate event `φ(α_i) = 0` has probability at
+most `p^{d-1}/q = 1/p` over the challenges (the kernel `{a | φ a = 0}` has
+`≤ p^{d-1}` elements, `card_filter_dual_zero_le`). This is the per-functional,
+per-coordinate input to the SPREAD-failure union bound. -/
+theorem challenge_alpha_dual_zero_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    (i : Fin P.k₀) (hcard : Fintype.card (Fp P) = P.p)
+    {φ : Module.Dual (Fp P) Fq} (hφ : φ ≠ 0) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | φ (ch.α i) = 0} ≤
+      (P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞) := by
+  classical
+  refine challenge_α_coord_le P Fq Dom i (fun _ => {a : Fq | φ a = 0}) _ (fun z => ?_)
+  refine (uniform_pi_coord_le (ι := Fin P.k₀) i {a : Fq | φ a = 0}
+    (P.p ^ (Module.finrank (Fp P) Fq - 1)) (fun s hs => ?_)).trans ?_
+  · have hsub : s ⊆ Finset.univ.filter (fun a : Fq => φ a = 0) := by
+      intro a ha; rw [Finset.mem_filter]; exact ⟨Finset.mem_univ a, hs a ha⟩
+    exact le_trans (Finset.card_le_card hsub) (card_filter_dual_zero_le P Fq hcard hφ)
+  · simp [fieldCard]
+
 end ZkWhir
