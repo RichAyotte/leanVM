@@ -1498,6 +1498,17 @@ theorem crossTerm_zero (ℓ : Fin P.k₀) (y : Fq) :
     rw [liftT_zero]; unfold partialEval; simp
   rw [hpe, zero_mul]
 
+/-- The cross channel distributes over a finite sum of perturbation tables
+(`Fp`-linearity in finitary form, from `crossTerm_add_table`/`crossTerm_zero`). -/
+theorem crossTerm_sum {ι : Type*} [DecidableEq ι] (s : Finset ι)
+    (f : ι → Cell P → Fp P) (ℓ : Fin P.k₀) (y : Fq) :
+    crossTerm P Fq Dom S (∑ i ∈ s, f i) ch ℓ y =
+      ∑ i ∈ s, crossTerm P Fq Dom S (f i) ch ℓ y := by
+  induction s using Finset.induction with
+  | empty => simp [crossTerm_zero]
+  | insert a s ha ih =>
+    rw [Finset.sum_insert ha, crossTerm_add_table, ih, Finset.sum_insert ha]
+
 /-- **The single-class block probe mask**: place `−v` on the block of class `s`. -/
 def blockClassMask (s : Cube P.k₀) (v : Cube P.m → Fp P) : MaskAssign P :=
   fun u => if u.1.1 = s then -(v u.1.2) else 0
