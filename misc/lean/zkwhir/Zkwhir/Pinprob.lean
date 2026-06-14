@@ -74,6 +74,22 @@ theorem challenge_alpha_all_dual_zero_le [Nonempty Fq] [FiniteDimensional (Fp P)
   rw [Fintype.card_fin, Nat.cast_pow] at h
   simpa only [Set.mem_setOf_eq] using h
 
+/-- **Each SPREAD-failure union term is bounded** by the joint coordinate event:
+`A_φ = {φ` vanishes on every `êq(α,s)}` is contained in `{∀i φ(α_i)=0}`, because
+each `α_i = ∑_{s≥i} êq(α,s)` lies in `span(êq(α,·))` (the change-of-basis
+`alphaMonomial_eq_sum_eqPoly`). So `P[A_φ] ≤ (p^{d-1})^{k₀}/q^{k₀}`. -/
+theorem spread_term_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    (hcard : Fintype.card (Fp P) = P.p) {φ : Module.Dual (Fp P) Fq} (hφ : φ ≠ 0) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ∀ s, φ (eqPoly ch.α s) = 0} ≤
+      (P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ P.k₀ /
+        (Fintype.card Fq : ℝ≥0∞) ^ P.k₀ := by
+  refine le_trans (MeasureTheory.measure_mono ?_)
+    (challenge_alpha_all_dual_zero_le P Fq Dom hcard hφ)
+  intro ch hch i
+  rw [← alphaMonomial_single P Fq Dom ch i, alphaMonomial_eq_sum_eqPoly, map_sum]
+  exact Finset.sum_eq_zero fun s _ => hch s
+
 /-- **SPREAD-failure union bound** (the SPREAD measure skeleton): the probability
 that the SPREAD span misses `⊤` is at most the sum, over nonzero `Fp`-functionals
 `φ` on `Fq` (a finite set), of `P[φ` vanishes on every `êq(α,s)]`. By
