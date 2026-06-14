@@ -3634,6 +3634,19 @@ theorem alphaMonomial_eq_prod_ite (e : Cube P.k₀) :
   unfold alphaMonomial
   rw [Finset.prod_filter]
 
+/-- **The `α`-monomial splits along a subset** `t`: `alphaMonomial e =
+(∏_{i∈t} ite)·(∏_{i∉t} ite)`. The reusable splitter the change-of-basis expansion
+needs to match each `Finset.prod_add` term `(∏_t a)·(∏_{univ∖t} b)` to a monomial. -/
+theorem alphaMonomial_split (t : Finset (Fin P.k₀)) (e : Cube P.k₀) :
+    alphaMonomial P Fq Dom ch e =
+      (∏ i ∈ t, if e i then ch.α i else 1) *
+        (∏ i ∈ Finset.univ \ t, if e i then ch.α i else 1) := by
+  have h1 : Finset.univ.filter (· ∈ t) = t := by ext i; simp
+  have h2 : Finset.univ.filter (fun i => ¬ i ∈ t) = Finset.univ \ t := by
+    ext i; simp [Finset.mem_sdiff]
+  rw [alphaMonomial_eq_prod_ite,
+    ← Finset.prod_filter_mul_prod_filter_not Finset.univ (· ∈ t), h1, h2]
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
