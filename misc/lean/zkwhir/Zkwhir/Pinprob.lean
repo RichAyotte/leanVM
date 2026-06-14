@@ -171,6 +171,26 @@ theorem uniform_hker_term [DecidableEq Fq] (powz : Fin P.k₀ → Fq)
     (fun m _ => hker_root_card_le hp1 c r₀ hcr (powz m))) ?_
   rw [Nat.cast_pow]
 
+/-- **Per-`(j,c)` term of the `hker` measure** (challenge form): for a fixed node
+`j` and coefficient vector `c` with `c_{r₀} ≠ 0`, the probability over the challenges
+that `∑_r c_r(α_m^{p^r} − powz_j(m)) = 0` at every `m > 0` is at most
+`(p^{d-1}/q)^{|m>0|}`. Lifts `uniform_hker_term` over the challenge measure via the
+`z`-dependent marginal `challenge_alpha_joint_le`. -/
+theorem challenge_hker_term_le [DecidableEq Fq] (j : Fin 2)
+    (c : Fin (Module.finrank (Fp P) Fq) → Fq) (r₀ : Fin (Module.finrank (Fp P) Fq))
+    (hcr : c r₀ ≠ 0) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ∀ m : Fin P.k₀, (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m →
+        ∑ r, c r * (ch.α m ^ P.p ^ (r : ℕ) - powSeq (ch.z j) P.k₀ m) = 0} ≤
+      (P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^
+          (Finset.univ.filter (fun m : Fin P.k₀ => (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m)).card /
+        (Fintype.card Fq : ℝ≥0∞) ^
+          (Finset.univ.filter (fun m : Fin P.k₀ => (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m)).card :=
+  challenge_alpha_joint_le P Fq Dom
+    (fun z => {α : Fin P.k₀ → Fq | ∀ m : Fin P.k₀, (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m →
+      ∑ r, c r * (α m ^ P.p ^ (r : ℕ) - powSeq (z j) P.k₀ m) = 0}) _
+    (fun z => uniform_hker_term P Fq (powSeq (z j) P.k₀) c r₀ hcr)
+
 /-- **The dual space has `q` elements** (`#Dual = #Fq`): both are `p^d`-element
 `Fp`-spaces of the same dimension `d`. Used to simplify the SPREAD measure's
 `#{φ≠0}` factor to `≤ q`, giving `P[¬SPREAD] ≤ q·(p^{d-1})^{k₀}/q^{k₀} = p^{d-k₀}`. -/
