@@ -3686,6 +3686,14 @@ theorem eqPoly_mem_span_alphaMonomial (s : Cube P.k₀) :
     rw [key]
     exact Submodule.smul_mem _ _ (Submodule.subset_span ⟨e, rfl⟩)
 
+/-- **`span(eqPoly) ≤ span(α-monomials)`** (change-of-basis `⊆`, packaged). -/
+theorem span_eqPoly_le_span_alphaMonomial :
+    Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≤
+      Submodule.span (Fp P) (Set.range (alphaMonomial P Fq Dom ch)) := by
+  rw [Submodule.span_le]
+  rintro _ ⟨s, rfl⟩
+  exact eqPoly_mem_span_alphaMonomial P Fq Dom ch s
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
