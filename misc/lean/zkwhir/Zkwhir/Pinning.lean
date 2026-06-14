@@ -4630,6 +4630,71 @@ theorem alpha_eq_sum_eqPoly (i : Fin P.k₀) :
   · intro h; exact h i rfl
   · intro h j hj; rw [hj]; exact h
 
+/-- **The `α`-coordinate as a sum of head-erased tail weights** (`lem:span`, `R_out`
+form): for `i ≠ 0`, `α_i = ∑_{s_i = true, s₀ = true} ∏_{j ≠ 0}(…)` — the head factor
+cancels (`α₀ + (1−α₀) = 1`) when both `s₀` values are summed, via a coordinate-`0` flip
+bijection. So each tail coordinate `α_i` lies in the `Fp`-span of the head-erased tail
+weights; the tail-SPREAD per-`φ` bound applies `φ` to this identity. -/
+theorem alpha_eq_sum_tail (i : Fin P.k₀) (hi : i ≠ ⟨0, P.k₀_pos⟩) :
+    ch.α i = ∑ s ∈ Finset.univ.filter
+        (fun s : Cube P.k₀ => s i = true ∧ s ⟨0, P.k₀_pos⟩ = true),
+      ∏ j ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+        (if s j then ch.α j else 1 - ch.α j) := by
+  classical
+  set i₀ : Fin P.k₀ := ⟨0, P.k₀_pos⟩ with hi₀def
+  set ep : Cube P.k₀ → Fq := fun s => ∏ j ∈ Finset.univ.erase i₀,
+    (if s j then ch.α j else 1 - ch.α j) with hepdef
+  have hep_upd : ∀ (s : Cube P.k₀) (b : Bool), ep (Function.update s i₀ b) = ep s := by
+    intro s b
+    refine Finset.prod_congr rfl fun j hj => ?_
+    rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
+  have heq : ∀ s : Cube P.k₀,
+      eqPoly ch.α s = (if s i₀ then ch.α i₀ else 1 - ch.α i₀) * ep s :=
+    fun s => eqPoly_erase_factor ch.α s i₀
+  rw [alpha_eq_sum_eqPoly P Fq Dom ch i,
+    ← Finset.sum_filter_add_sum_filter_not
+      (Finset.univ.filter (fun s : Cube P.k₀ => s i = true)) (fun s => s i₀ = true)
+      (eqPoly ch.α),
+    Finset.filter_filter, Finset.filter_filter]
+  have h2 : (∑ s ∈ Finset.univ.filter (fun s : Cube P.k₀ => s i = true ∧ ¬ s i₀ = true),
+        eqPoly ch.α s)
+      = ∑ s ∈ Finset.univ.filter (fun s : Cube P.k₀ => s i = true ∧ s i₀ = true),
+          (1 - ch.α i₀) * ep s := by
+    refine Finset.sum_nbij' (fun s => Function.update s i₀ true)
+      (fun s => Function.update s i₀ false) ?_ ?_ ?_ ?_ ?_
+    · intro s hs
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hs
+      simp [Finset.mem_filter, Function.update_of_ne hi, hs.1]
+    · intro s hs
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hs
+      simp [Finset.mem_filter, Function.update_of_ne hi, hs.1]
+    · intro s hs
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hs
+      have hsf : s i₀ = false := by
+        cases hb : s i₀
+        · rfl
+        · exact absurd hb hs.2
+      show Function.update (Function.update s i₀ true) i₀ false = s
+      rw [Function.update_idem, ← hsf, Function.update_eq_self]
+    · intro s hs
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hs
+      show Function.update (Function.update s i₀ false) i₀ true = s
+      rw [Function.update_idem, ← hs.2, Function.update_eq_self]
+    · intro s hs
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hs
+      have hsf : s i₀ = false := by
+        cases hb : s i₀
+        · rfl
+        · exact absurd hb hs.2
+      show eqPoly ch.α s = (1 - ch.α i₀) * ep (Function.update s i₀ true)
+      rw [heq s, hep_upd s true, hsf]
+      simp
+  rw [h2, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun s hs => ?_
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hs
+  rw [heq s, if_pos hs.2]
+  ring
+
 /-- **`span(eqPoly) ≤ span(α-monomials)`** (change-of-basis `⊆`, packaged). -/
 theorem span_eqPoly_le_span_alphaMonomial :
     Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≤
