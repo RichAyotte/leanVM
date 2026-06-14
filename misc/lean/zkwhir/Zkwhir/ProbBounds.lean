@@ -247,6 +247,34 @@ theorem uniform_pi_coord_le {ι β : Type*} [Fintype ι] [DecidableEq ι]
           exact ENNReal.mul_div_mul_right _ _ hq hqtop
       _ ≤ (k : ℝ≥0∞) / (Fintype.card β : ℝ≥0∞) := le_rfl
 
+/-- **Root count of an affine-shifted linearized polynomial** (`hker` per-`c` bound):
+if `c_{r₀} ≠ 0`, the equation `∑_r c_r·x^{p^r} = b` has at most `p^{d-1}` solutions `x`.
+The shifted polynomial `∑ C(c_r)X^{p^r} − C b` is nonzero (its `coeff(p^{r₀}) = c_{r₀}`,
+unaffected by the constant) of degree `≤ p^{d-1}`, so `card_roots_le` applies. -/
+theorem linComb_root_card_le {F : Type*} [Field F] [Fintype F] [DecidableEq F]
+    {p d : ℕ} (hp : 1 < p) (c : Fin d → F) (r₀ : Fin d) (hcr : c r₀ ≠ 0) (b : F) :
+    (Finset.univ.filter (fun x : F => ∑ r, c r * x ^ p ^ (r : ℕ) = b)).card ≤ p ^ (d - 1) := by
+  classical
+  set Q : Polynomial F :=
+    (∑ r : Fin d, Polynomial.C (c r) * Polynomial.X ^ p ^ (r : ℕ)) - Polynomial.C b with hQ
+  have hQ0 : Q ≠ 0 := by
+    intro h
+    apply hcr
+    have hco : Q.coeff (p ^ (r₀ : ℕ)) = c r₀ := by
+      rw [hQ, Polynomial.coeff_sub, linComb_coeff hp c r₀, Polynomial.coeff_C,
+        if_neg (pow_ne_zero _ (by omega)), sub_zero]
+    rw [h, Polynomial.coeff_zero] at hco; exact hco.symm
+  have hdeg : Q.natDegree ≤ p ^ (d - 1) := by
+    rw [hQ]
+    refine le_trans (Polynomial.natDegree_sub_le _ _) ?_
+    rw [Polynomial.natDegree_C]
+    exact max_le (linComb_natDegree_le (le_of_lt hp) c) (Nat.zero_le _)
+  refine le_trans (card_roots_le Q hQ0 _ (fun x hx => ?_)) hdeg
+  rw [Finset.mem_filter] at hx
+  rw [hQ, Polynomial.eval_sub, Polynomial.eval_finset_sum, Polynomial.eval_C]
+  simp only [Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_X]
+  rw [hx.2, sub_self]
+
 /-- **Joint bound over all coordinates for uniform functions**: under a uniform
 `f : ι → β`, the event that *every* coordinate lands in `B` (with `|B| ≤ k`) has
 probability at most `(k / |β|)^{|ι|}`. The event set is the `piFinset` of `B` in
