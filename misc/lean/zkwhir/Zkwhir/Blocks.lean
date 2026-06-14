@@ -210,6 +210,31 @@ theorem eqPoly_algebraMap {R A : Type*} [CommRing R] [CommRing A] [Algebra R A]
   refine Finset.prod_congr rfl fun i _ => ?_
   by_cases hc : c i <;> simp [hc]
 
+/-- **`eqPoly` commutes with any ring hom** (componentwise): `êq(φ∘x, c) = φ(êq(x,c))`.
+Generalises `eqPoly_algebraMap`. With `φ = frobenius` this expresses the Frobenius
+power of an eqPoly weight as the eqPoly weight at the conjugate point — the identity
+that turns the trace of a channel weight into a sum over conjugate eqPoly weights
+(`lem:noother` zf/node Fp-independence). -/
+theorem eqPoly_map {R S : Type*} [CommRing R] [CommRing S] (φ : R →+* S)
+    {j : ℕ} (x : Fin j → R) (c : Cube j) :
+    eqPoly (fun i => φ (x i)) c = φ (eqPoly x c) := by
+  unfold eqPoly
+  rw [map_prod]
+  refine Finset.prod_congr rfl fun i _ => ?_
+  by_cases hc : c i <;> simp [hc]
+
+/-- **The eqPoly weight at a `φ`-conjugate point** (`lem:noother` Frobenius
+expansion): for a ring endomorphism `φ` (e.g. Frobenius `x ↦ x^p`), the eqPoly weight
+at the conjugate `pow`-point `pow(φ z)` is `φ` applied to the eqPoly weight at
+`pow(z)`. With `φ = frobenius^i`, `êq(pow(z^{p^i}), c) = (êq(pow z, c))^{p^i}` — so the
+Frobenius powers of a channel weight are eqPoly weights at the conjugate points, the
+input to expanding `tr(M·W) = ∑ᵢ M^{p^i}·êq(pow(z^{p^i}),·)`. -/
+theorem eqPoly_powSeq_map {R : Type*} [CommRing R] (φ : R →+* R) {j : ℕ} (z : R)
+    (c : Cube j) :
+    eqPoly (powSeq (φ z) j) c = φ (eqPoly (powSeq z j) c) := by
+  rw [show powSeq (φ z) j = fun k => φ (powSeq z j k) from by
+    funext k; simp [powSeq, map_pow], eqPoly_map]
+
 /-- The `pow`-point commutes with scalar extension. -/
 theorem powSeq_algebraMap {R A : Type*} [CommRing R] [CommRing A] [Algebra R A]
     (z : R) (j : ℕ) :
