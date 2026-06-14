@@ -235,6 +235,26 @@ theorem eqPoly_powSeq_map {R : Type*} [CommRing R] (φ : R →+* R) {j : ℕ} (z
   rw [show powSeq (φ z) j = fun k => φ (powSeq z j k) from by
     funext k; simp [powSeq, map_pow], eqPoly_map]
 
+/-- **`R_out` reindexing**: a sum over the half `{s : s 0 = true}` equals a sum over
+`Cube j` via `s ↦ Fin.cons true s`. Connects the construction's non-block fold sum
+(over `R_out` cells) to the `Cube (k₀−1)`-indexed `exists_Rout_fold`. -/
+theorem sum_Rout_eq_sum_tail {R : Type*} [AddCommMonoid R] {j : ℕ} (f : Cube (j + 1) → R) :
+    ∑ s ∈ Finset.univ.filter (fun s : Cube (j + 1) => s 0 = true), f s
+      = ∑ s_rest : Cube j, f (Fin.cons true s_rest) := by
+  classical
+  have hset : (Finset.univ.filter (fun s : Cube (j + 1) => s 0 = true))
+      = Finset.univ.image (fun s_rest : Cube j => Fin.cons true s_rest) := by
+    ext s
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_image]
+    constructor
+    · intro hs0
+      exact ⟨Fin.tail s, by rw [← hs0]; exact Fin.cons_self_tail s⟩
+    · rintro ⟨s_rest, rfl⟩
+      simp
+  rw [hset]
+  exact Finset.sum_image (fun a _ b _ hab => by
+    have h := congrArg Fin.tail hab; simpa using h)
+
 /-- **Head-coordinate factorization of `eqPoly`** (`R_out` structure): peeling the
 first coordinate, `êq(α, s) = (if s 0 then α 0 else 1−α 0)·êq(tail α, tail s)`. With
 `s 0 = true` (the `R_out` half) this is `α 0 · êq(tail α, tail s)`, so the `R_out`
