@@ -363,6 +363,28 @@ theorem pinning_failure_le (hmf : MaskFree P Fq S) :
   refine (MeasureTheory.measure_union_le _ _).trans (add_le_add le_rfl ?_)
   exact MeasureTheory.measure_mono (not_rowSurj_subset P Fq Dom)
 
+/-- **The head challenge `α₀` vanishes with probability `≤ 1/q`** (the head factor of the
+`R_out`-SPREAD split, `not_Rout_spread_subset`): a single uniform `α`-coordinate equals a
+fixed value with probability `1/q`. The degree-1 head event of the `εSPREAD` bound. -/
+theorem challenge_alpha0_zero_le :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ch.α ⟨0, P.k₀_pos⟩ = 0} ≤
+      (1 : ℝ≥0∞) / (Fintype.card Fq : ℝ≥0∞) := by
+  classical
+  refine challenge_α_event_le P Fq Dom (fun α => α ⟨0, P.k₀_pos⟩ = 0) _ ?_
+  have hset : {α : Fin P.k₀ → Fq | α ⟨0, P.k₀_pos⟩ = 0}
+      = {α : Fin P.k₀ → Fq | α ⟨0, P.k₀_pos⟩ ∈ ({0} : Set Fq)} := by
+    ext α; simp
+  rw [hset]
+  refine (uniform_pi_coord_le (⟨0, P.k₀_pos⟩ : Fin P.k₀) ({0} : Set Fq) 1 ?_).trans
+    (le_of_eq ?_)
+  · intro s hs
+    refine (Finset.card_le_card (fun x hx => Finset.mem_singleton.mpr ?_)).trans
+      (by simp : ({0} : Finset Fq).card ≤ 1)
+    have hx0 := hs x hx
+    rwa [Set.mem_singleton_iff] at hx0
+  · norm_num
+
 /-- **`GoodSetAbsorption` from the component measure bounds** (the final-assembly
 skeleton): combining the node, two-point-rank, `R_out`-SPREAD, and `cond:cross2`
 (`BlockFoldSolve`) failure bounds with the absorption assembly
