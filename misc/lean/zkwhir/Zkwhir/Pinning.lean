@@ -3479,4 +3479,13 @@ theorem protocolForm_kills_pinFold (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
     (pinFold_queried_zero P Fq Dom S ch κ) (pinFold_zf_zero P Fq Dom S ch κ)
     (pinFold_terminal_zero P Fq Dom S ch h2 hmf κ)
 
+/-- **`1` lies in the SPREAD span** (a step toward `lem:span`): the `êq(α, ·)`
+weights sum to `1` (`eqPoly_sum_eq_one`), an `Fp`-combination of range elements, so
+`1 ∈ span_Fp(range (êq(α, ·)))`. The full SPREAD condition `span = ⊤` additionally
+needs the `α`-monomials to span `Fq` over `Fp` (the genericity / Good-set part). -/
+theorem one_mem_span_eqPoly :
+    (1 : Fq) ∈ Submodule.span (Fp P) (Set.range (eqPoly ch.α)) := by
+  rw [← eqPoly_sum_eq_one Fq ch.α]
+  exact Submodule.sum_mem _ fun s _ => Submodule.subset_span ⟨s, rfl⟩
+
 end ZkWhir
