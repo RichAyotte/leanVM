@@ -3796,6 +3796,14 @@ theorem exists_dual_of_not_spread [FiniteDimensional (Fp P) Fq]
   obtain ⟨s, hs⟩ := hc φ hne
   exact hs (hφ s)
 
+/-- **SPREAD dual characterization** (`lem:span`, iff form): the SPREAD condition
+`span(êq(α,·)) = ⊤` holds iff the only `Fp`-functional on `Fq` vanishing on every
+`êq(α,s)` weight is `0`. Packages `dual_eq_zero_of_spread` and `spread_of_dual`. -/
+theorem spread_iff_dual [FiniteDimensional (Fp P) Fq] :
+    Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤ ↔
+      ∀ φ : Module.Dual (Fp P) Fq, (∀ s, φ (eqPoly ch.α s) = 0) → φ = 0 :=
+  ⟨fun h φ hφ => dual_eq_zero_of_spread P Fq Dom ch h φ hφ, spread_of_dual P Fq Dom ch⟩
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
