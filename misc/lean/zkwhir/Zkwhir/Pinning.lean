@@ -1091,6 +1091,27 @@ theorem nodeEval_not_in_ann (κ κ'' : viewKer P Fq Dom S ch)
   refine ⟨ν, ?_⟩
   rwa [crossForm_eq_fold] at hν
 
+/-- **A node-eval direction killing every fold is zero** (`cond:cross2`,
+contrapositive of `nodeEval_not_in_ann`): if `θ₀·(z₀-eval) + θ₁·(z₁-eval)` vanishes
+on *all* view-vanishing mask-folds, then `θ = 0`. This is the form the `H`
+absorption uses: `φ`'s node-eval component, being forced to annihilate
+`range pinFold` (everything outside the terminal already accounted for), must have
+trivial direction — so it is exactly the terminal's. -/
+theorem nodeEval_kills_imp_theta_zero (κ κ'' : viewKer P Fq Dom S ch)
+    (θ : Fin 2 → Fq)
+    (hminor :
+      nodePair P Fq Dom ch (assemble P 0 (-κ.1)) 0 (eqPoly ch.α) *
+          nodePair P Fq Dom ch (assemble P 0 (-κ''.1)) 1 (eqPoly ch.α) -
+        nodePair P Fq Dom ch (assemble P 0 (-κ.1)) 1 (eqPoly ch.α) *
+          nodePair P Fq Dom ch (assemble P 0 (-κ''.1)) 0 (eqPoly ch.α) ≠ 0)
+    (hkill : ∀ ν : viewKer P Fq Dom S ch,
+      θ 0 * mle (pinFold P Fq Dom S ch ν) (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m)
+        + θ 1 * mle (pinFold P Fq Dom S ch ν) (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m) = 0) :
+    θ = 0 := by
+  by_contra hθ
+  obtain ⟨ν, hν⟩ := nodeEval_not_in_ann P Fq Dom S ch κ κ'' θ hθ hminor
+  exact hν (hkill ν)
+
 /-- `nodePair` is additive in the perturbation table. -/
 theorem nodePair_add_table (δ δ' : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
