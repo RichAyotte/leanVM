@@ -74,6 +74,42 @@ theorem challenge_alpha_all_dual_zero_le [Nonempty Fq] [FiniteDimensional (Fp P)
   rw [Fintype.card_fin, Nat.cast_pow] at h
   simpa only [Set.mem_setOf_eq] using h
 
+/-- **Tail joint `α`-coordinate dual-vanishing bound** (the tail-SPREAD per-term measure):
+a fixed nonzero `Fp`-functional `φ` vanishes on the `k₀ − 1` tail coordinates `α_i`
+(`i ≠ 0`) with probability at most `(p^{d-1})^{k₀-1}/q^{k₀-1}` — the joint over the tail
+coordinates, via `uniform_pi_subset` and the kernel-card bound `card_filter_dual_zero_le`.
+The tail analogue of `challenge_alpha_all_dual_zero_le`, for the head-erased SPREAD. -/
+theorem challenge_alpha_tail_dual_zero_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    (hcard : Fintype.card (Fp P) = P.p) {φ : Module.Dual (Fp P) Fq} (hφ : φ ≠ 0) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom |
+        ∀ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i ≠ ⟨0, P.k₀_pos⟩),
+          φ (ch.α i) = 0} ≤
+      (P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ (P.k₀ - 1) /
+        (Fintype.card Fq : ℝ≥0∞) ^ (P.k₀ - 1) := by
+  classical
+  refine challenge_α_event_le P Fq Dom
+    (fun α => ∀ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i ≠ ⟨0, P.k₀_pos⟩),
+      φ (α i) = 0) _ ?_
+  have hJcard :
+      (Finset.univ.filter (fun i : Fin P.k₀ => i ≠ ⟨0, P.k₀_pos⟩)).card = P.k₀ - 1 := by
+    rw [Finset.filter_ne' Finset.univ (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+      Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ, Fintype.card_fin]
+  have h := uniform_pi_subset (ι := Fin P.k₀) (β := Fq)
+    (Finset.univ.filter (fun i : Fin P.k₀ => i ≠ ⟨0, P.k₀_pos⟩))
+    (fun _ => Finset.univ.filter (fun a : Fq => φ a = 0))
+    (P.p ^ (Module.finrank (Fp P) Fq - 1))
+    (fun _ _ => card_filter_dual_zero_le P Fq hcard hφ)
+  rw [hJcard, Nat.cast_pow] at h
+  have hset : {α : Fin P.k₀ → Fq |
+        ∀ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i ≠ ⟨0, P.k₀_pos⟩), φ (α i) = 0}
+      = {f : Fin P.k₀ → Fq | ∀ j ∈ Finset.univ.filter (fun i : Fin P.k₀ => i ≠ ⟨0, P.k₀_pos⟩),
+          f j ∈ Finset.univ.filter (fun a : Fq => φ a = 0)} := by
+    ext α
+    simp only [Set.mem_setOf_eq, Finset.mem_filter, Finset.mem_univ, true_and]
+  rw [hset]
+  exact h
+
 /-- **Each SPREAD-failure union term is bounded** by the joint coordinate event:
 `A_φ = {φ` vanishes on every `êq(α,s)}` is contained in `{∀i φ(α_i)=0}`, because
 each `α_i = ∑_{s≥i} êq(α,s)` lies in `span(êq(α,·))` (the change-of-basis
