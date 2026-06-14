@@ -1541,6 +1541,27 @@ theorem crossRest_combine_indep (m ℓ : Fin P.k₀)
   rw [Finset.mem_filter] at hi
   rw [hagree i (by rintro ⟨h1, _⟩; exact absurd (lt_of_lt_of_le hi.2 h1) (lt_irrefl i))]
 
+/-- **The cross form's cell coefficient factors as `E'(π)·G(sr,c)`** with the
+`π` and `(sr,c)` blocks fully separated (`F_θ = γ²·E'(π)·G_θ`, the lem:fullslice
+Step-3 product form on the split domain `ιπ × ιv`): evaluating `crossTerm` at the
+recombined cell `(cellMidCombine π sr, c)` yields the middle product over `π`
+times the rest factor over the canonical block `sr`. Multiplying by `γ²` gives the
+`F π v = γ²·E'(π)·G(v)` hypothesis of `fullslice_step4`/`fullslice_trace_ne_zero`. -/
+theorem crossTerm_combine_factor (m ℓ : Fin P.k₀) (hm : m ≤ ℓ)
+    (π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool)
+    (sr : {i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)} → Bool) (c : Cube P.m) (y : Fq) :
+    crossTerm P Fq Dom S (Pi.single (cellMidCombine P m ℓ π sr, c) 1) ch ℓ y
+      = (∏ j : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ},
+            (if π j then ch.α j.val else 1 - ch.α j.val))
+        * ((if cellMidCombine P m ℓ (fun _ => false) sr ℓ then y else 1 - y) *
+            (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+                (if cellMidCombine P m ℓ (fun _ => false) sr i then ch.α i else 1 - ch.α i)) *
+            partialEval P Fq Dom ch S.w ℓ y
+              (fun i => if i ≤ ℓ then false else cellMidCombine P m ℓ (fun _ => false) sr i) c) := by
+  rw [crossTerm_single_cell_Eprime (P := P) (Fq := Fq) (Dom := Dom) (m := m) (hm := hm),
+    Eprime_subtype_prod, Eprime_combine,
+    crossRest_combine_indep (P := P) (Fq := Fq) (Dom := Dom) (π' := fun _ => false)]
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
