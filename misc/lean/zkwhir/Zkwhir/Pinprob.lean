@@ -420,6 +420,19 @@ theorem rowsLI_failure_le (d : ℕ)
   refine (MeasureTheory.measure_mono (not_rowsLI_subset P Fq Dom)).trans ?_
   exact coupledGen_failure_le Fq P Dom d hγ hslot
 
+/-- **Row-dependence failure measure, closed form** (`εrow`, fully numeric): plugging the
+established `γ = 0` bound (`challenge_gamma_zero_le`) and per-slot determinant bound
+(`slotDet_zero_le`) into `rowsLI_failure_le` gives the closed two-point-rank bound
+`P[¬rowWeights LI] ≤ 1/q + k₀·(2k₀+1+3·2^{k₀-1})/q` (no remaining measure hypotheses
+besides `2 ≠ 0`). This fully discharges the `εrow` obligation. -/
+theorem rowsLI_failure_le_closed [Nonempty Fq] (h2 : (2 : Fq) ≠ 0) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)} ≤
+      1 / (fieldCard Fq : ℝ≥0∞) +
+        (P.k₀ : ℝ≥0∞) * (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1) : ℕ) / (fieldCard Fq : ℝ≥0∞) :=
+  rowsLI_failure_le P Fq Dom (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1))
+    (challenge_gamma_zero_le P Fq Dom) (fun m => slotDet_zero_le P Fq Dom h2 m)
+
 /-- **`GoodSetAbsorption` from the component measure bounds** (the final-assembly
 skeleton): combining the node, two-point-rank, `R_out`-SPREAD, and `cond:cross2`
 (`BlockFoldSolve`) failure bounds with the absorption assembly
