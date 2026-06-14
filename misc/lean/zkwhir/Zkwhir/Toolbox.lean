@@ -633,6 +633,34 @@ theorem dotFunc_single {R ι : Type*} [CommRing R] [Fintype ι] [DecidableEq ι]
   · intro j _ hj; rw [Pi.single_eq_of_ne hj, mul_zero]
   · intro h; exact absurd (Finset.mem_univ i) h
 
+/-- `dotFunc` is `R`-linear in its weight: `dotFunc (∑ₖ μₖ•vₖ) = ∑ₖ μₖ•dotFunc vₖ`. -/
+theorem dotFunc_sum_smul {R ι κ : Type*} [CommRing R] [Fintype ι] [Fintype κ]
+    (μ : κ → R) (v : κ → ι → R) :
+    dotFunc (∑ k, μ k • v k) = ∑ k, μ k • dotFunc (v k) := by
+  ext g
+  rw [LinearMap.sum_apply, dotFunc_apply]
+  simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, LinearMap.smul_apply, dotFunc_apply]
+  rw [show (∑ i, (∑ k, μ k * v k i) * g i) = ∑ i, ∑ k, μ k * v k i * g i from
+      Finset.sum_congr rfl fun i _ => by rw [Finset.sum_mul], Finset.sum_comm]
+  exact Finset.sum_congr rfl fun k _ => by
+    rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun i _ => by ring
+
+/-- **An `Fq`-weight's trace-pairing lies in the basis-trace span** (`lem:noother`
+node/zf channel span, `dotFunc` form): for any `M ∈ Fq`, the confine-style functional
+`dotFunc (c ↦ tr(M·W c))` is in the `Fp`-span of the basis-indexed generators
+`{dotFunc (c ↦ tr(bᵢ·W c))}ᵢ`. This is the node/zf channel-span characterization in
+the confine's own `Submodule.span`/`dotFunc` language — every ambient `Fq` weight `M`
+is reachable from the basis generators. -/
+theorem dotFunc_trace_mem_basis_span {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ]
+    (b : Module.Basis ιβ Fp Fq) {ιc : Type*} [Fintype ιc] (W : ιc → Fq) (M : Fq) :
+    dotFunc (fun c => Algebra.trace Fp Fq (M * W c)) ∈
+      Submodule.span Fp (Set.range
+        (fun i : ιβ => dotFunc (fun c => Algebra.trace Fp Fq (b i * W c)))) := by
+  rw [trace_weight_basis_decomp b W M, dotFunc_sum_smul]
+  exact Submodule.sum_mem _ fun i _ =>
+    Submodule.smul_mem _ _ (Submodule.subset_span ⟨i, rfl⟩)
+
 /-- `dotFunc` is injective: a functional determines its vector. -/
 theorem dotFunc_injective {R ι : Type*} [CommRing R] [Fintype ι] :
     Function.Injective (dotFunc (R := R) (ι := ι)) := by
