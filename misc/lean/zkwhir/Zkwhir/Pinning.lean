@@ -3360,4 +3360,28 @@ theorem phi_protocol_killed_zero (φ : Module.Dual (Fp P) (Cube P.m → Fq))
     sum_w_F_eq_zero_of_protocol_form P Fq Dom S ch F w aq az aterm hw hq hz hterm,
     map_zero]
 
+/-- **`prop:pinbound` reduced to the protocol form** (the assembly, all downstream
+steps wired): `Pinning` holds provided every functional `φ` killing `range pinFold`
+has a trace-dual `w` in *protocol form* — a queried combination, a `zf`
+combination, and a multiple of the terminal weight. This composes `pinning_of_dual`
+with `phi_protocol_killed_zero`, so the ENTIRE `prop:pinbound` now rests on the
+single hypothesis `H` (the node→terminal absorption + non-block handling that puts
+`w` in protocol form). Everything else in the assembly is machine-checked. -/
+theorem pinning_of_protocolForm [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    (H : ∀ φ : Module.Dual (Fp P) (Cube P.m → Fq),
+        (∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) →
+        ∃ (w : Cube P.m → Fq) (aq : Fin P.t₀ → Fq) (az : Fin P.s₁ → Fq) (aterm : Fq),
+          (∀ g, φ g = Algebra.trace (Fp P) Fq (∑ c, w c * g c)) ∧
+          (∀ c, w c =
+              (∑ t, aq t * eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c)
+              + (∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c)
+              + aterm * (∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)))) :
+    Pinning P Fq Dom S ch := by
+  apply pinning_of_dual
+  intro F hq hzf hterm φ hφ
+  obtain ⟨w, aq, az, aterm, hwrep, hw⟩ := H φ hφ
+  rw [map_neg,
+    phi_protocol_killed_zero P Fq Dom S ch φ w hwrep F aq az aterm hw hq hzf hterm,
+    neg_zero]
+
 end ZkWhir
