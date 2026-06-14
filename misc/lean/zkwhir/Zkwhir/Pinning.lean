@@ -3686,6 +3686,41 @@ theorem eqPoly_mem_span_alphaMonomial (s : Cube P.k₀) :
     rw [key]
     exact Submodule.smul_mem _ _ (Submodule.subset_span ⟨e, rfl⟩)
 
+/-- **`α`-monomial as a sum of `eqPoly`'s** (`lem:span` change-of-basis, `⊇`
+direction): `alphaMonomial T = ∑_{s ≥ T} eqPoly α s` (sum over `s` extending `T`).
+The free coordinates `i ∉ T` sum out via `êq(α_i,0)+êq(α_i,1) = 1`, leaving
+`∏_{i∈T} α_i`. Hence each monomial lies in `span(eqPoly)`. -/
+theorem alphaMonomial_eq_sum_eqPoly (T : Cube P.k₀) :
+    alphaMonomial P Fq Dom ch T
+      = ∑ s ∈ Finset.univ.filter (fun s : Cube P.k₀ => ∀ i, T i = true → s i = true),
+          eqPoly ch.α s := by
+  classical
+  set g : Fin P.k₀ → Bool → Fq := fun i b =>
+    if T i then (if b then ch.α i else 0) else (if b then ch.α i else 1 - ch.α i) with hg
+  have hL : alphaMonomial P Fq Dom ch T = ∏ i, ∑ b : Bool, g i b := by
+    rw [alphaMonomial_eq_prod_ite]
+    refine Finset.prod_congr rfl fun i _ => ?_
+    simp only [hg, Fintype.sum_bool]
+    cases T i <;> simp <;> ring
+  have hterm : ∀ s : Cube P.k₀, (∏ i, g i (s i))
+      = (if (∀ i, T i = true → s i = true) then eqPoly ch.α s else 0) := by
+    intro s
+    by_cases hs : ∀ i, T i = true → s i = true
+    · rw [if_pos hs, eqPoly]
+      refine Finset.prod_congr rfl fun i _ => ?_
+      simp only [hg]
+      by_cases hT : T i = true
+      · rw [if_pos hT, if_pos (hs i hT), if_pos (hs i hT)]
+      · rw [if_neg hT]
+    · rw [if_neg hs]
+      push_neg at hs
+      obtain ⟨i, hTi, hsi⟩ := hs
+      refine Finset.prod_eq_zero (Finset.mem_univ i) ?_
+      simp only [hg]
+      rw [if_pos hTi, if_neg hsi]
+  rw [hL, Finset.prod_univ_sum, Fintype.piFinset_univ, Finset.sum_filter]
+  exact Finset.sum_congr rfl fun s _ => hterm s
+
 /-- **`span(eqPoly) ≤ span(α-monomials)`** (change-of-basis `⊆`, packaged). -/
 theorem span_eqPoly_le_span_alphaMonomial :
     Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≤
