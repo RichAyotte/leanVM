@@ -3729,6 +3729,27 @@ theorem span_eqPoly_le_span_alphaMonomial :
   rintro _ ⟨s, rfl⟩
   exact eqPoly_mem_span_alphaMonomial P Fq Dom ch s
 
+/-- **`span(α-monomials) ≤ span(eqPoly)`** (change-of-basis `⊇`, packaged): each
+monomial is a sum of `eqPoly`'s (`alphaMonomial_eq_sum_eqPoly`). -/
+theorem span_alphaMonomial_le_span_eqPoly :
+    Submodule.span (Fp P) (Set.range (alphaMonomial P Fq Dom ch)) ≤
+      Submodule.span (Fp P) (Set.range (eqPoly ch.α)) := by
+  rw [Submodule.span_le]
+  rintro _ ⟨T, rfl⟩
+  rw [alphaMonomial_eq_sum_eqPoly]
+  exact Submodule.sum_mem _ fun s _ => Submodule.subset_span ⟨s, rfl⟩
+
+/-- **The `lem:span` change-of-basis: `span(eqPoly) = span(α-monomials)`.** The
+SPREAD weights `êq(α,·)` and the square-free `α`-monomials span the same `Fp`-subspace
+of `Fq`. So the SPREAD condition `span(êq(α,·)) = ⊤` is equivalent to the square-free
+`α`-monomials spanning `Fq` — reducing `lem:span` to the (genericity) monomial-span
+statement. -/
+theorem span_eqPoly_eq_span_alphaMonomial :
+    Submodule.span (Fp P) (Set.range (eqPoly ch.α)) =
+      Submodule.span (Fp P) (Set.range (alphaMonomial P Fq Dom ch)) :=
+  le_antisymm (span_eqPoly_le_span_alphaMonomial P Fq Dom ch)
+    (span_alphaMonomial_le_span_eqPoly P Fq Dom ch)
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
