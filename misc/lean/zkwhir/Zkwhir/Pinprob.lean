@@ -53,4 +53,31 @@ theorem challenge_alpha_dual_zero_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
     exact le_trans (Finset.card_le_card hsub) (card_filter_dual_zero_le P Fq hcard hφ)
   · simp [fieldCard]
 
+/-- **SPREAD-failure union bound** (the SPREAD measure skeleton): the probability
+that the SPREAD span misses `⊤` is at most the sum, over nonzero `Fp`-functionals
+`φ` on `Fq` (a finite set), of `P[φ` vanishes on every `êq(α,s)]`. By
+`exists_dual_of_not_spread`, every `¬SPREAD` challenge lies in some such `A_φ`; the
+union over the finite dual is bounded by the sum (`measure_biUnion_finset_le`). The
+remaining work is the per-`φ` term `P[A_φ] ≤ (1/p)^{k₀}` (the joint over the `k₀`
+`α`-coordinates), reducible via `challenge_alpha_dual_zero_le` once a multi-coordinate
+joint-independence bound is available. -/
+theorem spread_failure_le_sum [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Fintype (Module.Dual (Fp P) Fq)] :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom |
+          Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≠ ⊤} ≤
+      ∑ φ ∈ Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0),
+        (challengePMF P Fq Dom).toOuterMeasure
+          {ch : Challenges P Fq Dom | ∀ s, φ (eqPoly ch.α s) = 0} := by
+  classical
+  have hsub : {ch : Challenges P Fq Dom |
+        Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≠ ⊤} ⊆
+      ⋃ φ ∈ Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0),
+        {ch : Challenges P Fq Dom | ∀ s, φ (eqPoly ch.α s) = 0} := by
+    intro ch hch
+    obtain ⟨φ, hφ0, hφv⟩ := exists_dual_of_not_spread P Fq Dom ch hch
+    exact Set.mem_biUnion (Finset.mem_filter.mpr ⟨Finset.mem_univ φ, hφ0⟩) hφv
+  exact (MeasureTheory.measure_mono hsub).trans
+    (MeasureTheory.measure_biUnion_finset_le _ _)
+
 end ZkWhir
