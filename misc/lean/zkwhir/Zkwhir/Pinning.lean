@@ -3541,6 +3541,27 @@ theorem dual_eq_zero_of_spread
   · intro a b _ _ ha hb; simp only [map_add, ha, hb, add_zero]
   · intro r a _ ha; simp only [map_smul, ha, smul_zero]
 
+/-- **The trace-dual is unique** (`prop:pinbound` assembly support): if two weight
+vectors `w, w'` induce the same trace-pairing functional `g ↦ tr(∑_c w_c·g_c)`, they
+are equal. By trace nondegeneracy, testing against `g = Pi.single c₀ b` isolates each
+coordinate. This is what lets the `H` converse extract the protocol-form coefficients
+of `w` from the confine representation. -/
+theorem traceDual_unique [FiniteDimensional (Fp P) Fq] [Algebra.IsSeparable (Fp P) Fq]
+    (w w' : Cube P.m → Fq)
+    (h : ∀ g : Cube P.m → Fq, Algebra.trace (Fp P) Fq (∑ c, w c * g c)
+          = Algebra.trace (Fp P) Fq (∑ c, w' c * g c)) :
+    w = w' := by
+  funext c0
+  rw [← sub_eq_zero, trace_eq_zero_iff (Fp := Fp P)]
+  intro a
+  have e : ∀ v : Cube P.m → Fq, (∑ c, v c * (Pi.single c0 a : Cube P.m → Fq) c)
+      = v c0 * a := fun v => by
+    rw [Finset.sum_eq_single c0 (fun c _ hc => by rw [Pi.single_eq_of_ne hc, mul_zero])
+      (fun hc => absurd (Finset.mem_univ c0) hc), Pi.single_eq_same]
+  have hg := h (Pi.single c0 a)
+  rw [e w, e w'] at hg
+  rw [mul_sub, map_sub, mul_comm a (w c0), mul_comm a (w' c0), hg, sub_self]
+
 /-- **Queried protocol dual kills `range pinFold`** (`ann(range pinFold) ⊇` protocol
 span, dual form): the queried-eval dual `g ↦ tr(b·mle g(qs_t))` annihilates every
 view-vanishing mask-fold, since `mle(pinFold κ)(qs_t) = 0` (`pinFold_queried_zero`). -/
