@@ -321,6 +321,34 @@ theorem eqPoly_Rout_span_base {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp 
   exact LinearMap.range_eq_top.mpr (fun y => ⟨(α 0)⁻¹ * y, by
     rw [LinearMap.mulLeft_apply, ← mul_assoc, mul_inv_cancel₀ hα0, one_mul]⟩)
 
+/-- **The `R_out` half spans, subtype form** (`cond:pinning` non-block solvability, the
+form `pinning_of_blockFoldSolve`/`exists_Rout_fold_sub` consume): for `α : Fin k → Fq`
+(`0 < k`, no `+1` cast) with `α ⟨0,hk⟩ ≠ 0` and the head-erased "tail" product family
+spanning `Fq` over `Fp`, the `R_out` weight family `{êq(α, s.val) : s ∈ {s // s₀=true}}`
+spans `Fq` over `Fp`. Each `R_out` weight is `α₀ ·` (its head-erased product, via
+`eqPoly_erase_factor`), and multiplication by the unit `α₀` is an `Fp`-linear surjection,
+carrying the top span to the top span. Stays in the `Fin k` subtype throughout — avoids
+the `Fin k = Fin ((k-1)+1)` cast of `eqPoly_Rout_span_base`. -/
+theorem eqPoly_Rout_span_sub {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq] {k : ℕ}
+    (hk : 0 < k) (α : Fin k → Fq) (hα0 : α ⟨0, hk⟩ ≠ 0)
+    (htail : Submodule.span Fp (Set.range
+      (fun s : {s : Cube k // s ⟨0, hk⟩ = true} =>
+        ∏ i ∈ Finset.univ.erase (⟨0, hk⟩ : Fin k),
+          (if s.val i then α i else 1 - α i))) = ⊤) :
+    Submodule.span Fp (Set.range
+      (fun s : {s : Cube k // s ⟨0, hk⟩ = true} => eqPoly α s.val)) = ⊤ := by
+  have hg : (fun s : {s : Cube k // s ⟨0, hk⟩ = true} => eqPoly α s.val)
+      = (LinearMap.mulLeft Fp (α ⟨0, hk⟩)) ∘
+        (fun s : {s : Cube k // s ⟨0, hk⟩ = true} =>
+          ∏ i ∈ Finset.univ.erase (⟨0, hk⟩ : Fin k),
+            (if s.val i then α i else 1 - α i)) := by
+    funext s
+    rw [Function.comp_apply, LinearMap.mulLeft_apply, eqPoly_erase_factor α s.val ⟨0, hk⟩,
+      if_pos s.property]
+  rw [hg, Set.range_comp, ← Submodule.map_span, htail, Submodule.map_top]
+  exact LinearMap.range_eq_top.mpr (fun y => ⟨(α ⟨0, hk⟩)⁻¹ * y, by
+    rw [LinearMap.mulLeft_apply, ← mul_assoc, mul_inv_cancel₀ hα0, one_mul]⟩)
+
 /-- **Trace of a channel weight is a sum over conjugate eqPoly weights** (`lem:noother`
 linchpin): for a Galois extension `Fq/Fp`, `algebraMap (tr(M·êq(pow z, c))) = ∑_σ
 σ(M)·êq(pow(σ z), c)` over the Galois group. Combines `trace_eq_sum_automorphisms`
