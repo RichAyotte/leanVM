@@ -3771,6 +3771,29 @@ theorem assemble_primalMask_value (v ρ : Cube P.k₀ → Cube P.m → Fp P)
         · exact absurd h hs
       exact assemble_zero_nonmask_nonblock P (- primalMask P v ρ) s c hc hsf
 
+/-- **The `R_in` fiber reads only the block fiber** (`cond:pinning` construction, view
+half, decoupled case): on a lower-half class (`s₀ = false`) the `R_out` masks are
+absent, so with block-supported `v` the whole class fiber equals the block fiber `v`
+— hence its queried/node evaluations are exactly those of `v`, controllable by the
+per-class CRT solve (`exists_block_fiber`) with no `ρ`-coupling. -/
+theorem mle_primalMask_fiber_Rin (v ρ : Cube P.k₀ → Cube P.m → Fp P)
+    (hv : ∀ s c, v s c ≠ 0 → IsBlockPos P c) {s : Cube P.k₀}
+    (hs : s ⟨0, P.k₀_pos⟩ = false) (pt : Fin P.m → Fq) :
+    mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c)) pt =
+      mle (fun c => algebraMap (Fp P) Fq (v s c)) pt := by
+  have hne : ¬ (s ⟨0, P.k₀_pos⟩ = true) := by rw [hs]; decide
+  congr 1
+  funext c
+  unfold liftT
+  rw [assemble_primalMask_value]
+  congr 1
+  by_cases hc : IsBlockPos P c
+  · rw [if_pos hc]
+  · rw [if_neg hc, if_neg hne]
+    symm
+    by_contra h
+    exact hc (hv s c h)
+
 /-- **The primal mask realizes the fold `-F`** (`cond:pinning` construction, fold
 half): if the block fibers `v` realize `-F` on block positions via the full SPREAD
 sum and the `R_out` masks `ρ` realize `-F` on non-block positions via the `R_out`
