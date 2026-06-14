@@ -743,6 +743,24 @@ theorem trace_channel_unique {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp F
       exact Finset.sum_congr rfl fun r _ => by rw [sub_mul, map_sub], hM c hc, sub_self]
   exact sub_eq_zero.mp (h0 r)
 
+/-- **Conjugate decomposition is unique over the block** (`lem:noother`, descent
+uniqueness): for a generating point `p` (distinct Galois conjugates `{σ p}`, `p ≠ 0`,
+`#Gal ≤ 2^a`), a vanishing combination `∑_σ c_σ·êq(pow(σ p), x) = 0` of the conjugate
+weights over the block forces all `c_σ = 0`. So the conjugate decomposition
+`∑_σ Moore_σ·σ(W)` (from `channel_term_galois`) has unique coefficients — the descent
+condition (`σ ≠ 1` coefficients vanish) pins them. Instantiates
+`eqPoly_powSeq_block_linearIndependent` at the conjugate point family. -/
+theorem conjugate_decomp_unique {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] {m a : ℕ} (ham : a ≤ m) (p : Fq) (hp0 : p ≠ 0)
+    (hconj : Function.Injective (fun σ : Fq ≃ₐ[Fp] Fq => σ p))
+    (hcard : Fintype.card (Fq ≃ₐ[Fp] Fq) ≤ 2 ^ a) (c : (Fq ≃ₐ[Fp] Fq) → Fq)
+    (hsum : ∀ x ∈ Finset.univ.filter (fun x : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → x i = true),
+        ∑ σ : Fq ≃ₐ[Fp] Fq, c σ * eqPoly (powSeq (σ p) m) x = 0) :
+    c = 0 := by
+  classical
+  exact eqPoly_powSeq_block_linearIndependent ham (fun σ : Fq ≃ₐ[Fp] Fq => σ p) hconj
+    (fun σ => by simpa using hp0) hcard c hsum
+
 /-! ## The cell polynomials
 
 `êq(pow(x, j), c)`, as a polynomial in `x`: the univariate face of a position
