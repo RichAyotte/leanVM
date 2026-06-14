@@ -421,6 +421,39 @@ theorem challenge_alpha0_zero_le :
     rwa [Set.mem_singleton_iff] at hx0
   · norm_num
 
+/-- **Tail-SPREAD failure union bound** (the tail-SPREAD measure skeleton): the probability
+that the head-erased tail family misses `⊤` is at most the sum, over nonzero `Fp`-functionals
+`φ`, of `P[φ` vanishes on every tail product`]`. By `exists_dual_of_not_tail_spread`, every
+`¬tail-SPREAD` challenge lies in some such event; the union over the finite dual is bounded
+by the sum. The remaining work is the per-`φ` term (via the tail change-of-basis +
+`challenge_alpha_tail_dual_zero_le`). -/
+theorem tail_spread_failure_le_sum [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Fintype (Module.Dual (Fp P) Fq)] :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom | Submodule.span (Fp P) (Set.range
+          (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} =>
+            ∏ i ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+              (if s.val i then ch.α i else 1 - ch.α i))) ≠ ⊤} ≤
+      ∑ φ ∈ Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0),
+        (challengePMF P Fq Dom).toOuterMeasure
+          {ch : Challenges P Fq Dom | ∀ s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true},
+            φ (∏ i ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+              (if s.val i then ch.α i else 1 - ch.α i)) = 0} := by
+  classical
+  have hsub : {ch : Challenges P Fq Dom | Submodule.span (Fp P) (Set.range
+        (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} =>
+          ∏ i ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+            (if s.val i then ch.α i else 1 - ch.α i))) ≠ ⊤} ⊆
+      ⋃ φ ∈ Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0),
+        {ch : Challenges P Fq Dom | ∀ s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true},
+          φ (∏ i ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+            (if s.val i then ch.α i else 1 - ch.α i)) = 0} := by
+    intro ch hch
+    obtain ⟨φ, hφ0, hφv⟩ := exists_dual_of_not_tail_spread P Fq Dom ch hch
+    exact Set.mem_biUnion (Finset.mem_filter.mpr ⟨Finset.mem_univ φ, hφ0⟩) hφv
+  exact (MeasureTheory.measure_mono hsub).trans
+    (MeasureTheory.measure_biUnion_finset_le _ _)
+
 /-- **`R_out`-SPREAD failure measure** (`εSPREAD` glue): combining the split
 `not_Rout_spread_subset` with the head bound `challenge_alpha0_zero_le`, the `R_out`-SPREAD
 failure is at most `1/q` (the `α₀ = 0` head event) plus the tail-SPREAD failure. Reduces
