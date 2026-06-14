@@ -640,4 +640,30 @@ theorem goodSetAbsorption_of_tail_bounds [FiniteDimensional (Fp P) Fq]
     ε₁ (1 / (Fintype.card Fq : ℝ≥0∞) + εtail) εrow εBFS hA ?_ hrow hBFS hsum
   exact (Rout_spread_failure_le P Fq Dom).trans (add_le_add le_rfl htail)
 
+/-- **`GoodSetAbsorption` from the cross-coupling measure** (Phase F, the single-gap form):
+folding `blockFoldSolve_failure_le` into the component skeleton, `BlockFoldSolve` failure is
+`≤ ε₁ + εCross`, so `GoodSetAbsorption` holds given the node (`ε₁`), `R_out`-SPREAD
+(`εSPREAD`), two-point-rank (`εrow`), and **cross-coupling (`εCross`)** measures summing
+below `εZK`. With `ε₁`/`εSPREAD`/`εrow` all discharged by closed lemmas
+(`nodeHyp_failure_le`, `Rout_spread_failure_le_closed`, `rowsLI_failure_le_closed`), the
+*entire* campaign rests on the single `cond:cross2` measure `P[¬CrossSolve] ≤ εCross` plus
+the `εZK` arithmetic. -/
+theorem goodSetAbsorption_of_crossSolve_bound [FiniteDimensional (Fp P) Fq]
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (ε₁ εSPREAD εrow εCross : ℝ≥0∞)
+    (hA : (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ NodeHyp P Fq Dom ch} ≤ ε₁)
+    (hSPREAD : (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+        (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)} ≤ εSPREAD)
+    (hrow : (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)} ≤ εrow)
+    (hcross : (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ CrossSolve P Fq Dom ch} ≤ εCross)
+    (hsum : ε₁ + εrow + ((εSPREAD + εrow) + (ε₁ + εCross)) ≤ εZK P Fq) :
+    GoodSetAbsorption P Fq Dom S := by
+  refine goodSetAbsorption_of_component_bounds P Fq Dom S h2 hmf hdom hbudget
+    ε₁ εSPREAD εrow (ε₁ + εCross) hA hSPREAD hrow ?_ hsum
+  exact (blockFoldSolve_failure_le P Fq Dom hdom hbudget).trans (add_le_add hA hcross)
+
 end ZkWhir
