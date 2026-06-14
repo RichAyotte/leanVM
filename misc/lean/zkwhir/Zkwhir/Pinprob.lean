@@ -191,6 +191,35 @@ theorem challenge_hker_term_le [DecidableEq Fq] (j : Fin 2)
       ∑ r, c r * (α m ^ P.p ^ (r : ℕ) - powSeq (z j) P.k₀ m) = 0}) _
     (fun z => uniform_hker_term P Fq (powSeq (z j) P.k₀) c r₀ hcr)
 
+/-- **`hker`-failure union skeleton**: the `hker` Good-set failure (∃ node `j` and
+nonzero coefficient vector `c` with `c₀ = 0` satisfying the kernel relations at every
+`m > 0`) is contained in the union, over the finitely many such `(j,c)` pairs, of the
+per-`(j,c)` events, hence bounded by their sum. -/
+theorem hker_failure_le_sum [DecidableEq Fq] (hd0 : 0 < extDeg P Fq) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ∃ (j : Fin 2) (c : Fin (extDeg P Fq) → Fq),
+        c ⟨0, hd0⟩ = 0 ∧ c ≠ 0 ∧ ∀ m : Fin P.k₀, (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m →
+          ∑ r, c r * (ch.α m ^ P.p ^ (r : ℕ) - powSeq (ch.z j) P.k₀ m) = 0} ≤
+      ∑ jc ∈ Finset.univ.filter
+          (fun jc : Fin 2 × (Fin (extDeg P Fq) → Fq) => jc.2 ⟨0, hd0⟩ = 0 ∧ jc.2 ≠ 0),
+        (challengePMF P Fq Dom).toOuterMeasure
+          {ch : Challenges P Fq Dom | ∀ m : Fin P.k₀, (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m →
+            ∑ r, jc.2 r * (ch.α m ^ P.p ^ (r : ℕ) - powSeq (ch.z jc.1) P.k₀ m) = 0} := by
+  classical
+  have hsub : {ch : Challenges P Fq Dom | ∃ (j : Fin 2) (c : Fin (extDeg P Fq) → Fq),
+        c ⟨0, hd0⟩ = 0 ∧ c ≠ 0 ∧ ∀ m : Fin P.k₀, (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m →
+          ∑ r, c r * (ch.α m ^ P.p ^ (r : ℕ) - powSeq (ch.z j) P.k₀ m) = 0} ⊆
+      ⋃ jc ∈ Finset.univ.filter
+          (fun jc : Fin 2 × (Fin (extDeg P Fq) → Fq) => jc.2 ⟨0, hd0⟩ = 0 ∧ jc.2 ≠ 0),
+        {ch : Challenges P Fq Dom | ∀ m : Fin P.k₀, (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m →
+          ∑ r, jc.2 r * (ch.α m ^ P.p ^ (r : ℕ) - powSeq (ch.z jc.1) P.k₀ m) = 0} := by
+    intro ch hch
+    obtain ⟨j, c, hc0, hcne, hcond⟩ := hch
+    exact Set.mem_iUnion₂.mpr
+      ⟨(j, c), Finset.mem_filter.mpr ⟨Finset.mem_univ _, hc0, hcne⟩, hcond⟩
+  exact (MeasureTheory.measure_mono hsub).trans
+    (MeasureTheory.measure_biUnion_finset_le _ _)
+
 /-- **The dual space has `q` elements** (`#Dual = #Fq`): both are `p^d`-element
 `Fp`-spaces of the same dimension `d`. Used to simplify the SPREAD measure's
 `#{φ≠0}` factor to `≤ q`, giving `P[¬SPREAD] ≤ q·(p^{d-1})^{k₀}/q^{k₀} = p^{d-k₀}`. -/
