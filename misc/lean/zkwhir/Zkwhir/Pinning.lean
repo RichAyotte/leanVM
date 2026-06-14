@@ -4128,6 +4128,31 @@ def CrossSolve : Prop :=
     (∀ c, IsBlockPos P c →
       ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (δ s c) = H c)
 
+/-- **Cross-fold trace pairing** (`cond:cross2` dual analysis, entry algebra): pairing a
+test weight `ψ` (via the trace form) against the cross fold of base-field fibers `δ`
+rearranges into the per-cell `Fp`-bilinear form `∑_{s,c} δ_{s,c}·tr(ψ_c·êq(α,s))`. The base
+coefficients `δ_{s,c}` pull out of the trace (they are central `Fp`-scalars). This is the
+identity that turns "`ψ` annihilates every cross fold" into the per-class condition that the
+weight `c ↦ tr(ψ_c·êq(α,s))` lie in the annihilator of the view-neutral space — the dual
+characterization underlying the `cond:cross2` (`CrossSolve`) measure. -/
+theorem crossFold_pairing [FiniteDimensional (Fp P) Fq] (ψ : Cube P.m → Fq)
+    (δ : Cube P.k₀ → Cube P.m → Fp P) :
+    Algebra.trace (Fp P) Fq
+        (∑ c, ψ c * ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (δ s c))
+      = ∑ s, ∑ c, δ s c • Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s) := by
+  have hexp : (∑ c, ψ c * ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (δ s c))
+      = ∑ s, ∑ c, algebraMap (Fp P) Fq (δ s c) * (ψ c * eqPoly ch.α s) := by
+    rw [show (∑ c, ψ c * ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (δ s c))
+        = ∑ c, ∑ s, algebraMap (Fp P) Fq (δ s c) * (ψ c * eqPoly ch.α s) from
+      Finset.sum_congr rfl fun c _ => by
+        rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun s _ => by ring]
+    rw [Finset.sum_comm]
+  rw [hexp, map_sum]
+  refine Finset.sum_congr rfl fun s _ => ?_
+  rw [map_sum]
+  refine Finset.sum_congr rfl fun c _ => ?_
+  rw [← Algebra.smul_def, map_smul]
+
 /-- **`BlockFoldSolve` from the view solve and the cross-coupling** (`cond:cross2`, the
 reduction): if the queried/node view is solvable (`hview`, from `exists_block_fiber` under
 `NodeHyp`) and the cross-coupling holds (`CrossSolve`), then `BlockFoldSolve` holds. Solve
