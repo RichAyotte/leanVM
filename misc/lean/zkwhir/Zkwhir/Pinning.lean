@@ -640,6 +640,21 @@ theorem moment_minor_general_isUnit (ζ₁ ζ₂ : Fq)
   rw [moment_minor_det_general]
   exact isUnit_iff_ne_zero.mpr (mul_ne_zero h1 h2)
 
+/-- **The η-match matrix `mulVec` is the `(momS, momR, momR)` map**: the general
+matrix applied to a moment vector `m` yields `(momS(ζ₁), momR(ζ₁), momR(ζ₂))` — so
+solving `M·m = (S¹,R¹,R²)` (via `exists_points_for_target`) gives moments whose
+`momS`/`momR` hit the matched targets. The bridge between the matrix solve and the
+`momS`/`momR` appearing in `channel_moment_SR`. -/
+theorem moment_minor_mulVec (ζ₁ ζ₂ : Fq) (m : Fin 3 → Fq) :
+    (!![1 - ζ₁, 2 * ζ₁ - 1, 0;
+        -(ζ₁ * (1 - ζ₁)), 1 - 2 * ζ₁ ^ 2, 2 * ζ₁ - 1;
+        -(ζ₂ * (1 - ζ₂)), 1 - 2 * ζ₂ ^ 2, 2 * ζ₂ - 1]).mulVec m =
+      ![momS Fq ζ₁ (m 0) (m 1), momR Fq ζ₁ (m 0) (m 1) (m 2),
+        momR Fq ζ₂ (m 0) (m 1) (m 2)] := by
+  funext i
+  fin_cases i <;>
+    simp [Matrix.mulVec, dotProduct, Fin.sum_univ_three, momS, momR] <;> ring
+
 /-- **Point-coefficients realizing any `(S,R)` target** (`lem:fullslice` Step 2
 solve, complete moment-finding): for an invertible coefficient matrix `M` and
 distinct evaluation points `y`, every target `b` is realized by a `3`-point
