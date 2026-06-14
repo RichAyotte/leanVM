@@ -359,6 +359,18 @@ theorem eq_zero_of_trace_isolation {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebr
   obtain ⟨g, hg⟩ := hisol a
   rw [← hg]; exact hkill g
 
+/-- **Vector form of the descent mechanism**: a whole family `x : κ → Fq` of conjugate
+components vanishes if each is killed by an isolating fold family. Applies
+`eq_zero_of_trace_isolation` per component — discharges the Galois-descent condition for
+an entire channel at once (every `σ ≠ 1` conjugate Moore coefficient vanishes). -/
+theorem forall_eq_zero_of_trace_isolation {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq] {κ : Type*} (x : κ → Fq) {ι : Type*}
+    (foldVal : κ → ι → Fp) (hkill : ∀ k g, foldVal k g = 0)
+    (hisol : ∀ k, ∀ v : Fq, ∃ g, foldVal k g = Algebra.trace Fp Fq (v * x k)) :
+    x = 0 := by
+  funext k
+  exact eq_zero_of_trace_isolation (x k) (foldVal k) (hkill k) (hisol k)
+
 /-- **Trace-form separates points** (`lem:noother` block conclusion): if `β·x` and
 `β·y` have equal trace for every `β`, then `x = y`. This is the nondegeneracy step
 that upgrades the per-`β` slice agreement `tr(β·w_c₀) = tr(β·(protocol)_c₀)`
