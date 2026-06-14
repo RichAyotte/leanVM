@@ -341,6 +341,20 @@ theorem trace_eq_zero_iff {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
   rw [Algebra.traceForm_apply, mul_comm]
   exact h a
 
+/-- **Trace-form separates points** (`lem:noother` block conclusion): if `β·x` and
+`β·y` have equal trace for every `β`, then `x = y`. This is the nondegeneracy step
+that upgrades the per-`β` slice agreement `tr(β·w_c₀) = tr(β·(protocol)_c₀)`
+(matched coefficient-by-coefficient via the trace-duality extraction) to the
+*pointwise* block identity `w_c₀ = (protocol)_c₀` of the protocol form. -/
+theorem eq_of_trace_smul_eq {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq] (x y : Fq)
+    (h : ∀ β : Fq, Algebra.trace Fp Fq (β * x) = Algebra.trace Fp Fq (β * y)) :
+    x = y := by
+  have hxy : x - y = 0 :=
+    (trace_eq_zero_iff (Fp := Fp) (x - y)).mpr fun a => by
+      rw [mul_sub, map_sub, h a, sub_self]
+  exact sub_eq_zero.mp hxy
+
 /-- **A surjective `Fq`-form has nonzero trace** (the Step-4 reduction): if
 `L : M → Fq` hits every value, then some `m` has `tr(L m) ≠ 0`. Hence
 `tr ∘ L ≠ 0` whenever `L` is surjective — the trace argument reduces to a
