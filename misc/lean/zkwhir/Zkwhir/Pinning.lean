@@ -3767,6 +3767,18 @@ theorem spread_of_deg1_span
   · rw [SetLike.mem_coe, ← alphaMonomial_single P Fq Dom ch k]
     exact Submodule.subset_span ⟨_, rfl⟩
 
+/-- **SPREAD from trivial dual annihilator** (converse of `dual_eq_zero_of_spread`,
+completing the SPREAD dual characterization): if the only `Fp`-functional vanishing
+on every `êq(α,s)` is `0`, then SPREAD holds. Equivalently `¬SPREAD ⟹ ∃` a nonzero
+functional vanishing on all weights — the dual entry point for the SPREAD measure. -/
+theorem spread_of_dual [FiniteDimensional (Fp P) Fq]
+    (h : ∀ φ : Module.Dual (Fp P) Fq, (∀ s, φ (eqPoly ch.α s) = 0) → φ = 0) :
+    Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤ := by
+  rw [← Submodule.dualAnnihilator_eq_bot_iff, eq_bot_iff]
+  intro φ hφ
+  rw [Submodule.mem_bot]
+  exact h φ (fun s => (Submodule.mem_dualAnnihilator φ).mp hφ _ (Submodule.subset_span ⟨s, rfl⟩))
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
