@@ -3859,6 +3859,20 @@ theorem mle_primalMask_fiber (v ρ : Cube P.k₀ → Cube P.m → Fp P)
       · exact absurd h hs
     rw [if_neg hs, add_zero, mle_primalMask_fiber_Rin P Fq v ρ hv hsf]
 
+/-- **The primal cross term depends only on the `R_out` masks** (`cond:pinning`
+construction, message half): `crossTerm` reads the table only at non-block positions
+(the weight vanishes on block cells, `MaskFree`), and there the primal table is `ρ`
+(`R_out`) or `0` — never the block fiber `v`. Hence `crossTerm` is independent of `v`,
+which decouples the node-system solve (whose message targets are `−γ²·crossTerm`) from
+the block-fiber solve. -/
+theorem crossTerm_primalMask_eq (hmf : MaskFree P Fq S)
+    (v ρ : Cube P.k₀ → Cube P.m → Fp P) (ℓ : Fin P.k₀) (y : Fq) :
+    crossTerm P Fq Dom S (assemble P 0 (- primalMask P v ρ)) ch ℓ y =
+      crossTerm P Fq Dom S (assemble P 0 (- primalMask P 0 ρ)) ch ℓ y := by
+  refine crossTerm_eq_of_eq_nonblock P Fq Dom S ch hmf _ _ ?_ ℓ y
+  intro s c hc
+  rw [assemble_primalMask_value, assemble_primalMask_value, if_neg hc, if_neg hc]
+
 /-- **The primal mask realizes the fold `-F`** (`cond:pinning` construction, fold
 half): if the block fibers `v` realize `-F` on block positions via the full SPREAD
 sum and the `R_out` masks `ρ` realize `-F` on non-block positions via the `R_out`
