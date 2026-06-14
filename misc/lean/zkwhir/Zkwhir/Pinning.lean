@@ -3616,6 +3616,15 @@ theorem alphaMonomial_indicator (S : Finset (Fin P.k₀)) :
   ext i
   simp [Finset.mem_filter, decide_eq_true_iff]
 
+/-- **The eqPoly factor splits into monomial-basis terms** (`lem:span`
+change-of-basis, per-coordinate step): `(b ? x : 1−x) = (b ? x : 1) + (b ? 0 : −x)`.
+Each summand is a constant or `±x`, so expanding `eqPoly = ∏ factor` via this split
+(`Finset.prod_add`) writes it as an `Fp`-combination of square-free `α`-monomials —
+the route to `span(eqPoly) = span(alphaMonomial)`. -/
+theorem eqPoly_factor_split (x : Fq) (b : Bool) :
+    (if b then x else 1 - x) = (if b then x else 1) + (if b then 0 else -x) := by
+  cases b <;> simp [sub_eq_add_neg]
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
