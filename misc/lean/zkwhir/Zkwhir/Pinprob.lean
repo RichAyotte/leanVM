@@ -343,4 +343,24 @@ theorem spread_failure_le_cancel [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
     rw [← pow_succ']; congr 1; have := P.k₀_pos; omega,
     mul_div_assoc', ENNReal.mul_div_mul_left _ _ hqne hqtop]
 
+/-- **`prop:pinbound` ε₃ union bound** (the `Pinning` failure measure): since the
+primal construction (`pinning_of_blockFoldSolve`) derives `Pinning` from `R_out`-SPREAD,
+`RowSurj`, and `BlockFoldSolve`, and `RowSurj` failure reduces to row-dependence
+(`not_rowSurj_subset`), the `Pinning` failure measure is bounded by the sum of the three
+component failure measures — the `R_out`-SPREAD (tail-SPREAD), two-point-rank (`ε₂`), and
+`cond:cross2` (`BlockFoldSolve`) contributions. The three component bounds are the
+remaining `ε₃` measure targets. -/
+theorem pinning_failure_le (hmf : MaskFree P Fq S) :
+    (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ Pinning P Fq Dom S ch} ≤
+      ((challengePMF P Fq Dom).toOuterMeasure
+          {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+            (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)}
+        + (challengePMF P Fq Dom).toOuterMeasure
+            {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)})
+      + (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ BlockFoldSolve P Fq Dom ch} := by
+  refine (MeasureTheory.measure_mono (not_pinning_subset P Fq Dom S hmf)).trans ?_
+  refine (MeasureTheory.measure_union_le _ _).trans (add_le_add ?_ le_rfl)
+  refine (MeasureTheory.measure_union_le _ _).trans (add_le_add le_rfl ?_)
+  exact MeasureTheory.measure_mono (not_rowSurj_subset P Fq Dom)
+
 end ZkWhir
