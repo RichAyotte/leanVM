@@ -145,6 +145,27 @@ theorem challenge_α_coord_le (i : Fin P.k₀) (B : (Fin 2 → Fq) → Set Fq)
   · rw [add_zero]
     exact hB z
 
+/-- **Joint `z`-dependent `α`-event on the challenges**: an event on the whole
+folding vector `α` whose target set may depend on the commitment challenge `z` is
+bounded by its uniform `α`-marginal (uniformly in `z`). The joint generalization of
+`challenge_α_coord_le` — the bridge for the `hker` Moore-determinant measure, whose
+per-coordinate root sets depend on `z`. -/
+theorem challenge_alpha_joint_le (B : (Fin 2 → Fq) → Set (Fin P.k₀ → Fq)) (c : ℝ≥0∞)
+    (hB : ∀ z : Fin 2 → Fq, (PMF.uniformOfFintype (Fin P.k₀ → Fq)).toOuterMeasure
+      {α : Fin P.k₀ → Fq | α ∈ B z} ≤ c) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ch.α ∈ B ch.z} ≤ c := by
+  unfold challengePMF
+  refine toOuterMeasure_bind_le _ _ _ c fun z => ?_
+  refine toOuterMeasure_bind_le _ _ _ c fun γ => ?_
+  refine (toOuterMeasure_bind_le_add _ _ _ {α : Fin P.k₀ → Fq | α ∈ B z} 0 ?_).trans ?_
+  · intro α hα
+    refine le_of_eq (toOuterMeasure_bind_eq_zero fun zf => ?_)
+    refine toOuterMeasure_bind_eq_zero fun qs => ?_
+    exact toOuterMeasure_pure_eq_zero (by simpa using hα)
+  · rw [add_zero]
+    exact hB z
+
 /-- **Full `α`-event on the sumcheck challenges**: any event depending only on the
 folding challenge `α` is bounded by its uniform marginal — the bridge from
 `challengePMF` to the multivariate Schwartz–Zippel bound `mle_zeros_prob_le`. -/
