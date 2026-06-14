@@ -3537,6 +3537,44 @@ theorem exists_trace_rep_family [FiniteDimensional (Fp P) Fq]
   choose a ha using fun t => exists_trace_rep_single P Fq (L t)
   exact ⟨a, ha⟩
 
+/-- **Single-channel block extraction** (`lem:noother`, the extraction mechanism fully
+assembled): if on a set `S` the trace-slices of `w` are represented through one
+trace-channel `tr(bᵢ·w_c) = ∑_{i'} cz_{i,i'}·tr(b_{i'}·W_c)`, and the Galois-descent
+condition holds for the recombined coefficients `D_{i'} = ∑ᵢ cz_{i,i'}•b'ᵢ` (conjugate
+Moore coefficients vanish for `σ ≠ 1`), then `w` collapses to the clean `Fq`-multiple
+`w_c = (∑_{i'} D_{i'}·b_{i'})·W_c` on `S`. Composes the dual-basis reconstruction
+(`eq_sum_trace_smul_dualBasis`), the index rearrangement, and `basis_trace_smul_collapse`.
+This is the concrete shape of the protocol-form extraction for a single channel. -/
+theorem single_channel_block_extract {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq] [IsGalois Fp Fq] {m : ℕ}
+    {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ Fp Fq)
+    (w W : Cube m → Fq) (cz : ιβ → ιβ → Fp) (S : Finset (Cube m))
+    (hrep : ∀ i, ∀ c ∈ S, Algebra.trace Fp Fq (b i * w c)
+        = ∑ i', cz i i' * Algebra.trace Fp Fq (b i' * W c))
+    (hdescent : ∀ σ : Fq ≃ₐ[Fp] Fq, σ ≠ 1 →
+        ∑ i', (∑ i, cz i i' • (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+            (traceForm_nondegenerate Fp Fq) b) i) * σ (b i') = 0) :
+    ∀ c ∈ S, w c = (∑ i', (∑ i, cz i i' • (LinearMap.BilinForm.dualBasis
+        (Algebra.traceForm Fp Fq) (traceForm_nondegenerate Fp Fq) b) i) * b i') * W c := by
+  classical
+  intro c hc
+  rw [eq_sum_trace_smul_dualBasis b (w c)]
+  set b' := LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+    (traceForm_nondegenerate Fp Fq) b with hb'
+  have hrearr : (∑ i, Algebra.trace Fp Fq (w c * b i) • b' i)
+      = ∑ i', algebraMap Fp Fq (Algebra.trace Fp Fq (b i' * W c)) * (∑ i, cz i i' • b' i) := by
+    rw [show (∑ i, Algebra.trace Fp Fq (w c * b i) • b' i)
+        = ∑ i, (∑ i', cz i i' * Algebra.trace Fp Fq (b i' * W c)) • b' i from
+      Finset.sum_congr rfl fun i _ => by rw [mul_comm (w c) (b i), hrep i c hc]]
+    simp_rw [Finset.sum_smul]
+    rw [Finset.sum_comm]
+    refine Finset.sum_congr rfl fun i' _ => ?_
+    rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun i _ => ?_
+    rw [← Algebra.smul_def, smul_smul, mul_comm (Algebra.trace Fp Fq (b i' * W c)) (cz i i')]
+  rw [hrearr, basis_trace_smul_collapse (fun i => b i)
+    (fun i' => ∑ i, cz i i' • b' i) (W c) hdescent]
+
 /-- **Protocol form kills `range pinFold`** (the `H`-target's necessity / easy
 direction): a `w` in protocol form pairs to zero against every view-vanishing
 mask-fold. Indeed `pinFold κ` is *itself* protocol-killed
