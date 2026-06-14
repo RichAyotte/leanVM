@@ -1475,6 +1475,18 @@ def cellMidCombine (m ℓ : Fin P.k₀)
     (sr : {i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)} → Bool) : Cube P.k₀ :=
   fun i => if h : m ≤ i ∧ i < ℓ then π ⟨i, h⟩ else sr ⟨i, h⟩
 
+/-- **`cellMidCombine` is onto the cells**: reconstructing a cube from its own
+middle/rest restrictions returns it. Hence every cell `(s,c)` is a recombined
+cell — used to transfer `cond:cross2`'s `crossTerm ≠ 0` (over arbitrary cells)
+into the recombined-cell form `crossTerm_trace_ne_zero.hne` expects. -/
+theorem cellMidCombine_self (m ℓ : Fin P.k₀) (s : Cube P.k₀) :
+    cellMidCombine P m ℓ (fun j => s j.val) (fun j => s j.val) = s := by
+  funext i
+  simp only [cellMidCombine]
+  by_cases h : m ≤ i ∧ i < ℓ
+  · rw [dif_pos h]
+  · rw [dif_neg h]
+
 /-- On a middle coordinate, `cellMidCombine` reads from the `π` block. -/
 theorem cellMidCombine_mid (m ℓ : Fin P.k₀)
     (π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool)
