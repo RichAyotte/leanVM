@@ -4614,6 +4614,22 @@ theorem alphaMonomial_eq_sum_eqPoly (T : Cube P.k₀) :
   rw [hL, Finset.prod_univ_sum, Fintype.piFinset_univ, Finset.sum_filter]
   exact Finset.sum_congr rfl fun s _ => hterm s
 
+/-- **The `α`-coordinate as a sum of `eqPoly` weights** (`lem:span`, coordinate
+change-of-basis): `α_i = ∑_{s : s_i = true} êq(α, s)` — specialising
+`alphaMonomial_eq_sum_eqPoly` to the singleton `{i}` (where `alphaMonomial {i} = α_i`).
+The bridge that puts each coordinate in the weight span; the tail-SPREAD per-`φ` bound
+uses the head-erased refinement of this. -/
+theorem alpha_eq_sum_eqPoly (i : Fin P.k₀) :
+    ch.α i =
+      ∑ s ∈ Finset.univ.filter (fun s : Cube P.k₀ => s i = true), eqPoly ch.α s := by
+  rw [← alphaMonomial_single P Fq Dom ch i, alphaMonomial_eq_sum_eqPoly]
+  refine Finset.sum_congr ?_ (fun _ _ => rfl)
+  ext s
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and, beq_iff_eq]
+  constructor
+  · intro h; exact h i rfl
+  · intro h j hj; rw [hj]; exact h
+
 /-- **`span(eqPoly) ≤ span(α-monomials)`** (change-of-basis `⊆`, packaged). -/
 theorem span_eqPoly_le_span_alphaMonomial :
     Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≤
