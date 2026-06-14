@@ -3577,6 +3577,25 @@ theorem eqPoly_boolPoint {j : ℕ} (c b : Cube j) :
   congr 1
   simp [funext_iff]
 
+/-- **The square-free `α`-monomial** indexed by a subset `T ⊆ [k₀]` (as a cube):
+`alphaMonomial T = ∏_{i : T_i} α_i`. The change-of-basis target for `lem:span`:
+`span_Fp(range êq(α,·)) = span_Fp(range alphaMonomial)` (each is an invertible
+triangular transform of the other), so SPREAD reduces to these monomials spanning. -/
+noncomputable def alphaMonomial (T : Cube P.k₀) : Fq :=
+  ∏ i ∈ Finset.univ.filter (fun i => T i = true), ch.α i
+
+/-- Each square-free `α`-monomial lies in `adjoin{α_i}` (it is a product of the
+generators). -/
+theorem alphaMonomial_mem_adjoin (T : Cube P.k₀) :
+    alphaMonomial P Fq Dom ch T ∈ Algebra.adjoin (Fp P) (Set.range ch.α) := by
+  unfold alphaMonomial
+  exact prod_mem fun i _ => Algebra.subset_adjoin ⟨i, rfl⟩
+
+/-- The empty-subset monomial is `1`. -/
+theorem alphaMonomial_false : alphaMonomial P Fq Dom ch (fun _ => false) = 1 := by
+  unfold alphaMonomial
+  rw [Finset.filter_false_of_mem (fun i _ => by simp), Finset.prod_empty]
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
