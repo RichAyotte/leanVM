@@ -779,6 +779,19 @@ theorem crossForm_eq_nodeValues (δ : Cell P → Fp P) (θ : Fin 2 → Fq) :
   refine Finset.sum_congr rfl fun s _ => ?_
   ring
 
+/-- **The ood row of a perturbation's node values is its ood answer**: the
+`z_j`-weighted node value equals `evalT` at the commitment node, i.e. the
+out-of-domain answer. So a view-vanishing mask (`oodAnswer = 0`) kills `oodRow` —
+but its `msgRow` carries the cross term (the message, not the ood answer, holds
+`γ²·crossTerm`), which is why the cross form `F_θ` survives on it. -/
+theorem oodRow_nodeValues (δ : Cell P → Fp P) (j : Fin 2) :
+    oodRow P Fq Dom ch j
+      (fun s j' => mle (fun c => liftT P Fq δ (s, c))
+        (powSeq (ch.z j' ^ 2 ^ P.k₀) P.m)) =
+      oodAnswer P Fq δ (ch.z j) := by
+  unfold oodRow oodAnswer
+  rw [evalT_eq_sum_classes]
+
 /-- **`cond:cross2` injectivity heart (Cramer).** If two mask perturbations
 `δ, δ''` give a nonzero `2×2` node-pairing minor, then the only direction `θ`
 killing `F_θ` at both is `θ = 0` — i.e. `θ ↦ F_θ` is injective. This is the
