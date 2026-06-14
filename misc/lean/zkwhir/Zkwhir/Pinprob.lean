@@ -363,4 +363,31 @@ theorem pinning_failure_le (hmf : MaskFree P Fq S) :
   refine (MeasureTheory.measure_union_le _ _).trans (add_le_add le_rfl ?_)
   exact MeasureTheory.measure_mono (not_rowSurj_subset P Fq Dom)
 
+/-- **`GoodSetAbsorption` from the component measure bounds** (the final-assembly
+skeleton): combining the node, two-point-rank, `R_out`-SPREAD, and `cond:cross2`
+(`BlockFoldSolve`) failure bounds with the absorption assembly
+(`goodSetAbsorption_of_bounds`) and the `ε₃` union bound (`pinning_failure_le`),
+`GoodSetAbsorption` holds whenever the four component measures sum below `εZK`. This
+reduces the whole campaign to its four remaining measure obligations plus the `εZK`
+arithmetic — `pinning_of_blockFoldSolve` having discharged all of the linear-algebra
+content of `prop:pinbound`/`prop:uniform`. -/
+theorem goodSetAbsorption_of_component_bounds [FiniteDimensional (Fp P) Fq]
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (ε₁ εSPREAD εrow εBFS : ℝ≥0∞)
+    (hA : (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ NodeHyp P Fq Dom ch} ≤ ε₁)
+    (hSPREAD : (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+        (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)} ≤ εSPREAD)
+    (hrow : (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)} ≤ εrow)
+    (hBFS : (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ BlockFoldSolve P Fq Dom ch} ≤ εBFS)
+    (hsum : ε₁ + εrow + ((εSPREAD + εrow) + εBFS) ≤ εZK P Fq) :
+    GoodSetAbsorption P Fq Dom S := by
+  refine goodSetAbsorption_of_bounds P Fq Dom S h2 hmf hdom hbudget ε₁ εrow
+    ((εSPREAD + εrow) + εBFS) hA hrow ?_ hsum
+  exact (pinning_failure_le P Fq Dom S hmf).trans
+    (add_le_add (add_le_add hSPREAD hrow) hBFS)
+
 end ZkWhir
