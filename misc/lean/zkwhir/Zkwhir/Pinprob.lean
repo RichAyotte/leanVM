@@ -110,6 +110,30 @@ theorem challenge_alpha_tail_dual_zero_le [Nonempty Fq] [FiniteDimensional (Fp P
   rw [hset]
   exact h
 
+/-- **Each tail-SPREAD-failure union term is bounded** (the tail per-`φ` measure): the
+event `{φ` kills every head-erased tail product`}` is contained in `{∀ i ≠ 0, φ(α_i) = 0}`,
+because each tail coordinate `α_i` (`i ≠ 0`) is a sum of head-erased tail products
+(`alpha_eq_sum_tail`). So its measure is `≤ (p^{d-1})^{k₀-1}/q^{k₀-1}` by
+`challenge_alpha_tail_dual_zero_le`. -/
+theorem tail_spread_term_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    (hcard : Fintype.card (Fp P) = P.p) {φ : Module.Dual (Fp P) Fq} (hφ : φ ≠ 0) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ∀ s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true},
+        φ (∏ j ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+          (if s.val j then ch.α j else 1 - ch.α j)) = 0} ≤
+      (P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ (P.k₀ - 1) /
+        (Fintype.card Fq : ℝ≥0∞) ^ (P.k₀ - 1) := by
+  refine le_trans (MeasureTheory.measure_mono ?_)
+    (challenge_alpha_tail_dual_zero_le P Fq Dom hcard hφ)
+  intro ch hch
+  simp only [Set.mem_setOf_eq] at hch ⊢
+  intro i hi
+  rw [Finset.mem_filter] at hi
+  rw [alpha_eq_sum_tail P Fq Dom ch i hi.2, map_sum]
+  refine Finset.sum_eq_zero fun s hsmem => ?_
+  rw [Finset.mem_filter] at hsmem
+  exact hch ⟨s, hsmem.2.2⟩
+
 /-- **Each SPREAD-failure union term is bounded** by the joint coordinate event:
 `A_φ = {φ` vanishes on every `êq(α,s)}` is contained in `{∀i φ(α_i)=0}`, because
 each `α_i = ∑_{s≥i} êq(α,s)` lies in `span(êq(α,·))` (the change-of-basis
