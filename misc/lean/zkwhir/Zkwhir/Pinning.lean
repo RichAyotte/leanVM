@@ -3526,6 +3526,17 @@ theorem exists_trace_rep_single [FiniteDimensional (Fp P) Fq]
     Finset.sum_singleton] at hβ
   rw [hβ, mul_comm (v ()) β]
 
+/-- **Trace duality for a finite family** (`lem:noother`, vector form): a whole
+family of `Fp`-linear functionals `Lₜ : Fq → Fp` is simultaneously represented as
+trace pairings `Lₜ β = tr(β·aₜ)`. Applies `exists_trace_rep_single` per index — this
+extracts the entire queried (or `zf`) coefficient vector `a : Fin n → Fq` of the
+protocol form in one step from the confine's `Fp`-linear coefficient family. -/
+theorem exists_trace_rep_family [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] {n : ℕ} (L : Fin n → Module.Dual (Fp P) Fq) :
+    ∃ a : Fin n → Fq, ∀ t β, L t β = Algebra.trace (Fp P) Fq (β * a t) := by
+  choose a ha using fun t => exists_trace_rep_single P Fq (L t)
+  exact ⟨a, ha⟩
+
 /-- **Protocol form kills `range pinFold`** (the `H`-target's necessity / easy
 direction): a `w` in protocol form pairs to zero against every view-vanishing
 mask-fold. Indeed `pinFold κ` is *itself* protocol-killed
