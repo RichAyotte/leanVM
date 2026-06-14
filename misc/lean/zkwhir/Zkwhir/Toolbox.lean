@@ -381,6 +381,22 @@ theorem sum_smul_Fp_scalar {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
   refine Finset.sum_congr rfl fun i _ => ?_
   rw [smul_mul_assoc, mul_comm (b' i) (algebraMap Fp Fq E), ← Algebra.smul_def, smul_smul]
 
+/-- **Queried extraction collapse for the dual-basis reconstruction** (`lem:noother`,
+queried channel assembled): the dual-basis recombination of the queried part of the
+confine slices, `∑ᵢ (∑ₜ cq(i)ₜ·Eₜ)•b'ᵢ`, equals `∑ₜ aqₜ·algebraMap Eₜ` with the
+*uniform* `Fq` coefficient `aqₜ = ∑ᵢ cq(i)ₜ•b'ᵢ`. Swapping the `i,t` sums and applying
+`sum_smul_Fp_scalar` per `t`. Instantiated with `cq(i) = cq(bᵢ)` (confine at the basis
+twists) and `Eₜ(c₀) = êq(pow(qsₜ),c₀)`, this is exactly the queried channel of
+`w_c₀ = ∑ᵢ tr(bᵢ·w_c₀)•b'ᵢ` put in protocol form — no channel independence needed. -/
+theorem dualBasis_queried_collapse {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    {ιβ : Type*} [Fintype ιβ] (b' : ιβ → Fq) {t₀ : ℕ} (cq : ιβ → Fin t₀ → Fp)
+    (E : Fin t₀ → Fp) :
+    (∑ i, (∑ t, cq i t * E t) • b' i)
+      = ∑ t, (∑ i, cq i t • b' i) * algebraMap Fp Fq (E t) := by
+  rw [show (∑ i, (∑ t, cq i t * E t) • b' i) = ∑ i, ∑ t, (cq i t * E t) • b' i from
+      Finset.sum_congr rfl fun i _ => by rw [Finset.sum_smul], Finset.sum_comm]
+  exact Finset.sum_congr rfl fun t _ => sum_smul_Fp_scalar b' (fun i => cq i t) (E t)
+
 /-- **A trace-weight is an `Fp`-combination of the basis trace-weights** (`lem:noother`
 node/zf channel span, weight form): for any `M ∈ Fq`, the weight `c ↦ tr(M·W c)` is
 the `Fp`-combination `∑ᵢ (b.repr M i)·(c ↦ tr(bᵢ·W c))` over a basis `b`. So as `M`
