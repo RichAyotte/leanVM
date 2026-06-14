@@ -431,6 +431,19 @@ theorem powSeq_algebraMap {R A : Type*} [CommRing R] [CommRing A] [Algebra R A]
   funext i
   simp [powSeq]
 
+/-- **`algebraMap` pushes through a `pow`-eqPoly weighted sum**: the `algebraMap` of a
+base-field `pow`-eqPoly combination is the same combination over the extended `pow`-point
+with `algebraMap`-ped coefficients. Combines `map_sum`/`map_mul` with `powSeq_algebraMap`
+and `eqPoly_algebraMap`. Used to certify that the `R_out` mask's queried fiber contribution
+is `Fp`-rational (so the primal view solve `exists_block_fiber` can hit it). -/
+theorem algebraMap_sum_eqPoly_mul {R A : Type*} [CommRing R] [CommRing A] [Algebra R A]
+    {m : ℕ} (x : R) (g : Cube m → R) (T : Finset (Cube m)) :
+    algebraMap R A (∑ c ∈ T, eqPoly (powSeq x m) c * g c)
+      = ∑ c ∈ T, eqPoly (powSeq (algebraMap R A x) m) c * algebraMap R A (g c) := by
+  rw [map_sum]
+  refine Finset.sum_congr rfl fun c _ => ?_
+  rw [map_mul, powSeq_algebraMap, eqPoly_algebraMap]
+
 /-- The multilinear extension is additive in the table. -/
 theorem mle_add {R : Type*} [CommRing R] {j : ℕ} (f g : Cube j → R)
     (x : Fin j → R) :
