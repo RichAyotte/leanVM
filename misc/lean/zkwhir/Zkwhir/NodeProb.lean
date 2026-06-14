@@ -303,6 +303,30 @@ theorem challenge_alpha_primefield_le (i : Fin P.k₀) :
       (card_pow_p_eq_self_le (K := Fq) P.pPrime.two_le)
   · simp [fieldCard]
 
+/-- **`hDr` failure bound** (`cor:twistprob`): when the extension degree `d` is
+prime, `cond:twist`'s Frobenius-gap hypothesis `hDr` (∀ j, ∀ r ≠ 0,
+`α₀^{pʳ} ≠ α₀`) fails only when `α₀` lies in the prime field, so its failure
+probability is at most `p/q`. Uses the contrapositive Frobenius gap
+`pow_pPow_ne_self_of_pow_p_ne` (d prime: `α₀^p ≠ α₀ ⟹ α₀^{pʳ} ≠ α₀` for `0<r<d`)
+to reduce `¬hDr ⊆ {α₀^p = α₀}`, then `challenge_alpha0_primefield_le`. -/
+theorem hDr_failure_le (hdp : (extDeg P Fq).Prime)
+    (hcardq : Fintype.card Fq = P.p ^ extDeg P Fq) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ¬ ∀ (j : Fin 2) (r : Fin (extDeg P Fq)), (r : ℕ) ≠ 0 →
+        ch.α ⟨0, P.k₀_pos⟩ ^ P.p ^ (r : ℕ) - ch.α ⟨0, P.k₀_pos⟩ ≠ 0} ≤
+      (P.p : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞) := by
+  have hsub : {ch : Challenges P Fq Dom | ¬ ∀ (j : Fin 2) (r : Fin (extDeg P Fq)), (r : ℕ) ≠ 0 →
+        ch.α ⟨0, P.k₀_pos⟩ ^ P.p ^ (r : ℕ) - ch.α ⟨0, P.k₀_pos⟩ ≠ 0} ⊆
+      {ch : Challenges P Fq Dom | ch.α ⟨0, P.k₀_pos⟩ ^ P.p = ch.α ⟨0, P.k₀_pos⟩} := by
+    intro ch hch
+    simp only [Set.mem_setOf_eq, not_forall, _root_.not_imp, not_not] at hch
+    obtain ⟨j, r, hr0, heq⟩ := hch
+    rw [Set.mem_setOf_eq]
+    by_contra hp
+    exact pow_pPow_ne_self_of_pow_p_ne hcardq hdp (Nat.pos_of_ne_zero hr0) r.isLt hp
+      (sub_eq_zero.mp heq)
+  exact (MeasureTheory.measure_mono hsub).trans (challenge_alpha0_primefield_le P Fq Dom)
+
 /-- **α-prefix vanishing bound**: the product of `eqf(α_i, z_j^{2^i})` over
 `i < m` vanishes with probability at most `k₀/q`. -/
 theorem alpha_prefix_zero_le (h2 : (2 : Fq) ≠ 0) (j : Fin 2) (m : Fin P.k₀) :
