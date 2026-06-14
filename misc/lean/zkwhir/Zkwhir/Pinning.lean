@@ -1365,6 +1365,39 @@ theorem prod_erase_split {M : Type*} [CommMonoid M] (ℓ : Fin P.k₀) (g : Fin 
     exact ⟨fun ⟨hne, hle⟩ => lt_of_le_of_ne hle (Ne.symm hne),
       fun h => ⟨ne_of_gt h, le_of_lt h⟩⟩
 
+/-- **The fully factored cross-vector entry** (`cond:cross2`/`lem:fullslice`
+value-row layer): `C_{(s,c)} = êq(y,s_ℓ) · (∏_{i<ℓ} êq(α_i,s_i)) · ŵ_pe(b*,c)`,
+where `b* i = if i ≤ ℓ then false else s_i` is the unique data-cell index agreeing
+with `s` above `ℓ`. Combines the slot factoring, the `erase ℓ` split, and the
+`∑_b` collapse — the closed form the cross-form factorization reads off. -/
+theorem crossTerm_single_cell_full (s : Cube P.k₀) (c : Cube P.m) (ℓ : Fin P.k₀)
+    (y : Fq) :
+    crossTerm P Fq Dom S (Pi.single (s, c) 1) ch ℓ y =
+      (if s ℓ then y else 1 - y) *
+        ((∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+            (if s i then ch.α i else 1 - ch.α i)) *
+          partialEval P Fq Dom ch S.w ℓ y (fun i => if i ≤ ℓ then false else s i) c) := by
+  rw [crossTerm_single_cell_factor]
+  congr 1
+  have hsimp : ∀ b : Cube P.k₀, (∏ i ∈ Finset.univ.erase ℓ,
+        (if i < ℓ then (if s i then ch.α i else 1 - ch.α i)
+         else if i = ℓ then (if s i then y else 1 - y)
+         else (if s i = b i then (1 : Fq) else 0))) =
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+          (if s i then ch.α i else 1 - ch.α i)) *
+        (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => ℓ < i),
+          if s i = b i then (1 : Fq) else 0) := by
+    intro b
+    rw [prod_erase_split]
+    congr 1
+    · refine Finset.prod_congr rfl fun i hi => ?_
+      rw [if_pos (Finset.mem_filter.mp hi).2]
+    · refine Finset.prod_congr rfl fun i hi => ?_
+      have hℓi : ℓ < i := (Finset.mem_filter.mp hi).2
+      rw [if_neg (not_lt.mpr (le_of_lt hℓi)), if_neg (Ne.symm (ne_of_lt hℓi))]
+  simp_rw [hsimp, mul_assoc]
+  rw [← Finset.mul_sum, sum_filter_suffix_indicator]
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
