@@ -457,6 +457,20 @@ theorem exists_subset_sum_two_pow {m k : ℕ} (hk : k < 2 ^ m) :
   rw [hset, List.sum_toFinset _ Nat.bitIndices_nodup]
   exact Nat.sum_map_two_pow_bitIndices k
 
+/-- **Low-bit binary representation**: for `k < 2^a` (with `a ≤ m`) there is a subset
+`T ⊆ Fin m` supported on the low coordinates (`i < a`) with `∑_{i∈T} 2^i = k`. The
+exponent surjectivity over the low cube the block-restricted Vandermonde consumes. -/
+theorem exists_low_subset_sum_two_pow {m a : ℕ} (ham : a ≤ m) {k : ℕ} (hk : k < 2 ^ a) :
+    ∃ T : Finset (Fin m), (∀ i ∈ T, (i : ℕ) < a) ∧ ∑ i ∈ T, 2 ^ (i : ℕ) = k := by
+  obtain ⟨T', hT'⟩ := exists_subset_sum_two_pow (m := a) (k := k) hk
+  refine ⟨T'.map (Fin.castLEEmb ham), ?_, ?_⟩
+  · intro i hi
+    rw [Finset.mem_map] at hi
+    obtain ⟨i', _, rfl⟩ := hi
+    simpa using i'.isLt
+  · rw [Finset.sum_map]
+    simpa using hT'
+
 /-- **The `pow`-point eqPoly weights are linearly independent** (`lem:noother`,
 full-cube form): if the nodes `z_t` are distinct and there are at most `2^m` of
 them, then the weight functions `c ↦ êq(pow(z_t,·), c)` on `Cube m` are linearly
@@ -492,6 +506,54 @@ theorem eqPoly_powSeq_linearIndependent {F : Type*} [Field F] {m : ℕ} {ι : Ty
         rw [Finset.mul_sum]
         exact Finset.sum_congr rfl fun t _ => by ring
     _ = 0 := Finset.sum_eq_zero fun c _ => by rw [hsum c, mul_zero]
+
+/-- **The `pow`-point eqPoly weights are independent over the block** (`lem:noother`,
+block form): if the nodes `z_t` are distinct, nonzero, and number at most `2^a`, then
+the weight functions `c ↦ êq(pow(z_t,·), c)` *restricted to the block* (high bits
+`≥ a` fixed true) are linearly independent. Proof: pairing a vanishing combination
+against a low subset indicator `T` and using the block-restricted moment turns it
+into the shifted power sum `∑_t (a_t·z_t^{2^m−2^a})·z_t^{n(T)} = 0` for all
+`n(T) < 2^a`; Vandermonde forces `a_t·z_t^{2^m−2^a} = 0`, and `z_t ≠ 0` gives
+`a_t = 0`. This is the independence over the affine sub-cube that `lem:confine` pins. -/
+theorem eqPoly_powSeq_block_linearIndependent {F : Type*} [Field F] {m a : ℕ} (ham : a ≤ m)
+    {ι : Type*} [Fintype ι] [DecidableEq ι] (z : ι → F) (hz : Function.Injective z)
+    (hz0 : ∀ t, z t ≠ 0) (hcard : Fintype.card ι ≤ 2 ^ a) (coef : ι → F)
+    (hsum : ∀ c ∈ Finset.univ.filter (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true),
+        ∑ t, coef t * eqPoly (powSeq (z t) m) c = 0) :
+    coef = 0 := by
+  have hb : (fun t => coef t * z t ^ (2 ^ m - 2 ^ a)) = 0 := by
+    refine vandermonde_coeffs_zero z hz _ (fun k hk => ?_)
+    obtain ⟨T, hTlow, hTk⟩ := exists_low_subset_sum_two_pow ham (lt_of_lt_of_le hk hcard)
+    have hmom : ∀ t, (coef t * z t ^ (2 ^ m - 2 ^ a)) * z t ^ k
+        = coef t * (∑ c ∈ Finset.univ.filter
+            (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true),
+            eqPoly (powSeq (z t) m) c * ∏ i ∈ T, (if c i then (1 : F) else 0)) := by
+      intro t
+      rw [sum_block_eqPoly_powSeq_mul_subsetIndicator ham (z t) T hTlow, hTk]; ring
+    calc ∑ t, (coef t * z t ^ (2 ^ m - 2 ^ a)) * z t ^ k
+        = ∑ t, ∑ c ∈ Finset.univ.filter
+            (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true),
+            coef t * (eqPoly (powSeq (z t) m) c * ∏ i ∈ T, (if c i then (1 : F) else 0)) := by
+          refine Finset.sum_congr rfl fun t _ => ?_
+          rw [hmom t, Finset.mul_sum]
+      _ = ∑ c ∈ Finset.univ.filter
+            (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true), ∑ t,
+            coef t * (eqPoly (powSeq (z t) m) c * ∏ i ∈ T, (if c i then (1 : F) else 0)) :=
+          Finset.sum_comm
+      _ = ∑ c ∈ Finset.univ.filter
+            (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true),
+            (∏ i ∈ T, (if c i then (1 : F) else 0)) *
+              (∑ t, coef t * eqPoly (powSeq (z t) m) c) := by
+          refine Finset.sum_congr rfl fun c _ => ?_
+          rw [Finset.mul_sum]
+          exact Finset.sum_congr rfl fun t _ => by ring
+      _ = 0 := Finset.sum_eq_zero fun c hc => by rw [hsum c hc, mul_zero]
+  funext t
+  have ht := congrFun hb t
+  simp only [Pi.zero_apply] at ht
+  rcases mul_eq_zero.mp ht with h | h
+  · exact h
+  · exact absurd h (pow_ne_zero _ (hz0 t))
 
 /-! ## The cell polynomials
 
