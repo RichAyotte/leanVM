@@ -3488,4 +3488,29 @@ theorem one_mem_span_eqPoly :
   rw [← eqPoly_sum_eq_one Fq ch.α]
   exact Submodule.sum_mem _ fun s _ => Submodule.subset_span ⟨s, rfl⟩
 
+/-- **Queried protocol dual kills `range pinFold`** (`ann(range pinFold) ⊇` protocol
+span, dual form): the queried-eval dual `g ↦ tr(b·mle g(qs_t))` annihilates every
+view-vanishing mask-fold, since `mle(pinFold κ)(qs_t) = 0` (`pinFold_queried_zero`). -/
+theorem queriedDual_kills_pinFold (b : Fq) (t : Fin P.t₀) (κ : viewKer P Fq Dom S ch) :
+    Algebra.trace (Fp P) Fq (b * mle (pinFold P Fq Dom S ch κ)
+      (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m)) = 0 := by
+  rw [pinFold_queried_zero P Fq Dom S ch κ t, mul_zero, map_zero]
+
+/-- **`zf` protocol dual kills `range pinFold`**: the `f̂₁` out-of-domain dual
+`g ↦ tr(b·mle g(zf_j))` annihilates every view-vanishing fold (`pinFold_zf_zero`). -/
+theorem zfDual_kills_pinFold (b : Fq) (j : Fin P.s₁) (κ : viewKer P Fq Dom S ch) :
+    Algebra.trace (Fp P) Fq (b * mle (pinFold P Fq Dom S ch κ)
+      (powSeq (ch.zf j) P.m)) = 0 := by
+  rw [pinFold_zf_zero P Fq Dom S ch κ j, mul_zero, map_zero]
+
+/-- **Terminal protocol dual kills `range pinFold`**: the terminal-pairing dual
+`g ↦ tr(b·∑_c g_c·∑_s êq(α,s)W₀(s,c))` annihilates every view-vanishing fold
+(`pinFold_terminal_zero`). The three protocol duals together exhibit the easy
+inclusion `protocol span ⊆ ann(range pinFold)` (the hard converse is `H`). -/
+theorem terminalDual_kills_pinFold (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (b : Fq) (κ : viewKer P Fq Dom S ch) :
+    Algebra.trace (Fp P) Fq (b * (∑ c, pinFold P Fq Dom S ch κ c *
+      ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c))) = 0 := by
+  rw [pinFold_terminal_zero P Fq Dom S ch h2 hmf κ, mul_zero, map_zero]
+
 end ZkWhir
