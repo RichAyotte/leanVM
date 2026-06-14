@@ -155,6 +155,14 @@ theorem mle_pi_add {j : ℕ} (M₁ M₂ : Cube j → Fq) (xs : Fin j → Fq) :
   rw [← Finset.sum_add_distrib]
   exact Finset.sum_congr rfl fun b _ => by rw [Pi.add_apply]; ring
 
+/-- The multilinear extension is odd in the table (`mle (-M) = - mle M`): used in
+the assembly to transport protocol-killed-ness of `F` to `-F`. -/
+theorem mle_pi_neg {j : ℕ} (M : Cube j → Fq) (xs : Fin j → Fq) :
+    mle (-M) xs = - mle M xs := by
+  unfold mle
+  rw [← Finset.sum_neg_distrib]
+  exact Finset.sum_congr rfl fun b _ => by rw [Pi.neg_apply, mul_neg]
+
 /-- Zero data and zero mask assemble to the zero table. -/
 theorem assemble_zero_zero : assemble P 0 (0 : MaskAssign P) = 0 := by
   funext u; unfold assemble
