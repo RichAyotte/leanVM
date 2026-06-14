@@ -3885,6 +3885,32 @@ theorem mle_primalMask_fiber (v ρ : Cube P.k₀ → Cube P.m → Fp P)
       · exact absurd h hs
     rw [if_neg hs, add_zero, mle_primalMask_fiber_Rin P Fq v ρ hv hsf]
 
+/-- **The primal fiber evaluation is additive in the block fibers** (`cond:cross2`
+construction, `v⁰ + δ` decomposition): adding a block-supported correction `δ` to the
+block fibers shifts every fiber's evaluation by exactly `mle(δ_s)` — the `R_out` mask
+contribution is shared and cancels. This is what lets the view be solved first (a `v⁰`
+hitting the queried/node targets) and then corrected by a *view-neutral* `δ` realizing the
+block fold, without disturbing the view. -/
+theorem mle_primalMask_fiber_add (v δ ρ : Cube P.k₀ → Cube P.m → Fp P)
+    (hv : ∀ s c, v s c ≠ 0 → IsBlockPos P c) (hδ : ∀ s c, δ s c ≠ 0 → IsBlockPos P c)
+    (s : Cube P.k₀) (pt : Fin P.m → Fq) :
+    mle (fun c => liftT P Fq (assemble P 0 (- primalMask P (v + δ) ρ)) (s, c)) pt =
+      mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c)) pt +
+      mle (fun c => algebraMap (Fp P) Fq (δ s c)) pt := by
+  have hvδ : ∀ s c, (v + δ) s c ≠ 0 → IsBlockPos P c := by
+    intro s c hc
+    simp only [Pi.add_apply] at hc
+    by_cases hvc : v s c = 0
+    · rw [hvc, zero_add] at hc; exact hδ s c hc
+    · exact hv s c hvc
+  rw [mle_primalMask_fiber P Fq (v + δ) ρ hvδ s pt,
+    mle_primalMask_fiber P Fq v ρ hv s pt,
+    show (fun c => algebraMap (Fp P) Fq ((v + δ) s c))
+        = (fun c => algebraMap (Fp P) Fq (v s c) + algebraMap (Fp P) Fq (δ s c)) from by
+      funext c; simp only [Pi.add_apply, map_add],
+    mle_add]
+  ring
+
 /-- **The primal cross term depends only on the `R_out` masks** (`cond:pinning`
 construction, message half): `crossTerm` reads the table only at non-block positions
 (the weight vanishes on block cells, `MaskFree`), and there the primal table is `ρ`
