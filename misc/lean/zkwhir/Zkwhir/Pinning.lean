@@ -3794,6 +3794,50 @@ theorem mle_primalMask_fiber_Rin (v ρ : Cube P.k₀ → Cube P.m → Fp P)
     by_contra h
     exact hc (hv s c h)
 
+/-- **The `R_out` fiber splits into block fiber plus `R_out` mask** (`cond:pinning`
+construction, view half, coupled case): on an upper-half class (`s₀ = true`) the
+fiber's evaluation is the block fiber's evaluation plus the `R_out` mask's
+non-block contribution `∑_{¬block c} êq(pt,c)·ρ(s,c)`. This extra term is the
+`ρ`-coupling the queried/node targets of the block solve must absorb (`cond:cross2`):
+the `R_out` masks placed to realize the non-block fold feed back into the upper-half
+fibers' view evaluations. -/
+theorem mle_primalMask_fiber_Rout (v ρ : Cube P.k₀ → Cube P.m → Fp P)
+    (hv : ∀ s c, v s c ≠ 0 → IsBlockPos P c) {s : Cube P.k₀}
+    (hs : s ⟨0, P.k₀_pos⟩ = true) (pt : Fin P.m → Fq) :
+    mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c)) pt =
+      mle (fun c => algebraMap (Fp P) Fq (v s c)) pt +
+      ∑ c ∈ Finset.univ.filter (fun c : Cube P.m => ¬ IsBlockPos P c),
+        eqPoly pt c * algebraMap (Fp P) Fq (ρ s c) := by
+  have hval : ∀ c, liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c)
+      = algebraMap (Fp P) Fq (v s c)
+        + algebraMap (Fp P) Fq (if ¬ IsBlockPos P c then ρ s c else 0) := by
+    intro c
+    unfold liftT
+    rw [← map_add]
+    congr 1
+    rw [assemble_primalMask_value]
+    by_cases hc : IsBlockPos P c
+    · rw [if_pos hc, if_neg (not_not.mpr hc), add_zero]
+    · rw [if_neg hc, if_pos hs, if_pos hc]
+      have hv0 : v s c = 0 := by by_contra h; exact hc (hv s c h)
+      rw [hv0, zero_add]
+  rw [show (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c))
+      = (fun c => algebraMap (Fp P) Fq (v s c)
+        + algebraMap (Fp P) Fq (if ¬ IsBlockPos P c then ρ s c else 0)) from funext hval,
+    mle_add]
+  congr 1
+  unfold mle
+  rw [← Finset.sum_filter_add_sum_filter_not Finset.univ (fun c => ¬ IsBlockPos P c)
+      (fun b => eqPoly pt b * algebraMap (Fp P) Fq (if ¬ IsBlockPos P b then ρ s b else 0))]
+  rw [show (∑ b ∈ Finset.univ.filter (fun c => ¬¬ IsBlockPos P c),
+        eqPoly pt b * algebraMap (Fp P) Fq (if ¬ IsBlockPos P b then ρ s b else 0)) = 0 from
+    Finset.sum_eq_zero fun b hb => by
+      rw [Finset.mem_filter] at hb
+      rw [if_neg hb.2, map_zero, mul_zero], add_zero]
+  refine Finset.sum_congr rfl fun b hb => ?_
+  rw [Finset.mem_filter] at hb
+  rw [if_pos hb.2]
+
 /-- **The primal mask realizes the fold `-F`** (`cond:pinning` construction, fold
 half): if the block fibers `v` realize `-F` on block positions via the full SPREAD
 sum and the `R_out` masks `ρ` realize `-F` on non-block positions via the `R_out`
