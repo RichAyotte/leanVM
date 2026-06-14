@@ -367,6 +367,23 @@ theorem sum_basis_trace_eq {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
   rw [Finset.sum_mul, map_sum]
   exact Finset.sum_congr rfl fun i _ => by rw [smul_mul_assoc, map_smul]
 
+/-- **A trace-weight is an `Fp`-combination of the basis trace-weights** (`lem:noother`
+node/zf channel span, weight form): for any `M ∈ Fq`, the weight `c ↦ tr(M·W c)` is
+the `Fp`-combination `∑ᵢ (b.repr M i)·(c ↦ tr(bᵢ·W c))` over a basis `b`. So as `M`
+ranges over `Fq` the trace-weights `c ↦ tr(M·W c)` lie in the `Fp`-span of the
+basis trace-weights `{c ↦ tr(bᵢ·W c)}ᵢ` — the bridge from ambient `Fq` weights to
+the basis-indexed node/zf confine generators. -/
+theorem trace_weight_basis_decomp {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ]
+    (b : Module.Basis ιβ Fp Fq) {ιc : Type*} (W : ιc → Fq) (M : Fq) :
+    (fun c => Algebra.trace Fp Fq (M * W c))
+      = ∑ i, (b.repr M i) • (fun c => Algebra.trace Fp Fq (b i * W c)) := by
+  funext c
+  rw [Finset.sum_apply]
+  simp only [Pi.smul_apply]
+  conv_lhs => rw [← b.sum_repr M]
+  rw [← sum_basis_trace_eq b (fun i => b.repr M i) (W c)]
+
 /-- **A surjective `Fq`-form has nonzero trace** (the Step-4 reduction): if
 `L : M → Fq` hits every value, then some `m` has `tr(L m) ≠ 0`. Hence
 `tr ∘ L ≠ 0` whenever `L` is surjective — the trace argument reduces to a
