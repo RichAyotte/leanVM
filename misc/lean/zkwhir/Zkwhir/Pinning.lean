@@ -3575,6 +3575,72 @@ theorem single_channel_block_extract {Fp Fq : Type*} [Field Fp] [Field Fq] [Alge
   rw [hrearr, basis_trace_smul_collapse (fun i => b i)
     (fun i' => ∑ i, cz i i' • b' i) (W c) hdescent]
 
+/-- **Per-channel collapse term** (`lem:noother`, the reusable unit the multi-channel
+confine extraction sums over): the dual-basis recombination of one trace-channel,
+`∑ᵢ (∑_{i'} cz_{i,i'}·tr(b_{i'}·W_c))•b'ᵢ`, collapses (under the Galois-descent condition)
+to the clean `Fq` multiple `(∑_{i'} D_{i'}·b_{i'})·W_c` with `D_{i'} = ∑ᵢ cz_{i,i'}•b'ᵢ`.
+This is `single_channel_block_extract`'s body without the reconstruction step, so it can
+be summed over the queried/node/zf channels of the confine slice. -/
+theorem channel_term_collapse {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq] [IsGalois Fp Fq] {m : ℕ}
+    {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ Fp Fq)
+    (W : Cube m → Fq) (cz : ιβ → ιβ → Fp) (c : Cube m)
+    (hdescent : ∀ σ : Fq ≃ₐ[Fp] Fq, σ ≠ 1 →
+        ∑ i', (∑ i, cz i i' • (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+            (traceForm_nondegenerate Fp Fq) b) i) * σ (b i') = 0) :
+    (∑ i, (∑ i', cz i i' * Algebra.trace Fp Fq (b i' * W c)) •
+        (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+          (traceForm_nondegenerate Fp Fq) b) i)
+      = (∑ i', (∑ i, cz i i' • (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+          (traceForm_nondegenerate Fp Fq) b) i) * b i') * W c := by
+  classical
+  set b' := LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+    (traceForm_nondegenerate Fp Fq) b with hb'
+  rw [show (∑ i, (∑ i', cz i i' * Algebra.trace Fp Fq (b i' * W c)) • b' i)
+      = ∑ i', algebraMap Fp Fq (Algebra.trace Fp Fq (b i' * W c)) * (∑ i, cz i i' • b' i) from ?_]
+  · exact basis_trace_smul_collapse (fun i => b i) (fun i' => ∑ i, cz i i' • b' i) (W c) hdescent
+  · simp_rw [Finset.sum_smul]
+    rw [Finset.sum_comm]
+    refine Finset.sum_congr rfl fun i' _ => ?_
+    rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun i _ => ?_
+    rw [← Algebra.smul_def, smul_smul, mul_comm (Algebra.trace Fp Fq (b i' * W c)) (cz i i')]
+
+/-- **Multi-channel block extraction** (`lem:noother`, the full block shape): if the
+trace-slice of `w` is represented through a *family* of trace-channels `tr(bᵢ·w_c) =
+∑_r ∑_{i'} cz_{r,i,i'}·tr(b_{i'}·W_r(c))` on the block, and the Galois-descent condition
+holds per channel `r`, then `w` collapses to the protocol-shape sum of clean `Fq`
+multiples `w_c = ∑_r (∑_{i'} D^r_{i'}·b_{i'})·W_r(c)` on the block. The dual-basis
+reconstruction is split over the channels and each summand collapsed by
+`channel_term_collapse`. This is exactly the shape `confine_slice_coeffs` produces for
+the combined queried/node/zf channels — the extraction completing `H` on the block,
+modulo the descent condition (and the queried channel's `Fp`-rational simplification). -/
+theorem multi_channel_block_extract {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq] [IsGalois Fp Fq] {m : ℕ}
+    {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ Fp Fq)
+    {R : Type*} [Fintype R] (w : Cube m → Fq) (W : R → Cube m → Fq)
+    (cz : R → ιβ → ιβ → Fp) (S : Finset (Cube m))
+    (hrep : ∀ i, ∀ c ∈ S, Algebra.trace Fp Fq (b i * w c)
+        = ∑ r, ∑ i', cz r i i' * Algebra.trace Fp Fq (b i' * W r c))
+    (hdescent : ∀ r, ∀ σ : Fq ≃ₐ[Fp] Fq, σ ≠ 1 →
+        ∑ i', (∑ i, cz r i i' • (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+            (traceForm_nondegenerate Fp Fq) b) i) * σ (b i') = 0) :
+    ∀ c ∈ S, w c = ∑ r, (∑ i', (∑ i, cz r i i' • (LinearMap.BilinForm.dualBasis
+        (Algebra.traceForm Fp Fq) (traceForm_nondegenerate Fp Fq) b) i) * b i') * W r c := by
+  classical
+  intro c hc
+  rw [eq_sum_trace_smul_dualBasis b (w c)]
+  set b' := LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+    (traceForm_nondegenerate Fp Fq) b with hb'
+  have step1 : (∑ i, Algebra.trace Fp Fq (w c * b i) • b' i)
+      = ∑ r, ∑ i, (∑ i', cz r i i' * Algebra.trace Fp Fq (b i' * W r c)) • b' i := by
+    rw [show (∑ i, Algebra.trace Fp Fq (w c * b i) • b' i)
+        = ∑ i, ∑ r, (∑ i', cz r i i' * Algebra.trace Fp Fq (b i' * W r c)) • b' i from
+      Finset.sum_congr rfl fun i _ => by rw [mul_comm (w c) (b i), hrep i c hc, Finset.sum_smul]]
+    rw [Finset.sum_comm]
+  rw [step1]
+  exact Finset.sum_congr rfl fun r _ => channel_term_collapse b (W r) (cz r) c (hdescent r)
+
 /-- **Protocol form kills `range pinFold`** (the `H`-target's necessity / easy
 direction): a `w` in protocol form pairs to zero against every view-vanishing
 mask-fold. Indeed `pinFold κ` is *itself* protocol-killed
