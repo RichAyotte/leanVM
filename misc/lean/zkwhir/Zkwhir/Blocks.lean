@@ -273,6 +273,24 @@ theorem basis_trace_smul_galois {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra F
   rw [Finset.sum_congr rfl fun i _ => hstep i, Finset.sum_comm]
   exact Finset.sum_congr rfl fun σ _ => by rw [Finset.sum_mul]
 
+/-- **Node/zf channel collapse under Galois descent** (`lem:noother`, clean form): if the
+conjugate Moore coefficients `∑ᵢ Dᵢ·σ(bᵢ)` vanish for every `σ ≠ 1`, then the messy
+double-basis sum `∑ᵢ algebraMap(tr(bᵢ·W))·Dᵢ` collapses to the clean `Fq` multiple
+`(∑ᵢ Dᵢ·bᵢ)·W`. Only the identity term of `basis_trace_smul_galois` survives. This is
+exactly the step that turns the dual-basis reconstruction's node/zf part into the
+protocol form `az_k·W^z_k` — `az_k = ∑ᵢ Dᵢ·bᵢ` — once the confine's Galois-equivariance
+supplies the vanishing of the conjugate coefficients. -/
+theorem basis_trace_smul_collapse {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [IsGalois Fp Fq] {ιβ : Type*} [Fintype ιβ]
+    (b D : ιβ → Fq) (W : Fq)
+    (hvanish : ∀ σ : Fq ≃ₐ[Fp] Fq, σ ≠ 1 → ∑ i, D i * σ (b i) = 0) :
+    (∑ i, algebraMap Fp Fq (Algebra.trace Fp Fq (b i * W)) * D i) = (∑ i, D i * b i) * W := by
+  classical
+  rw [basis_trace_smul_galois b D W, Finset.sum_eq_single (1 : Fq ≃ₐ[Fp] Fq)]
+  · simp
+  · intro σ _ hσ; rw [hvanish σ hσ, zero_mul]
+  · intro h; exact absurd (Finset.mem_univ 1) h
+
 /-- The `pow`-point commutes with scalar extension. -/
 theorem powSeq_algebraMap {R A : Type*} [CommRing R] [CommRing A] [Algebra R A]
     (z : R) (j : ℕ) :
