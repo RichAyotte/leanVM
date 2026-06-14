@@ -1346,6 +1346,25 @@ theorem sum_filter_suffix_indicator (ℓ : Fin P.k₀) (s : Cube P.k₀) (f : Cu
     exact absurd (Finset.mem_filter.mpr ⟨Finset.mem_univ _,
       fun i hi => by rw [hb₀]; simp [Finset.mem_Iic.mp hi]⟩) h
 
+/-- The product over `univ.erase ℓ` splits into the strictly-below and
+strictly-above pieces (`erase ℓ = {i < ℓ} ⊔ {ℓ < i}`). -/
+theorem prod_erase_split {M : Type*} [CommMonoid M] (ℓ : Fin P.k₀) (g : Fin P.k₀ → M) :
+    ∏ i ∈ Finset.univ.erase ℓ, g i =
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ), g i) *
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => ℓ < i), g i) := by
+  classical
+  rw [← Finset.prod_filter_mul_prod_filter_not (Finset.univ.erase ℓ) (fun i => i < ℓ) g]
+  congr 1
+  · refine Finset.prod_congr ?_ (fun _ _ => rfl)
+    ext i
+    simp only [Finset.mem_filter, Finset.mem_erase, Finset.mem_univ, and_true, true_and]
+    exact ⟨fun h => h.2, fun h => ⟨ne_of_lt h, h⟩⟩
+  · refine Finset.prod_congr ?_ (fun _ _ => rfl)
+    ext i
+    simp only [Finset.mem_filter, Finset.mem_erase, Finset.mem_univ, and_true, true_and, not_lt]
+    exact ⟨fun ⟨hne, hle⟩ => lt_of_le_of_ne hle (Ne.symm hne),
+      fun h => ⟨ne_of_gt h, le_of_lt h⟩⟩
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
