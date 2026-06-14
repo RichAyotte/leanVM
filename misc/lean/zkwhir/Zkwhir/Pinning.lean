@@ -4153,6 +4153,19 @@ theorem crossFold_pairing [FiniteDimensional (Fp P) Fq] (ψ : Cube P.m → Fq)
   refine Finset.sum_congr rfl fun c _ => ?_
   rw [← Algebra.smul_def, map_smul]
 
+/-- **A test weight annihilates a cross fold when each class pairing vanishes** (`cond:cross2`
+dual, sufficient direction): if for every class `s` the per-cell pairing
+`∑_c δ_{s,c}·tr(ψ_c·êq(α,s))` is zero, then `ψ` annihilates the whole cross fold of `δ`.
+Immediate from `crossFold_pairing` by summing the per-class zeros. This is the easy half of
+the dual characterization of `CrossSolve` surjectivity. -/
+theorem crossFold_family_zero [FiniteDimensional (Fp P) Fq] (ψ : Cube P.m → Fq)
+    (δ : Cube P.k₀ → Cube P.m → Fp P)
+    (hper : ∀ s, ∑ c, δ s c • Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s) = 0) :
+    Algebra.trace (Fp P) Fq
+      (∑ c, ψ c * ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (δ s c)) = 0 := by
+  rw [crossFold_pairing]
+  exact Finset.sum_eq_zero fun s _ => hper s
+
 /-- **`CrossSolve` from confinement-kernel fold surjectivity** (`cond:cross2`, reduction to
 the confine submodule): the confinement kernel `confineKer` (block-supported fibers vanishing
 at the queried points, commitment nodes, *and* `f̂₁` nodes) is *contained* in the
