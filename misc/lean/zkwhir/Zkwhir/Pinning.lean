@@ -3460,4 +3460,23 @@ theorem pinning_of_protocolForm [FiniteDimensional (Fp P) (Cube P.m → Fq)]
     phi_protocol_killed_zero P Fq Dom S ch φ w hwrep F aq az aterm hw hq hzf hterm,
     neg_zero]
 
+/-- **Protocol form kills `range pinFold`** (the `H`-target's necessity / easy
+direction): a `w` in protocol form pairs to zero against every view-vanishing
+mask-fold. Indeed `pinFold κ` is *itself* protocol-killed
+(`pinFold_queried_zero`/`pinFold_zf_zero`/`pinFold_terminal_zero`), so
+`sum_w_F_eq_zero_of_protocol_form` applies with `F := pinFold κ`. This confirms the
+protocol form is the correct shape for `H`: it is exactly `w ∈ ann(range pinFold)`
+expressed concretely (the hard converse `H` says every such `w` has this form). -/
+theorem protocolForm_kills_pinFold (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (w : Cube P.m → Fq) (aq : Fin P.t₀ → Fq) (az : Fin P.s₁ → Fq) (aterm : Fq)
+    (hw : ∀ c, w c =
+        (∑ t, aq t * eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c)
+        + (∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c)
+        + aterm * (∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)))
+    (κ : viewKer P Fq Dom S ch) :
+    (∑ c, w c * pinFold P Fq Dom S ch κ c) = 0 :=
+  sum_w_F_eq_zero_of_protocol_form P Fq Dom S ch (pinFold P Fq Dom S ch κ) w aq az aterm hw
+    (pinFold_queried_zero P Fq Dom S ch κ) (pinFold_zf_zero P Fq Dom S ch κ)
+    (pinFold_terminal_zero P Fq Dom S ch h2 hmf κ)
+
 end ZkWhir
