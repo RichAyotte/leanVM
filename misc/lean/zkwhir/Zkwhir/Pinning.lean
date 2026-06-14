@@ -1868,6 +1868,26 @@ theorem crossTerm_hne_of_ne (m ℓ : Fin P.k₀) (γ2 y : Fq) (hγ : γ2 ≠ 0)
     · exact h
   rw [hz, mul_zero]
 
+/-- **`lem:fullslice` for the cross channel (assembled form).** From SPREAD
+(`hspan`: the middle `E'` products span `Fq` over `Fp`), `γ² ≠ 0`, and the
+`cond:cross2` nonvanishing (`crossTerm T ≠ 0` for some perturbation `T`), the
+`Fp`-trace of `γ²·crossTerm` is nonzero at some cell. This is the `prop:pinbound`
+consumer with `hne` discharged down to the bare `cond:cross2` hypothesis. -/
+theorem crossTerm_trace_ne_zero_of_ne [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq]
+    (m ℓ : Fin P.k₀) (hm : m ≤ ℓ) (γ2 y : Fq) (hγ : γ2 ≠ 0)
+    (hspan : Submodule.span (Fp P) (Set.range
+        (fun π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool =>
+          ∏ j : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ},
+            if π j then ch.α j.val else 1 - ch.α j.val)) = ⊤)
+    (T : Cell P → Fp P) (hT : crossTerm P Fq Dom S T ch ℓ y ≠ 0) :
+    ∃ (π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool)
+        (v : ({i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)} → Bool) × Cube P.m),
+        Algebra.trace (Fp P) Fq
+          (γ2 * crossTerm P Fq Dom S (Pi.single (cellMidCombine P m ℓ π v.1, v.2) 1) ch ℓ y) ≠ 0 :=
+  crossTerm_trace_ne_zero P Fq Dom S ch m ℓ hm γ2 y hspan
+    (crossTerm_hne_of_ne P Fq Dom S ch m ℓ γ2 y hγ T hT)
+
 /-- **The single-class block probe mask**: place `−v` on the block of class `s`. -/
 def blockClassMask (s : Cube P.k₀) (v : Cube P.m → Fp P) : MaskAssign P :=
   fun u => if u.1.1 = s then -(v u.1.2) else 0
