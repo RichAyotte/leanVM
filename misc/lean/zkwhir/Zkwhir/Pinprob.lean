@@ -460,4 +460,33 @@ theorem goodSetAbsorption_of_component_bounds [FiniteDimensional (Fp P) Fq]
   exact (pinning_failure_le P Fq Dom S hmf).trans
     (add_le_add (add_le_add hSPREAD hrow) hBFS)
 
+/-- **`GoodSetAbsorption` from the two genuinely-remaining measures** (final-assembly,
+tightened): folding the `R_out`-SPREAD head bound (`Rout_spread_failure_le`) into the
+component skeleton, `GoodSetAbsorption` holds given the node measure, the head-erased
+tail-SPREAD measure, the two-point-rank measure, and the `cond:cross2` (`BlockFoldSolve`)
+measure summing below `εZK`. With `ε₁` (`nodeHyp_failure_le`) and `εrow`
+(`rowsLI_failure_le_closed`) already discharged, the campaign's remaining mathematical
+content is exactly: the tail-SPREAD measure (`εtail`) and the `cond:cross2` measure
+(`εBFS`), plus the `εZK` arithmetic. -/
+theorem goodSetAbsorption_of_tail_bounds [FiniteDimensional (Fp P) Fq]
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (ε₁ εtail εrow εBFS : ℝ≥0∞)
+    (hA : (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ NodeHyp P Fq Dom ch} ≤ ε₁)
+    (htail : (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+        (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} =>
+          ∏ i ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+            (if s.val i then ch.α i else 1 - ch.α i))) = ⊤)} ≤ εtail)
+    (hrow : (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)} ≤ εrow)
+    (hBFS : (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ BlockFoldSolve P Fq Dom ch} ≤ εBFS)
+    (hsum : ε₁ + εrow +
+        (((1 / (Fintype.card Fq : ℝ≥0∞) + εtail) + εrow) + εBFS) ≤ εZK P Fq) :
+    GoodSetAbsorption P Fq Dom S := by
+  refine goodSetAbsorption_of_component_bounds P Fq Dom S h2 hmf hdom hbudget
+    ε₁ (1 / (Fintype.card Fq : ℝ≥0∞) + εtail) εrow εBFS hA ?_ hrow hBFS hsum
+  exact (Rout_spread_failure_le P Fq Dom).trans (add_le_add le_rfl htail)
+
 end ZkWhir
