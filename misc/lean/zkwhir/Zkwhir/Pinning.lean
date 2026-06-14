@@ -3605,6 +3605,17 @@ theorem alphaMonomial_single (k : Fin P.k₀) :
     ext i; simp [Finset.mem_filter, Finset.mem_singleton, beq_iff_eq]
   rw [hf, Finset.prod_singleton]
 
+/-- **Monomial of a subset's indicator equals the plain product** over that subset:
+`alphaMonomial (1_S) = ∏_{i∈S} α_i`. So every `∏_{i∈S} α_i` (`S : Finset`) lies in
+`range alphaMonomial` — the bridge identifying the `lem:span` change-of-basis
+expansion terms (sums of subset products) with the monomial generators. -/
+theorem alphaMonomial_indicator (S : Finset (Fin P.k₀)) :
+    alphaMonomial P Fq Dom ch (fun i => decide (i ∈ S)) = ∏ i ∈ S, ch.α i := by
+  unfold alphaMonomial
+  congr 1
+  ext i
+  simp [Finset.mem_filter, decide_eq_true_iff]
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
