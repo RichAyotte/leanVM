@@ -3779,6 +3779,23 @@ theorem spread_of_dual [FiniteDimensional (Fp P) Fq]
   rw [Submodule.mem_bot]
   exact h φ (fun s => (Submodule.mem_dualAnnihilator φ).mp hφ _ (Submodule.subset_span ⟨s, rfl⟩))
 
+/-- **`¬SPREAD ⟹` a nonzero functional vanishes on all weights** (the SPREAD
+measure entry point, contrapositive of `spread_of_dual`): if the SPREAD span is not
+`⊤`, there is a nonzero `Fp`-functional `φ` on `Fq` killing every `êq(α,s)`. The
+SPREAD failure measure then bounds, by a union over such `φ`, the probability that
+all `α`-coordinates land in `ker φ`. -/
+theorem exists_dual_of_not_spread [FiniteDimensional (Fp P) Fq]
+    (h : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≠ ⊤) :
+    ∃ φ : Module.Dual (Fp P) Fq, φ ≠ 0 ∧ ∀ s, φ (eqPoly ch.α s) = 0 := by
+  by_contra hc
+  push_neg at hc
+  apply h
+  apply spread_of_dual
+  intro φ hφ
+  by_contra hne
+  obtain ⟨s, hs⟩ := hc φ hne
+  exact hs (hφ s)
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
