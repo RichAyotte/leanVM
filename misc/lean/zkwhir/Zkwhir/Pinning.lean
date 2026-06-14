@@ -4106,6 +4106,20 @@ theorem not_Rout_spread_subset :
   obtain ⟨hα0, htail⟩ := hmem
   exact hch (eqPoly_Rout_span_sub (Fp := Fp P) P.k₀_pos ch.α hα0 htail)
 
+/-- **Row-dependence is covered by coupled-genericity failure** (`thm:twopoint`, measure
+bridge): the node-system row weights are linearly independent whenever the coupled-chains
+genericity holds (`coupledKer_of_gen` → `rowsLI_of_coupledKer`), so the row-dependence event
+lies in the coupled-genericity failure event — whose measure is the two-point-rank bound
+`coupledGen_failure_le`. Reduces the `εrow` summand to the established coupled-genericity
+accounting. -/
+theorem not_rowsLI_subset :
+    {ch : Challenges P Fq Dom | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)} ⊆
+      {ch : Challenges P Fq Dom | ¬ CoupledGen Fq P Dom ch} := by
+  intro ch hch
+  simp only [Set.mem_setOf_eq] at hch ⊢
+  exact fun hgen =>
+    hch (rowsLI_of_coupledKer Fq P Dom ch (coupledKer_of_gen Fq P Dom ch hgen))
+
 /-- **Single-channel block extraction** (`lem:noother`, the extraction mechanism fully
 assembled): if on a set `S` the trace-slices of `w` are represented through one
 trace-channel `tr(bᵢ·w_c) = ∑_{i'} cz_{i,i'}·tr(b_{i'}·W_c)`, and the Galois-descent
