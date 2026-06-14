@@ -4170,6 +4170,71 @@ theorem blockFoldSolve_of_view_fold
   · intro s j
     rw [mle_primalMask_fiber_add P Fq v δ ρ hvb hδb s, hvnode s j, hδnode s j, add_zero]
 
+/-- **The primal view is solvable under node genericity** (`cond:cross2`, view half): the
+queried/node view of the primal mask is solvable for any `F`, `n`, `ρ` — per class, a block
+fiber `v_s` hitting the `ρ`-adjusted queried target (cancelling the `R_out` contribution, which
+is `Fp`-rational by `algebraMap_sum_eqPoly_mul`) and node target (`n` minus the `R_out`
+contribution) exists by the two-point CRT `exists_block_fiber` under `NodeHyp`. This is the
+`hview` hypothesis of `blockFoldSolve_of_view_fold`; its failure is covered by `¬NodeHyp` (so
+contributes only `ε₁`, already bounded). -/
+theorem hview_of_nodeHyp (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hnode : NodeHyp P Fq Dom ch)
+    (F : Cube P.m → Fq) (n : Cube P.k₀ → Fin 2 → Fq) (ρ : Cube P.k₀ → Cube P.m → Fp P) :
+    ∃ v : Cube P.k₀ → Cube P.m → Fp P,
+      (∀ s c, v s c ≠ 0 → IsBlockPos P c) ∧
+      (∀ s t, mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c))
+        (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) ∧
+      (∀ s j, mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = n s j) := by
+  classical
+  set Q : Finset (Fp P) :=
+    Finset.image (fun t : Fin P.t₀ => (ch.qs t : Fp P)) Finset.univ with hQ
+  set x : Fin Q.card → Fp P := fun i => (Q.equivFin.symm i : Fp P) with hx
+  have hxinj : Function.Injective x :=
+    fun i i' h => (Q.equivFin.symm).injective (Subtype.ext h)
+  have hxmem : ∀ i, x i ∈ Q := fun i => (Q.equivFin.symm i).2
+  have hx0 : ∀ i, x i ≠ 0 := by
+    intro i h0
+    obtain ⟨t, _, ht⟩ := Finset.mem_image.mp (hxmem i)
+    exact hdom (by rw [← h0, ← ht]; exact (ch.qs t).2)
+  have hQcard : Q.card ≤ P.t₀ := (Finset.card_image_le).trans (by simp)
+  have hbudget' : Q.card + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a := by omega
+  have hsolve := fun s : Cube P.k₀ =>
+    exists_block_fiber P Fq x (nodes P Fq Dom ch) hxinj hx0
+      hnode.not_in_base hnode.gen hnode.conj hbudget'
+      (fun i => - (if s ⟨0, P.k₀_pos⟩ = true then
+          ∑ c ∈ Finset.univ.filter (fun c : Cube P.m => ¬ IsBlockPos P c),
+            eqPoly (powSeq (x i) P.m) c * ρ s c
+        else 0))
+      (Fin.append
+        (fun j : Fin 2 => n s j - (if s ⟨0, P.k₀_pos⟩ = true then
+            ∑ c ∈ Finset.univ.filter (fun c : Cube P.m => ¬ IsBlockPos P c),
+              eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) c * algebraMap (Fp P) Fq (ρ s c)
+          else 0))
+        (fun _ : Fin P.s₁ => (0 : Fq)))
+  choose v hvblock hvq hvν using hsolve
+  refine ⟨v, hvblock, ?_, ?_⟩
+  · intro s t
+    rw [mle_primalMask_fiber P Fq v ρ hvblock s]
+    obtain ⟨i, hi⟩ : ∃ i, x i = (ch.qs t : Fp P) := by
+      have hm : (ch.qs t : Fp P) ∈ Q := Finset.mem_image_of_mem _ (Finset.mem_univ t)
+      exact ⟨Q.equivFin ⟨_, hm⟩, by rw [hx]; simp⟩
+    rw [← hi, hvq s i, map_neg]
+    by_cases hs : s ⟨0, P.k₀_pos⟩ = true
+    · rw [if_pos hs, if_pos hs, algebraMap_sum_eqPoly_mul]
+      ring
+    · rw [if_neg hs, if_neg hs, map_zero]
+      ring
+  · intro s j
+    rw [mle_primalMask_fiber P Fq v ρ hvblock s]
+    have h := hvν s (Fin.castAdd P.s₁ j)
+    rw [Fin.append_left] at h
+    rw [show nodes P Fq Dom ch (Fin.castAdd P.s₁ j) = ch.z j ^ 2 ^ P.k₀ from
+      Fin.append_left _ _ j] at h
+    rw [h]
+    ring
+
 /-- **Pinning failure is covered by the three structural failures** (`cond:pinning`,
 measure bridge): since `pinning_of_blockFoldSolve` derives `Pinning` from `R_out`-SPREAD,
 `RowSurj`, and `BlockFoldSolve`, the set of challenges where `Pinning` fails is contained
