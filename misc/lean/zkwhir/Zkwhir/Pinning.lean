@@ -3625,6 +3625,15 @@ theorem eqPoly_factor_split (x : Fq) (b : Bool) :
     (if b then x else 1 - x) = (if b then x else 1) + (if b then 0 else -x) := by
   cases b <;> simp [sub_eq_add_neg]
 
+/-- **The `α`-monomial as a full-`univ` product** (`lem:span` change-of-basis):
+`alphaMonomial e = ∏_i (e_i ? α_i : 1)`. Rewriting the filtered product over `univ`
+makes the change-of-basis terms (products of `α_i` and `1`) directly comparable to
+monomials. -/
+theorem alphaMonomial_eq_prod_ite (e : Cube P.k₀) :
+    alphaMonomial P Fq Dom ch e = ∏ i, (if e i then ch.α i else 1) := by
+  unfold alphaMonomial
+  rw [Finset.prod_filter]
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
