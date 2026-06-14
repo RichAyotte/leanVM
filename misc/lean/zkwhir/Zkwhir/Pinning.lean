@@ -1312,6 +1312,40 @@ theorem crossTerm_single_cell_factor (s : Cube P.k₀) (c : Cube P.m) (ℓ : Fin
   rw [preFac_factor_at]
   ring
 
+/-- **The suffix-indicator sum collapses to the unique agreeing `b*`**: over the
+filter `{b : b_{≤ℓ} = false}`, the suffix indicator `∏_{i>ℓ}(if s_i = b_i then 1
+else 0)` is nonzero only at `b* i = if i ≤ ℓ then false else s_i`, so the weighted
+sum equals `f b*`. The `b`-collapse at the heart of the `C_u` factorization. -/
+theorem sum_filter_suffix_indicator (ℓ : Fin P.k₀) (s : Cube P.k₀) (f : Cube P.k₀ → Fq) :
+    ∑ b ∈ Finset.univ.filter (fun b : Cube P.k₀ => ∀ i ∈ Finset.Iic ℓ, b i = false),
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => ℓ < i),
+        if s i = b i then (1 : Fq) else 0) * f b =
+      f (fun i => if i ≤ ℓ then false else s i) := by
+  classical
+  set b₀ : Cube P.k₀ := fun i => if i ≤ ℓ then false else s i with hb₀
+  rw [Finset.sum_eq_single b₀]
+  · rw [show (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => ℓ < i),
+        if s i = b₀ i then (1 : Fq) else 0) = 1 from ?_, one_mul]
+    refine Finset.prod_eq_one fun i hi => ?_
+    have hℓi : ℓ < i := (Finset.mem_filter.mp hi).2
+    rw [if_pos (show s i = b₀ i by rw [hb₀]; simp [not_le.mpr hℓi])]
+  · intro b hb hbne
+    obtain ⟨i, hi⟩ := Function.ne_iff.mp hbne
+    have hℓi : ℓ < i := by
+      by_contra h
+      push_neg at h
+      have hbf : b i = false := (Finset.mem_filter.mp hb).2 i (Finset.mem_Iic.mpr h)
+      apply hi
+      rw [hb₀]; simp only [if_pos h]; exact hbf
+    have hsb : ¬ s i = b i := by
+      rw [hb₀] at hi; simp only [if_neg (not_le.mpr hℓi)] at hi
+      exact fun h => hi h.symm
+    rw [Finset.prod_eq_zero (Finset.mem_filter.mpr ⟨Finset.mem_univ i, hℓi⟩) (if_neg hsb),
+      zero_mul]
+  · intro h
+    exact absurd (Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+      fun i hi => by rw [hb₀]; simp [Finset.mem_Iic.mp hi]⟩) h
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
