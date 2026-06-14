@@ -3509,6 +3509,23 @@ theorem trace_smul_block_queried [FiniteDimensional (Fp P) Fq]
       = algebraMap (Fp P) Fq (eqPoly (powSeq (ch.qs t : Fp P) P.m) c0) * (β * aq t) from by ring,
     ← Algebra.smul_def, map_smul, smul_eq_mul]
 
+/-- **`1`-dimensional trace duality** (`lem:noother` coefficient extraction): every
+`Fp`-linear functional `L : Fq → Fp` is a trace pairing `L β = tr(β·a)` for a unique
+`a ∈ Fq`, by nondegeneracy of the trace form (specialise `exists_trace_pairing_rep`
+to a single coordinate). This is what turns each `Fp`-coefficient family of
+`confine_slice_coeffs` (`Cq(β)ₜ`, etc., `Fp`-linear in `β`) into the protocol form's
+uniform `Fq`-coefficient (`aqₜ := a`), matched via `trace_smul_block_queried`. -/
+theorem exists_trace_rep_single [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] (L : Module.Dual (Fp P) Fq) :
+    ∃ a : Fq, ∀ β, L β = Algebra.trace (Fp P) Fq (β * a) := by
+  obtain ⟨v, hv⟩ := exists_trace_pairing_rep (Fp := Fp P) (ι := Unit)
+    (L.comp (LinearMap.proj () : (Unit → Fq) →ₗ[Fp P] Fq))
+  refine ⟨v (), fun β => ?_⟩
+  have hβ := hv (fun _ => β)
+  simp only [LinearMap.comp_apply, LinearMap.proj_apply, Finset.univ_unique,
+    Finset.sum_singleton] at hβ
+  rw [hβ, mul_comm (v ()) β]
+
 /-- **Protocol form kills `range pinFold`** (the `H`-target's necessity / easy
 direction): a `w` in protocol form pairs to zero against every view-vanishing
 mask-fold. Indeed `pinFold κ` is *itself* protocol-killed
