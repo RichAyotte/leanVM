@@ -3838,6 +3838,27 @@ theorem mle_primalMask_fiber_Rout (v ρ : Cube P.k₀ → Cube P.m → Fp P)
   rw [Finset.mem_filter] at hb
   rw [if_pos hb.2]
 
+/-- **The primal mask fiber evaluation** (`cond:pinning` construction, view half,
+unified): for block-supported `v`, every class fiber's evaluation at `pt` is the block
+fiber's evaluation plus, for upper-half classes only, the `R_out` mask's non-block
+contribution. Consolidates `mle_primalMask_fiber_Rin`/`_Rout` so the view solve reads
+all classes uniformly. -/
+theorem mle_primalMask_fiber (v ρ : Cube P.k₀ → Cube P.m → Fp P)
+    (hv : ∀ s c, v s c ≠ 0 → IsBlockPos P c) (s : Cube P.k₀) (pt : Fin P.m → Fq) :
+    mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c)) pt =
+      mle (fun c => algebraMap (Fp P) Fq (v s c)) pt +
+      (if s ⟨0, P.k₀_pos⟩ = true then
+        ∑ c ∈ Finset.univ.filter (fun c : Cube P.m => ¬ IsBlockPos P c),
+          eqPoly pt c * algebraMap (Fp P) Fq (ρ s c)
+       else 0) := by
+  by_cases hs : s ⟨0, P.k₀_pos⟩ = true
+  · rw [if_pos hs, mle_primalMask_fiber_Rout P Fq v ρ hv hs]
+  · have hsf : s ⟨0, P.k₀_pos⟩ = false := by
+      cases h : s ⟨0, P.k₀_pos⟩
+      · rfl
+      · exact absurd h hs
+    rw [if_neg hs, add_zero, mle_primalMask_fiber_Rin P Fq v ρ hv hsf]
+
 /-- **The primal mask realizes the fold `-F`** (`cond:pinning` construction, fold
 half): if the block fibers `v` realize `-F` on block positions via the full SPREAD
 sum and the `R_out` masks `ρ` realize `-F` on non-block positions via the `R_out`
