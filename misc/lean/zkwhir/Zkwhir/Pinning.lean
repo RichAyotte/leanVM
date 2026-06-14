@@ -1562,6 +1562,42 @@ theorem crossTerm_combine_factor (m ℓ : Fin P.k₀) (hm : m ≤ ℓ)
     Eprime_subtype_prod, Eprime_combine,
     crossRest_combine_indep (P := P) (Fq := Fq) (Dom := Dom) (π' := fun _ => false)]
 
+/-- **`lem:fullslice` conclusion applied to the cross channel.** Given the
+condition-(i)/SPREAD span hypothesis `hspan` (the middle `E'` products span `Fq`
+over `Fp`) and the `cond:cross2` nonvanishing `hne` (`γ²·crossTerm ≠ 0` at some
+recombined cell), the `Fp`-form `tr ∘ (γ²·crossTerm)` is nonzero at some cell.
+This packages `crossTerm_combine_factor` into `fullslice_trace_ne_zero` — the
+exact `prop:pinbound` consumer (`tr ∘ F_θ ≠ 0` for `θ ≠ 0`). -/
+theorem crossTerm_trace_ne_zero [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq]
+    (m ℓ : Fin P.k₀) (hm : m ≤ ℓ) (γ2 y : Fq)
+    (hspan : Submodule.span (Fp P) (Set.range
+        (fun π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool =>
+          ∏ j : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ},
+            if π j then ch.α j.val else 1 - ch.α j.val)) = ⊤)
+    (hne : ∃ (π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool)
+        (v : ({i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)} → Bool) × Cube P.m),
+        γ2 * crossTerm P Fq Dom S (Pi.single (cellMidCombine P m ℓ π v.1, v.2) 1) ch ℓ y ≠ 0) :
+    ∃ (π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool)
+        (v : ({i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)} → Bool) × Cube P.m),
+        Algebra.trace (Fp P) Fq
+          (γ2 * crossTerm P Fq Dom S (Pi.single (cellMidCombine P m ℓ π v.1, v.2) 1) ch ℓ y) ≠ 0 := by
+  refine fullslice_trace_ne_zero P Fq
+    (fun π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool =>
+      ∏ j : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ}, if π j then ch.α j.val else 1 - ch.α j.val)
+    (fun v : ({i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)} → Bool) × Cube P.m =>
+      (if cellMidCombine P m ℓ (fun _ => false) v.1 ℓ then y else 1 - y) *
+        (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+            (if cellMidCombine P m ℓ (fun _ => false) v.1 i then ch.α i else 1 - ch.α i)) *
+        partialEval P Fq Dom ch S.w ℓ y
+          (fun i => if i ≤ ℓ then false else cellMidCombine P m ℓ (fun _ => false) v.1 i) v.2)
+    γ2
+    (fun π v => γ2 * crossTerm P Fq Dom S (Pi.single (cellMidCombine P m ℓ π v.1, v.2) 1) ch ℓ y)
+    ?_ hspan hne
+  intro π v
+  rw [crossTerm_combine_factor (P := P) (Fq := Fq) (Dom := Dom) (hm := hm)]
+  ring
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
