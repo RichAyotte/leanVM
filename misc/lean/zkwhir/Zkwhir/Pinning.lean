@@ -1453,6 +1453,19 @@ theorem crossTerm_single_cell_Eprime (s : Cube P.k₀) (c : Cube P.m) (ℓ m : F
   rw [crossTerm_single_cell_full, prod_lt_split (m := m) (ℓ := ℓ) (hm := hm)]
   ring
 
+/-- **`E'(π)` reindexed over the middle-coordinate subtype** (preparing the
+`fullslice_step4` instantiation, whose `ιπ` is the middle-coords cube). The
+`E'(π) = ∏_{m ≤ i < ℓ} êq(α_i,s_i)` factor of `crossTerm_single_cell_Eprime`,
+indexed by `Finset.filter`, equals the product over the subtype
+`{i // m ≤ i ∧ i < ℓ}` — the natural index of the `π`-variable in lem:fullslice
+Step 4 (`fullslice_step4`'s `E' : ιπ → Fq`). -/
+theorem Eprime_subtype_prod (s : Cube P.k₀) (lo hi : Fin P.k₀) :
+    (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => lo ≤ i ∧ i < hi),
+        (if s i then ch.α i else 1 - ch.α i)) =
+      ∏ j : {i : Fin P.k₀ // lo ≤ i ∧ i < hi},
+        (if s j.val then ch.α j.val else 1 - ch.α j.val) :=
+  Finset.prod_subtype _ (fun x => by simp [Finset.mem_filter]) _
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
