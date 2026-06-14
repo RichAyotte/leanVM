@@ -4110,6 +4110,66 @@ theorem pinning_of_blockFoldSolve (hmf : MaskFree P Fq S)
   · exact fun t s => hvq s t
   · exact f1ood_zero_of_fold_neg P Fq Dom ch F (primalMask P v ρ) hfold hzf
 
+/-- **Cross-coupling solvability** (`cond:cross2`, the residual genericity of the block
+solve): every block-fold correction target `H` is realized by a *view-neutral*
+block-supported family `δ` — block-supported, vanishing at all queried and node points, and
+α-folding to `H` on the blocks. This is the part of `BlockFoldSolve` not unconditionally
+available: the view (`exists_block_fiber`) and the block fold (`exists_blockFold`) are each
+solvable alone, but coupling them — correcting the fold *without disturbing the view* —
+needs this rank condition. It is a Good-set predicate; its failure measure is the
+`cond:cross2` term of `εZK`. -/
+def CrossSolve : Prop :=
+  ∀ H : Cube P.m → Fq, ∃ δ : Cube P.k₀ → Cube P.m → Fp P,
+    (∀ s c, δ s c ≠ 0 → IsBlockPos P c) ∧
+    (∀ s t, mle (fun c => algebraMap (Fp P) Fq (δ s c))
+      (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) ∧
+    (∀ s j, mle (fun c => algebraMap (Fp P) Fq (δ s c))
+      (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = 0) ∧
+    (∀ c, IsBlockPos P c →
+      ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (δ s c) = H c)
+
+/-- **`BlockFoldSolve` from the view solve and the cross-coupling** (`cond:cross2`, the
+reduction): if the queried/node view is solvable (`hview`, from `exists_block_fiber` under
+`NodeHyp`) and the cross-coupling holds (`CrossSolve`), then `BlockFoldSolve` holds. Solve
+the view first to get `v`; then `CrossSolve` provides a view-neutral `δ` whose block fold is
+exactly the residual `−F − fold(v)`; the sum `v + δ` solves the full joint system — the view
+is preserved (fiber additivity `mle_primalMask_fiber_add`, `δ` view-neutral) and the block
+fold becomes `−F`. This isolates the entire residual difficulty of `BlockFoldSolve` into the
+single `cond:cross2` predicate `CrossSolve`. -/
+theorem blockFoldSolve_of_view_fold
+    (hview : ∀ (F : Cube P.m → Fq) (n : Cube P.k₀ → Fin 2 → Fq)
+        (ρ : Cube P.k₀ → Cube P.m → Fp P),
+      ∃ v : Cube P.k₀ → Cube P.m → Fp P,
+        (∀ s c, v s c ≠ 0 → IsBlockPos P c) ∧
+        (∀ s t, mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c))
+          (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) ∧
+        (∀ s j, mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = n s j))
+    (hcross : CrossSolve P Fq Dom ch) :
+    BlockFoldSolve P Fq Dom ch := by
+  intro F n ρ
+  obtain ⟨v, hvb, hvqa, hvnode⟩ := hview F n ρ
+  obtain ⟨δ, hδb, hδqa, hδnode, hδfold⟩ :=
+    hcross (fun c => - F c - ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (v s c))
+  have hvδb : ∀ s c, (v + δ) s c ≠ 0 → IsBlockPos P c := by
+    intro s c hc
+    simp only [Pi.add_apply] at hc
+    by_cases hvc : v s c = 0
+    · rw [hvc, zero_add] at hc; exact hδb s c hc
+    · exact hvb s c hvc
+  refine ⟨v + δ, hvδb, ?_, ?_, ?_⟩
+  · intro c hc
+    have hsplit : ∀ s, eqPoly ch.α s * algebraMap (Fp P) Fq ((v + δ) s c)
+        = eqPoly ch.α s * algebraMap (Fp P) Fq (v s c)
+          + eqPoly ch.α s * algebraMap (Fp P) Fq (δ s c) := by
+      intro s; simp only [Pi.add_apply, map_add]; ring
+    rw [Finset.sum_congr rfl (fun s _ => hsplit s), Finset.sum_add_distrib, hδfold c hc]
+    ring
+  · intro s t
+    rw [mle_primalMask_fiber_add P Fq v δ ρ hvb hδb s, hvqa s t, hδqa s t, add_zero]
+  · intro s j
+    rw [mle_primalMask_fiber_add P Fq v δ ρ hvb hδb s, hvnode s j, hδnode s j, add_zero]
+
 /-- **Pinning failure is covered by the three structural failures** (`cond:pinning`,
 measure bridge): since `pinning_of_blockFoldSolve` derives `Pinning` from `R_out`-SPREAD,
 `RowSurj`, and `BlockFoldSolve`, the set of challenges where `Pinning` fails is contained
