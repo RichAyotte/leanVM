@@ -1056,6 +1056,43 @@ theorem nodePair_eta_rho_tau (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k�
   rw [hfull, hge, add_assoc,
     Finset.sum_filter_add_sum_filter_not Finset.univ (fun i : Fin P.k₀ => i < ℓ)]
 
+/-- **The per-block η-match** (`lem:fullslice` Step 2, scalar form): at the top
+two levels `lo < hi` (`hi` the maximal level, `lo` its immediate predecessor),
+the matched two-level node combination equals `Θ · ⟨η_j, V⟩`. This instantiates
+`eta_match_combo` at the actual node-pairings, with `hρ` from `nodePairRho_succ`
+and `hη` from `nodePair_eta_rho_tau` (whose tail collapses to a single term since
+`hi` is maximal). -/
+theorem nodePair_eta_match (δ : Cell P → Fp P) (j : Fin 2) (lo hi : Fin P.k₀)
+    (hlohi : lo < hi) (hcons : ∀ i : Fin P.k₀, lo ≤ i → i < hi → i = lo)
+    (htop : ∀ i : Fin P.k₀, hi ≤ i → i = hi) (Θ S_hi : Fq) :
+    (Θ - S_hi) * nodePairRho P Fq Dom ch δ j lo
+      + lamData P Fq Dom ch (ch.z j) lo * (Θ - S_hi) * nodePairTau P Fq Dom ch δ j lo
+      + S_hi * nodePairRho P Fq Dom ch δ j hi
+      + lamData P Fq Dom ch (ch.z j) hi * Θ * nodePairTau P Fq Dom ch δ j hi =
+      Θ * nodePair P Fq Dom ch δ j (eqPoly ch.α) := by
+  have hρ : nodePairRho P Fq Dom ch δ j hi =
+      nodePairRho P Fq Dom ch δ j lo +
+        lamData P Fq Dom ch (ch.z j) lo • nodePairTau P Fq Dom ch δ j lo := by
+    rw [nodePairRho_succ P Fq Dom ch δ j lo hi hlohi hcons, smul_eq_mul]
+  have hη : nodePair P Fq Dom ch δ j (eqPoly ch.α) =
+      nodePairRho P Fq Dom ch δ j hi +
+        lamData P Fq Dom ch (ch.z j) hi • nodePairTau P Fq Dom ch δ j hi := by
+    rw [nodePair_eta_rho_tau P Fq Dom ch δ j hi]
+    congr 1
+    have hfilter : Finset.univ.filter (fun i : Fin P.k₀ => hi ≤ i) = {hi} := by
+      ext i
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
+      constructor
+      · exact fun h => htop i h
+      · rintro rfl; exact le_refl _
+    rw [hfilter, Finset.sum_singleton, smul_eq_mul]
+  have hcombo := eta_match_combo (Fq := Fq) (V := Fq)
+    (nodePairRho P Fq Dom ch δ j lo) (nodePairRho P Fq Dom ch δ j hi)
+    (nodePairTau P Fq Dom ch δ j lo) (nodePairTau P Fq Dom ch δ j hi)
+    (nodePair P Fq Dom ch δ j (eqPoly ch.α))
+    (lamData P Fq Dom ch (ch.z j) lo) (lamData P Fq Dom ch (ch.z j) hi) Θ S_hi hρ hη
+  simpa [smul_eq_mul] using hcombo
+
 /-- **The cross form in the `ρ/τ` staircase basis** (`lem:fullslice` Step 2/3
 interface): `F_θ(δ) = ∑_j θ_j (⟨ρ^{(j)}_ℓ, V⟩ + ∑_{i ≥ ℓ} λ^{(j)}_i ⟨τ^{(j)}_i, V⟩)`,
 the form against which the matched moment combination is compared. -/
