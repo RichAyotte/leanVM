@@ -117,4 +117,28 @@ theorem spread_failure_le_sum [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
   exact (MeasureTheory.measure_mono hsub).trans
     (MeasureTheory.measure_biUnion_finset_le _ _)
 
+/-- **SPREAD failure measure** (`lem:span` measure, assembled): the probability that
+the SPREAD span misses `⊤` is at most `#{φ ≠ 0} · (p^{d-1})^{k₀}/q^{k₀}`. Combines the
+union bound `spread_failure_le_sum` with the per-term bound `spread_term_le`. Since the
+dual has `p^d = q` elements and `(p^{d-1})^{k₀}/q^{k₀} = p^{-k₀}`, this is `≤ p^{d-k₀}`,
+small for `k₀ > d` — the SPREAD Good-set failure bound that `lem:span` contributes to ε₃. -/
+theorem spread_failure_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Fintype (Module.Dual (Fp P) Fq)] (hcard : Fintype.card (Fp P) = P.p) :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom |
+          Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≠ ⊤} ≤
+      ((Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0)).card : ℝ≥0∞) *
+        ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ P.k₀ /
+          (Fintype.card Fq : ℝ≥0∞) ^ P.k₀) := by
+  refine (spread_failure_le_sum P Fq Dom).trans ?_
+  calc ∑ φ ∈ Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0),
+        (challengePMF P Fq Dom).toOuterMeasure
+          {ch : Challenges P Fq Dom | ∀ s, φ (eqPoly ch.α s) = 0}
+      ≤ ∑ _φ ∈ Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0),
+          ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ P.k₀ /
+            (Fintype.card Fq : ℝ≥0∞) ^ P.k₀) :=
+        Finset.sum_le_sum fun φ hφ =>
+          spread_term_le P Fq Dom hcard (Finset.mem_filter.mp hφ).2
+    _ = _ := by rw [Finset.sum_const, nsmul_eq_mul]
+
 end ZkWhir
