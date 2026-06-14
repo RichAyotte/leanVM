@@ -3795,6 +3795,20 @@ theorem foldedF₁_primalMask (v ρ : Cube P.k₀ → Cube P.m → Fp P) (F : Cu
     unfold liftT
     rw [assemble_primalMask_nonblock P v ρ hc hs.2]
 
+/-- **`f̂₁` out-of-domain view vanishes for any fold realizing `-F`** (`cond:pinning`,
+view half, free component): if a mask's fold equals `-F` and `F`'s `f̂₁`
+out-of-domain evaluations all vanish, then so do the mask-fold's — the `f̂₁` node
+channel reads only the fold, which is `-F`. This is the one `ViewVanishes` field that
+holds unconditionally for the primal construction (the queried/node/msg fields need
+the coupled block-fiber/node solve). -/
+theorem f1ood_zero_of_fold_neg (F : Cube P.m → Fq) (κ : MaskAssign P)
+    (hfold : foldedF₁ P Fq Dom (assemble P 0 (-κ)) ch = fun c => - F c)
+    (hzf : ∀ j, mle F (powSeq (ch.zf j) P.m) = 0) :
+    ∀ j, mle (foldedF₁ P Fq Dom (assemble P 0 (-κ)) ch) (powSeq (ch.zf j) P.m) = 0 := by
+  intro j
+  rw [hfold, show (fun c => - F c) = (fun c => (-1 : Fq) * F c) from by funext c; ring,
+    mle_const_mul, hzf j, mul_zero]
+
 /-- **Single-channel block extraction** (`lem:noother`, the extraction mechanism fully
 assembled): if on a set `S` the trace-slices of `w` are represented through one
 trace-channel `tr(bᵢ·w_c) = ∑_{i'} cz_{i,i'}·tr(b_{i'}·W_c)`, and the Galois-descent
