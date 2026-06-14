@@ -355,6 +355,18 @@ theorem eq_of_trace_smul_eq {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq
       rw [mul_sub, map_sub, h a, sub_self]
   exact sub_eq_zero.mp hxy
 
+/-- **Basis-fold of a trace pairing** (`lem:noother` node/zf channel collapse): an
+`Fp`-combination of the trace pairings `tr(bᵢ·W)` against a fixed `W` folds into a
+single trace pairing `tr(M·W)` with `M = ∑ᵢ μᵢ•bᵢ ∈ Fq`. So as the coefficients
+`μ` range over `Fp^ι`, the `Fp`-span of `{c ↦ tr(bᵢ·W(c))}ᵢ` equals the set of
+trace pairings `{c ↦ tr(M·W(c)) : M ∈ Fq}` — the step that turns the basis-indexed
+node/zf confine coefficients into ambient `Fq` weights. -/
+theorem sum_basis_trace_eq {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    {ι : Type*} [Fintype ι] (b : ι → Fq) (μ : ι → Fp) (W : Fq) :
+    (∑ i, μ i • Algebra.trace Fp Fq (b i * W)) = Algebra.trace Fp Fq ((∑ i, μ i • b i) * W) := by
+  rw [Finset.sum_mul, map_sum]
+  exact Finset.sum_congr rfl fun i _ => by rw [smul_mul_assoc, map_smul]
+
 /-- **A surjective `Fq`-form has nonzero trace** (the Step-4 reduction): if
 `L : M → Fq` hits every value, then some `m` has `tr(L m) ≠ 0`. Hence
 `tr ∘ L ≠ 0` whenever `L` is surjective — the trace argument reduces to a
