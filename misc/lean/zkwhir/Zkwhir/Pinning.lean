@@ -3696,6 +3696,32 @@ theorem exists_full_fold {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq] {
       ∑ s : Cube k, algebraMap Fp Fq (x s c) * eqPoly α s = G c :=
   exists_pointwise_span_solution (eqPoly α) hspread G
 
+/-- **Block-fold realization, block-supported form** (`cond:pinning` block step, the
+`BlockFoldSolve` block-fold half): under SPREAD, the block fold `G` is realized by a
+*block-supported* family `v` — restrict the full-SPREAD solution to the block positions.
+This is the *unconditionally solvable* half of `BlockFoldSolve` (the residual difficulty,
+`cond:cross2`, is coupling it with the queried/node view). -/
+theorem exists_blockFold
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤) (G : Cube P.m → Fq) :
+    ∃ v : Cube P.k₀ → Cube P.m → Fp P,
+      (∀ s c, v s c ≠ 0 → IsBlockPos P c) ∧
+      (∀ c, IsBlockPos P c →
+        ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (v s c) = G c) := by
+  classical
+  obtain ⟨x, hx⟩ := exists_full_fold ch.α hspread G
+  refine ⟨fun s c => if IsBlockPos P c then x s c else 0, ?_, ?_⟩
+  · intro s c hc
+    by_contra hb
+    apply hc
+    show (if IsBlockPos P c then x s c else 0) = 0
+    rw [if_neg hb]
+  · intro c hc
+    rw [← hx c]
+    refine Finset.sum_congr rfl fun s _ => ?_
+    show eqPoly ch.α s * algebraMap (Fp P) Fq (if IsBlockPos P c then x s c else 0)
+      = algebraMap (Fp P) Fq (x s c) * eqPoly ch.α s
+    rw [if_pos hc, mul_comm]
+
 /-- **Non-block fold realization, `R_out`-subtype form** (`cond:pinning` non-block step,
 matching `pinFold_nonblock_eq`): given the `R_out`-SPREAD condition, any target fold `G`
 is realized by `R_out` mask values per cell. Built by a manual per-cell
