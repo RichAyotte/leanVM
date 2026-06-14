@@ -279,6 +279,19 @@ theorem sum_eqPoly_mul_subsetIndicator {R : Type*} [CommRing R] {j : ℕ}
         by_cases hi : i ∈ T <;> simp [hi] <;> try ring
     _ = ∏ i ∈ T, x i := by rw [Finset.prod_ite_mem, Finset.univ_inter]
 
+/-- **The subset-moment at a `pow`-point is `z^{n(T)}`** (`lem:noother` Vandermonde
+row): specialising `sum_eqPoly_mul_subsetIndicator` to `x = pow(z, m)` turns the
+`T`-moment of `êq(pow(z,·))` into the single power `z^{∑_{i∈T} 2^i}`. As `T` ranges
+over all subsets of `Fin m`, the exponent `∑_{i∈T} 2^i` ranges bijectively over
+`{0,…,2^m−1}`, so the moment vector of `êq(pow(z,·))` is the Vandermonde row
+`(z^k)_{k<2^m}` — the bridge to the Vandermonde nonvanishing for distinct nodes. -/
+theorem sum_eqPoly_powSeq_mul_subsetIndicator {R : Type*} [CommRing R] {m : ℕ}
+    (z : R) (T : Finset (Fin m)) :
+    (∑ c : Cube m, eqPoly (powSeq z m) c * ∏ i ∈ T, (if c i then (1 : R) else 0))
+      = z ^ (∑ i ∈ T, 2 ^ (i : ℕ)) := by
+  rw [sum_eqPoly_mul_subsetIndicator]
+  simp only [powSeq, Finset.prod_pow_eq_pow_sum]
+
 /-! ## The cell polynomials
 
 `êq(pow(x, j), c)`, as a polynomial in `x`: the univariate face of a position
