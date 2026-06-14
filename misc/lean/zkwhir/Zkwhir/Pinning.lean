@@ -3460,6 +3460,31 @@ theorem pinning_of_protocolForm [FiniteDimensional (Fp P) (Cube P.m → Fq)]
     phi_protocol_killed_zero P Fq Dom S ch φ w hwrep F aq az aterm hw hq hzf hterm,
     neg_zero]
 
+/-- **`prop:pinbound` reduced to the trace-dual protocol form** (H sharpened): the
+trace-dual `w` of any functional always *exists* by `exists_trace_pairing_rep`, so
+the `H` hypothesis of `pinning_of_protocolForm` need only assert that this *given* `w`
+is in protocol form — the existence half is discharged here. This isolates the sole
+remaining mathematical content of `prop:pinbound` to the pure statement "the trace-dual
+of a fold-killing `φ` is a queried + zf + terminal combination" (no existential on
+`w`), which is exactly what `lem:confine` + the node→terminal absorption deliver. -/
+theorem pinning_of_traceDualProtocolForm [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    [FiniteDimensional (Fp P) Fq] [Algebra.IsSeparable (Fp P) Fq]
+    (H' : ∀ φ : Module.Dual (Fp P) (Cube P.m → Fq),
+        (∀ κ : viewKer P Fq Dom S ch, φ (pinFold P Fq Dom S ch κ) = 0) →
+        ∀ w : Cube P.m → Fq,
+          (∀ g, φ g = Algebra.trace (Fp P) Fq (∑ c, w c * g c)) →
+          ∃ (aq : Fin P.t₀ → Fq) (az : Fin P.s₁ → Fq) (aterm : Fq),
+            ∀ c, w c =
+                (∑ t, aq t * eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c)
+                + (∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c)
+                + aterm * (∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c))) :
+    Pinning P Fq Dom S ch := by
+  apply pinning_of_protocolForm
+  intro φ hφ
+  obtain ⟨w, hw⟩ := exists_trace_pairing_rep (Fp := Fp P) (ι := Cube P.m) φ
+  obtain ⟨aq, az, aterm, hform⟩ := H' φ hφ w hw
+  exact ⟨w, aq, az, aterm, hw, hform⟩
+
 /-- **Protocol form kills `range pinFold`** (the `H`-target's necessity / easy
 direction): a `w` in protocol form pairs to zero against every view-vanishing
 mask-fold. Indeed `pinFold κ` is *itself* protocol-killed
