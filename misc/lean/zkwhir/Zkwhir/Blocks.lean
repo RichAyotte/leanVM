@@ -244,6 +244,36 @@ theorem sum_cube_prod_gen {R : Type*} [CommRing R] {n : ℕ} (f : Fin n → Bool
   rw [← Fintype.piFinset_univ, ← Finset.prod_univ_sum]
   exact Finset.prod_congr rfl fun i _ => by rw [Fintype.sum_bool]; ring
 
+/-- **Block-filtered cube sum factorizes** (general ring): summing a coordinatewise
+product over the affine sub-cube "every coordinate `i ≥ a` is `true`" forces the high
+coordinates (`i ≥ a`) to contribute only their `true` value, while the low ones
+(`i < a`) still contribute both. This is the block analogue of `sum_cube_prod_gen`,
+the factorization underlying the block-restricted eqPoly moment. -/
+theorem sum_blockFilter_prod {R : Type*} [CommRing R] {m a : ℕ} (f : Fin m → Bool → R) :
+    (∑ c ∈ Finset.univ.filter (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true),
+        ∏ i, f i (c i))
+      = ∏ i : Fin m, (if a ≤ (i : ℕ) then f i true else f i false + f i true) := by
+  classical
+  have hset : Finset.univ.filter (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true)
+      = Fintype.piFinset (fun i : Fin m =>
+          if a ≤ (i : ℕ) then ({true} : Finset Bool) else Finset.univ) := by
+    ext c
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fintype.mem_piFinset]
+    constructor
+    · intro hc i
+      by_cases hi : a ≤ (i : ℕ)
+      · rw [if_pos hi]; simp [hc i hi]
+      · rw [if_neg hi]; exact Finset.mem_univ _
+    · intro hc i hi
+      have h := hc i
+      rw [if_pos hi] at h
+      simpa using h
+  rw [hset, ← Finset.prod_univ_sum]
+  refine Finset.prod_congr rfl fun i _ => ?_
+  by_cases hi : a ≤ (i : ℕ)
+  · rw [if_pos hi, if_pos hi, Finset.sum_singleton]
+  · rw [if_neg hi, if_neg hi, Fintype.sum_bool]; ring
+
 /-- **The subset-moment of an eqPoly weight is a monomial** (`lem:noother`
 Vandermonde core): pairing the weight `c ↦ êq(x, c)` against the subset indicator
 `∏_{i∈T} c_i` yields `∏_{i∈T} x_i`. Equivalently the multilinear extension of the
