@@ -1293,6 +1293,25 @@ theorem crossTerm_single_cell (s : Cube P.k₀) (c : Cube P.m) (ℓ : Fin P.k₀
   · intro c' _ hc'c; rw [hpe c', if_neg hc'c, zero_mul]
   · intro h; exact absurd (Finset.mem_univ c) h
 
+/-- **The slot weight factors out of the cross-vector entry**: the `b`-independent
+slot factor `êq(y, s_ℓ)` (= `if s_ℓ then y else 1−y`) pulls out of `C_{(s,c)}`,
+leaving the `α`-prefix / suffix product paired against `ŵ`. A step toward the
+`F_θ = γ²·E'(π)·G_θ` cell-coefficient factorization. -/
+theorem crossTerm_single_cell_factor (s : Cube P.k₀) (c : Cube P.m) (ℓ : Fin P.k₀)
+    (y : Fq) :
+    crossTerm P Fq Dom S (Pi.single (s, c) 1) ch ℓ y =
+      (if s ℓ then y else 1 - y) *
+        ∑ b ∈ Finset.univ.filter (fun b : Cube P.k₀ => ∀ i ∈ Finset.Iic ℓ, b i = false),
+          (∏ i ∈ Finset.univ.erase ℓ,
+              (if i < ℓ then (if s i then ch.α i else 1 - ch.α i)
+               else if i = ℓ then (if s i then y else 1 - y)
+               else (if s i = b i then (1 : Fq) else 0))) *
+            partialEval P Fq Dom ch S.w ℓ y b c := by
+  rw [crossTerm_single_cell, Finset.mul_sum]
+  refine Finset.sum_congr rfl fun b _ => ?_
+  rw [preFac_factor_at]
+  ring
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
