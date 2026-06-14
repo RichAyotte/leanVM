@@ -3717,6 +3717,59 @@ theorem full_block_extract {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
       Finset.sum_congr rfl fun i _ => by rw [Finset.sum_smul], Finset.sum_comm]]
   exact Finset.sum_congr rfl fun r _ => channel_term_collapse b (W r) (cz r) c (hdescent r)
 
+/-- **The descent condition is necessary** (`lem:noother`, completing `descent ⟺ clean
+channel`): if a single trace-channel's dual-basis recombination is *already* the clean
+`Fq`-multiple `az·êq(pow p, c)` on the block, then the Galois-descent condition holds —
+the `σ ≠ 1` conjugate Moore coefficients vanish. Via `channel_term_galois` (the
+recombination is `∑_σ Moore_σ·σ(êq(pow p))`) and `conjugate_decomp_unique` (the
+conjugate decomposition is unique), forcing `Moore_σ = az·δ_{σ,1}`. With
+`channel_term_collapse` (sufficiency), the descent condition is *exactly* "this channel
+is clean", which is what `confine`-killing-folds must establish. -/
+theorem channel_descent_necessary {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [Algebra.IsSeparable Fp Fq] [IsGalois Fp Fq] {m a : ℕ}
+    (ham : a ≤ m) {ιβ : Type*} [Fintype ιβ] [DecidableEq ιβ] (b : Module.Basis ιβ Fp Fq)
+    (p : Fq) (hp0 : p ≠ 0) (hconj : Function.Injective (fun σ : Fq ≃ₐ[Fp] Fq => σ p))
+    (hcard : Fintype.card (Fq ≃ₐ[Fp] Fq) ≤ 2 ^ a) (cz : ιβ → ιβ → Fp) (az : Fq)
+    (hclean : ∀ c ∈ Finset.univ.filter (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true),
+        (∑ i, (∑ i', cz i i' * Algebra.trace Fp Fq (b i' * eqPoly (powSeq p m) c)) •
+          (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+            (traceForm_nondegenerate Fp Fq) b) i)
+          = az * eqPoly (powSeq p m) c) :
+    ∀ σ : Fq ≃ₐ[Fp] Fq, σ ≠ 1 →
+        ∑ i', (∑ i, cz i i' • (LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+            (traceForm_nondegenerate Fp Fq) b) i) * σ (b i') = 0 := by
+  classical
+  set b' := LinearMap.BilinForm.dualBasis (Algebra.traceForm Fp Fq)
+    (traceForm_nondegenerate Fp Fq) b with hb'
+  have hσe : ∀ (σ : Fq ≃ₐ[Fp] Fq) (x : Cube m),
+      σ (eqPoly (powSeq p m) x) = eqPoly (powSeq (σ p) m) x := by
+    intro σ x; simpa using (eqPoly_powSeq_map (σ : Fq →+* Fq) p x).symm
+  have key : ∀ x ∈ Finset.univ.filter (fun x : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → x i = true),
+      ∑ σ : Fq ≃ₐ[Fp] Fq,
+        ((∑ i', (∑ i, cz i i' • b' i) * σ (b i')) - (if σ = 1 then az else 0))
+          * eqPoly (powSeq (σ p) m) x = 0 := by
+    intro x hx
+    have hg := channel_term_galois b (eqPoly (powSeq p m)) cz x
+    rw [hclean x hx] at hg
+    simp_rw [hσe] at hg
+    rw [show (∑ σ : Fq ≃ₐ[Fp] Fq,
+          ((∑ i', (∑ i, cz i i' • b' i) * σ (b i')) - (if σ = 1 then az else 0))
+            * eqPoly (powSeq (σ p) m) x)
+        = (∑ σ : Fq ≃ₐ[Fp] Fq, (∑ i', (∑ i, cz i i' • b' i) * σ (b i'))
+              * eqPoly (powSeq (σ p) m) x)
+          - ∑ σ : Fq ≃ₐ[Fp] Fq, (if σ = 1 then az else 0) * eqPoly (powSeq (σ p) m) x from by
+      rw [← Finset.sum_sub_distrib]; exact Finset.sum_congr rfl fun σ _ => by ring]
+    rw [← hg, Finset.sum_eq_single (1 : Fq ≃ₐ[Fp] Fq)]
+    · simp
+    · intro σ _ hσ; rw [if_neg hσ, zero_mul]
+    · intro h; exact absurd (Finset.mem_univ 1) h
+  have hdu := conjugate_decomp_unique ham p hp0 hconj hcard
+    (fun σ => (∑ i', (∑ i, cz i i' • b' i) * σ (b i')) - (if σ = 1 then az else 0)) key
+  intro σ hσ
+  have h1 := congrFun hdu σ
+  simp only [Pi.zero_apply, if_neg hσ, sub_zero] at h1
+  exact h1
+
 /-- **Protocol form kills `range pinFold`** (the `H`-target's necessity / easy
 direction): a `w` in protocol form pairs to zero against every view-vanishing
 mask-fold. Indeed `pinFold κ` is *itself* protocol-killed
