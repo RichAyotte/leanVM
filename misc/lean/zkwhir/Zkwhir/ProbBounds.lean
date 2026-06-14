@@ -236,6 +236,45 @@ theorem uniform_pi_all {ι β : Type*} [Fintype ι] [DecidableEq ι]
       (fun a ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a, hs a ha⟩)).trans hcount
   · rw [Fintype.card_fun]; push_cast; rfl
 
+/-- **Count of functions hitting per-coordinate sets on a subset** `J`: the number
+of `f : ι → β` with `f j ∈ A j` for every `j ∈ J` (each `A j` of size `≤ k`) is at
+most `k^{|J|}·|β|^{|ι|−|J|}` (the `piFinset` with `A j` on `J`, all of `β` off `J`).
+The Nat count core of the per-coordinate joint measure bound. -/
+theorem card_pi_subset_le {ι β : Type*} [Fintype ι] [DecidableEq ι] [Fintype β]
+    [DecidableEq β]
+    (J : Finset ι) (A : ι → Finset β) (k : ℕ) (hA : ∀ j ∈ J, (A j).card ≤ k) :
+    (Finset.univ.filter (fun f : ι → β => ∀ j ∈ J, f j ∈ A j)).card
+      ≤ k ^ J.card * Fintype.card β ^ (Fintype.card ι - J.card) := by
+  classical
+  have hset : Finset.univ.filter (fun f : ι → β => ∀ j ∈ J, f j ∈ A j)
+      = Fintype.piFinset (fun j => if j ∈ J then A j else Finset.univ) := by
+    ext f
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fintype.mem_piFinset]
+    constructor
+    · intro hf j
+      by_cases hj : j ∈ J
+      · rw [if_pos hj]; exact hf j hj
+      · rw [if_neg hj]; exact Finset.mem_univ _
+    · intro hf j hj
+      have h := hf j; rwa [if_pos hj] at h
+  have hJcard : (Finset.univ.filter (· ∈ J)).card = J.card := by
+    congr 1; ext j; simp
+  have hNJcard : (Finset.univ.filter (fun j : ι => ¬ j ∈ J)).card
+      = Fintype.card ι - J.card := by
+    have h := Finset.filter_card_add_filter_neg_card_eq_card
+      (s := (Finset.univ : Finset ι)) (p := (· ∈ J))
+    rw [hJcard, Finset.card_univ] at h
+    omega
+  rw [hset, Fintype.card_piFinset]
+  calc ∏ j, (if j ∈ J then A j else Finset.univ).card
+      ≤ ∏ j, (if j ∈ J then k else Fintype.card β) :=
+        Finset.prod_le_prod' fun j _ => by
+          by_cases hj : j ∈ J
+          · simp only [if_pos hj]; exact hA j hj
+          · simp [hj]
+    _ = k ^ J.card * Fintype.card β ^ (Fintype.card ι - J.card) := by
+        rw [Finset.prod_ite, Finset.prod_const, Finset.prod_const, hJcard, hNJcard]
+
 /-- **Pair bound for uniform functions**: under a uniform function `ι → β`,
 a joint event on two fixed distinct coordinates whose every first-coordinate
 fiber has at most `k` outcomes has probability at most `k / |β|`. -/
