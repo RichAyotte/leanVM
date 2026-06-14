@@ -403,6 +403,23 @@ theorem Rout_spread_failure_le :
   refine (MeasureTheory.measure_union_le _ _).trans (add_le_add ?_ le_rfl)
   exact challenge_alpha0_zero_le P Fq Dom
 
+/-- **Row-dependence failure measure** (`εrow`, the two-point-rank `ε₂` term): composing
+`not_rowsLI_subset` with the coupled-genericity bound `coupledGen_failure_le`, the
+`rowWeights` linear-dependence event has measure at most `1/q + k₀·d/q` (the `γ = 0` event
+plus the `k₀` per-slot determinant events). This is the `εrow` summand of both the
+`MaskViewSection` (`ε₂`) and `Pinning` (`ε₃` `RowSurj`-reuse) bounds. -/
+theorem rowsLI_failure_le (d : ℕ)
+    (hγ : (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ch.γ = 0} ≤ 1 / (fieldCard Fq : ℝ≥0∞))
+    (hslot : ∀ m : Fin P.k₀, (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | slotDet Fq P Dom ch m = 0} ≤
+        (d : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞)) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)} ≤
+      1 / (fieldCard Fq : ℝ≥0∞) + (P.k₀ : ℝ≥0∞) * d / (fieldCard Fq : ℝ≥0∞) := by
+  refine (MeasureTheory.measure_mono (not_rowsLI_subset P Fq Dom)).trans ?_
+  exact coupledGen_failure_le Fq P Dom d hγ hslot
+
 /-- **`GoodSetAbsorption` from the component measure bounds** (the final-assembly
 skeleton): combining the node, two-point-rank, `R_out`-SPREAD, and `cond:cross2`
 (`BlockFoldSolve`) failure bounds with the absorption assembly
