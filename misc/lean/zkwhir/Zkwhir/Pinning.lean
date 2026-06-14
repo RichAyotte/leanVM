@@ -1843,6 +1843,31 @@ theorem crossTerm_eq_sum_cells (T : Cell P → Fp P) (ℓ : Fin P.k₀) (y : Fq)
   refine Finset.sum_congr rfl fun u _ => ?_
   rw [crossTerm_smul_table]
 
+/-- **`cond:cross2` nonvanishing in recombined-cell form.** If `crossTerm` is not
+the zero form (some perturbation `T` gives a nonzero cross channel — the
+`cond:cross2` conclusion) and `γ² ≠ 0`, then `γ²·crossTerm` is nonzero at some
+recombined cell, supplying the `hne` hypothesis of `crossTerm_trace_ne_zero`.
+Combined with a SPREAD span hypothesis this closes lem:fullslice for the cross
+channel. -/
+theorem crossTerm_hne_of_ne (m ℓ : Fin P.k₀) (γ2 y : Fq) (hγ : γ2 ≠ 0)
+    (T : Cell P → Fp P) (hT : crossTerm P Fq Dom S T ch ℓ y ≠ 0) :
+    ∃ (π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool)
+        (v : ({i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)} → Bool) × Cube P.m),
+        γ2 * crossTerm P Fq Dom S (Pi.single (cellMidCombine P m ℓ π v.1, v.2) 1) ch ℓ y ≠ 0 := by
+  by_contra hall
+  push_neg at hall
+  apply hT
+  rw [crossTerm_eq_sum_cells]
+  refine Finset.sum_eq_zero (fun u _ => ?_)
+  obtain ⟨s, c⟩ := u
+  have hu := hall (fun j => s j.val) ⟨fun j => s j.val, c⟩
+  rw [cellMidCombine_self] at hu
+  have hz : crossTerm P Fq Dom S (Pi.single (s, c) 1) ch ℓ y = 0 := by
+    rcases mul_eq_zero.mp hu with h | h
+    · exact absurd h hγ
+    · exact h
+  rw [hz, mul_zero]
+
 /-- **The single-class block probe mask**: place `−v` on the block of class `s`. -/
 def blockClassMask (s : Cube P.k₀) (v : Cube P.m → Fp P) : MaskAssign P :=
   fun u => if u.1.1 = s then -(v u.1.2) else 0
