@@ -236,6 +236,49 @@ theorem mle_algebraMap {R A : Type*} [CommRing R] [CommRing A] [Algebra R A]
   refine Finset.sum_congr rfl fun b _ => ?_
   rw [powSeq_algebraMap, eqPoly_algebraMap, map_mul]
 
+/-- **Boolean-cube sum factorizes** (general ring): a sum over the cube of a
+coordinatewise product equals the product of per-coordinate two-term sums. -/
+theorem sum_cube_prod_gen {R : Type*} [CommRing R] {n : ℕ} (f : Fin n → Bool → R) :
+    ∑ s : Cube n, ∏ i, f i (s i) = ∏ i, (f i false + f i true) := by
+  classical
+  rw [← Fintype.piFinset_univ, ← Finset.prod_univ_sum]
+  exact Finset.prod_congr rfl fun i _ => by rw [Fintype.sum_bool]; ring
+
+/-- **The subset-moment of an eqPoly weight is a monomial** (`lem:noother`
+Vandermonde core): pairing the weight `c ↦ êq(x, c)` against the subset indicator
+`∏_{i∈T} c_i` yields `∏_{i∈T} x_i`. Equivalently the multilinear extension of the
+AND-monomial `∏_{i∈T} c_i` evaluated at `x` is `∏_{i∈T} x_i`. Specialised at the
+`pow`-point `x = pow(z, m)` this gives the moment `z^{n(T)}` (`n(T) = ∑_{i∈T} 2^i`),
+so the moment vector of `êq(pow(z_t,·))` is the Vandermonde row `(z_t^k)_k` — whence
+distinct points give linearly independent queried weights. -/
+theorem sum_eqPoly_mul_subsetIndicator {R : Type*} [CommRing R] {j : ℕ}
+    (x : Fin j → R) (T : Finset (Fin j)) :
+    (∑ c : Cube j, eqPoly x c * ∏ i ∈ T, (if c i then (1 : R) else 0)) = ∏ i ∈ T, x i := by
+  classical
+  have hsummand : ∀ c : Cube j,
+      eqPoly x c * ∏ i ∈ T, (if c i then (1 : R) else 0)
+        = ∏ i, ((if c i then x i else 1 - x i) *
+            (if i ∈ T then (if c i then (1 : R) else 0) else 1)) := by
+    intro c
+    unfold eqPoly
+    rw [show (∏ i ∈ T, (if c i then (1 : R) else 0))
+        = ∏ i, (if i ∈ T then (if c i then (1 : R) else 0) else 1) from by
+      rw [Finset.prod_ite_mem, Finset.univ_inter], ← Finset.prod_mul_distrib]
+  calc (∑ c : Cube j, eqPoly x c * ∏ i ∈ T, (if c i then (1 : R) else 0))
+      = ∑ c : Cube j, ∏ i, ((if c i then x i else 1 - x i) *
+          (if i ∈ T then (if c i then (1 : R) else 0) else 1)) :=
+        Finset.sum_congr rfl (fun c _ => hsummand c)
+    _ = ∏ i, (((if (false : Bool) then x i else 1 - x i) *
+            (if i ∈ T then (if (false : Bool) then (1 : R) else 0) else 1))
+          + ((if (true : Bool) then x i else 1 - x i) *
+            (if i ∈ T then (if (true : Bool) then (1 : R) else 0) else 1))) :=
+        sum_cube_prod_gen (fun i b => (if b then x i else 1 - x i) *
+          (if i ∈ T then (if b then (1 : R) else 0) else 1))
+    _ = ∏ i, (if i ∈ T then x i else 1) := by
+        refine Finset.prod_congr rfl fun i _ => ?_
+        by_cases hi : i ∈ T <;> simp [hi] <;> try ring
+    _ = ∏ i ∈ T, x i := by rw [Finset.prod_ite_mem, Finset.univ_inter]
+
 /-! ## The cell polynomials
 
 `êq(pow(x, j), c)`, as a polynomial in `x`: the univariate face of a position
