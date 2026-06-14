@@ -4075,6 +4075,18 @@ theorem not_pinning_subset (hmf : MaskFree P Fq S) :
   obtain ⟨⟨hRout, hrow⟩, hbf⟩ := hmem
   exact hch (pinning_of_blockFoldSolve P Fq Dom S ch hmf hRout hrow hbf)
 
+/-- **`RowSurj` failure is covered by row-dependence** (`thm:twopoint`, measure bridge):
+the node system is surjective whenever its row weights are linearly independent
+(`rowSurj_of_rowsLI`), so the `RowSurj` failure event lies in the row-dependence event —
+whose measure is the two-point-rank term `ε₂`. Lets the `RowSurj` summand of the `ε₃`
+union bound (`not_pinning_subset`) reuse the existing `ε₂` accounting. -/
+theorem not_rowSurj_subset :
+    {ch : Challenges P Fq Dom | ¬ RowSurj P Fq Dom ch} ⊆
+      {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)} := by
+  intro ch hch
+  simp only [Set.mem_setOf_eq] at hch ⊢
+  exact fun hli => hch (rowSurj_of_rowsLI P Fq Dom ch hli)
+
 /-- **Single-channel block extraction** (`lem:noother`, the extraction mechanism fully
 assembled): if on a set `S` the trace-slices of `w` are represented through one
 trace-channel `tr(bᵢ·w_c) = ∑_{i'} cz_{i,i'}·tr(b_{i'}·W_c)`, and the Galois-descent
