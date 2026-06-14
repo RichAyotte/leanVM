@@ -255,6 +255,18 @@ theorem sum_Rout_eq_sum_tail {R : Type*} [AddCommMonoid R] {j : ℕ} (f : Cube (
   exact Finset.sum_image (fun a _ b _ hab => by
     have h := congrArg Fin.tail hab; simpa using h)
 
+/-- **Coordinate factorization of `eqPoly`** (general, any coordinate `i₀`): `êq(α,s)`
+factors as the `i₀`-th term times the product over the remaining coordinates. Avoids the
+`Fin.cons`/`Fin k = Fin((k−1)+1)` cast and the subtype, so it applies directly at the
+`R_out` coordinate `⟨0, k₀_pos⟩` of `Cube P.k₀` (as used by `pinFold_nonblock_eq`). Via
+`Finset.mul_prod_erase`. -/
+theorem eqPoly_erase_factor {R : Type*} [CommRing R] {j : ℕ} (α : Fin j → R) (s : Cube j)
+    (i₀ : Fin j) :
+    eqPoly α s = (if s i₀ then α i₀ else 1 - α i₀) *
+      ∏ i ∈ Finset.univ.erase i₀, (if s i then α i else 1 - α i) := by
+  unfold eqPoly
+  rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ i₀)]
+
 /-- **Head-coordinate factorization of `eqPoly`** (`R_out` structure): peeling the
 first coordinate, `êq(α, s) = (if s 0 then α 0 else 1−α 0)·êq(tail α, tail s)`. With
 `s 0 = true` (the `R_out` half) this is `α 0 · êq(tail α, tail s)`, so the `R_out`
