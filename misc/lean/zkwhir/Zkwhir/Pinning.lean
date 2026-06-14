@@ -743,6 +743,24 @@ theorem nodePairRho_diff (δ : Cell P → Fp P) (j : Fin 2) (m m' : Fin P.k₀)
   simp only [Finset.mem_sdiff, Finset.mem_filter, Finset.mem_univ, true_and, not_lt]
   tauto
 
+/-- **Consecutive-level `ρ`-pairing relation** (the `hρ` of `eta_match_combo`):
+when `m'` is the immediate successor of `m` (no level strictly between),
+`⟨ρ_{m'}, V⟩ = ⟨ρ_m, V⟩ + λ_m·⟨τ_m, V⟩`. -/
+theorem nodePairRho_succ (δ : Cell P → Fp P) (j : Fin 2) (m m' : Fin P.k₀)
+    (hmm : m < m') (hcons : ∀ i : Fin P.k₀, m ≤ i → i < m' → i = m) :
+    nodePairRho P Fq Dom ch δ j m' =
+      nodePairRho P Fq Dom ch δ j m +
+        lamData P Fq Dom ch (ch.z j) m * nodePairTau P Fq Dom ch δ j m := by
+  rw [nodePairRho_diff P Fq Dom ch δ j m m' (le_of_lt hmm)]
+  congr 1
+  have hfilter : Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < m') = {m} := by
+    ext i
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
+    constructor
+    · rintro ⟨h1, h2⟩; exact hcons i h1 h2
+    · rintro rfl; exact ⟨le_refl _, hmm⟩
+  rw [hfilter, Finset.sum_singleton]
+
 /-- **The node functional `g^j_ℓ(y)`** in `ρ/τ` shorthand: `⟨ρ, V⟩ + (y − ζ)·⟨τ, V⟩`. -/
 theorem evalT_mixed_rho_tau (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀)
     (y : Fq) :
