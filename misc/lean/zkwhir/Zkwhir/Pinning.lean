@@ -1258,6 +1258,41 @@ theorem preFac_factor_at (ℓ : Fin P.k₀) (X : Fq) (s b : Cube P.k₀) :
   congr 1
   simp
 
+/-- **The cross-vector entry** (`cond:cross2`/`lem:fullslice` value-row layer):
+`crossTerm` at the single-cell perturbation `(s, c)` is `∑_b preFac(ℓ,y,s,b)·ⓦ(b,c)` —
+the coefficient `C_{(s,c)}` of the data cell `(s,c)` in the cross channel. (Safe,
+definitional: this defines the cross vectors, independent of the witness
+construction.) -/
+theorem crossTerm_single_cell (s : Cube P.k₀) (c : Cube P.m) (ℓ : Fin P.k₀) (y : Fq) :
+    crossTerm P Fq Dom S (Pi.single (s, c) 1) ch ℓ y =
+      ∑ b ∈ Finset.univ.filter (fun b : Cube P.k₀ => ∀ i ∈ Finset.Iic ℓ, b i = false),
+        preFac P Fq Dom ch ℓ y s b * partialEval P Fq Dom ch S.w ℓ y b c := by
+  unfold crossTerm
+  refine Finset.sum_congr rfl fun b _ => ?_
+  have hpe : ∀ c' : Cube P.m,
+      partialEval P Fq Dom ch (liftT P Fq (Pi.single (s, c) (1 : Fp P))) ℓ y b c' =
+        if c' = c then preFac P Fq Dom ch ℓ y s b else 0 := by
+    intro c'
+    rw [partialEval_eq]
+    by_cases hc' : c' = c
+    · subst hc'
+      rw [if_pos rfl, Finset.sum_eq_single s]
+      · simp [liftT, Pi.single_eq_same]
+      · intro s' _ hs's
+        have h0 : liftT P Fq (Pi.single (s, c') (1 : Fp P)) (s', c') = 0 := by
+          simp [liftT, Pi.single_apply, Prod.ext_iff, hs's]
+        rw [h0, mul_zero]
+      · intro h; exact absurd (Finset.mem_univ s) h
+    · rw [if_neg hc']
+      refine Finset.sum_eq_zero fun s' _ => ?_
+      have h0 : liftT P Fq (Pi.single (s, c) (1 : Fp P)) (s', c') = 0 := by
+        simp [liftT, Pi.single_apply, Prod.ext_iff, hc']
+      rw [h0, mul_zero]
+  rw [Finset.sum_eq_single c]
+  · rw [hpe c, if_pos rfl]
+  · intro c' _ hc'c; rw [hpe c', if_neg hc'c, zero_mul]
+  · intro h; exact absurd (Finset.mem_univ c) h
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
