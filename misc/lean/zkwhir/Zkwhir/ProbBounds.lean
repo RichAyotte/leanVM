@@ -116,6 +116,30 @@ theorem linComb_natDegree_le {F : Type*} [Field F] {p d : ℕ} (hp : 1 ≤ p)
           (le_of_eq (Polynomial.natDegree_X_pow _))
     _ ≤ p ^ (d - 1) := Nat.pow_le_pow_right hp (Nat.le_sub_one_of_lt r.isLt)
 
+/-- **Coefficient of a linearized polynomial**: `(∑_{r<d} c_r·X^{p^r}).coeff(p^{r₀})
+= c_{r₀}` (the exponents `p^r` are distinct for `p ≥ 2`, so only the `r₀` term
+contributes). -/
+theorem linComb_coeff {F : Type*} [Field F] {p d : ℕ} (hp : 1 < p) (c : Fin d → F)
+    (r : Fin d) :
+    (∑ r' : Fin d, Polynomial.C (c r') * Polynomial.X ^ p ^ (r' : ℕ)).coeff (p ^ (r : ℕ))
+      = c r := by
+  rw [Polynomial.finset_sum_coeff, Finset.sum_eq_single r]
+  · rw [Polynomial.coeff_C_mul, Polynomial.coeff_X_pow, if_pos rfl, mul_one]
+  · intro r' _ hr'
+    rw [Polynomial.coeff_C_mul, Polynomial.coeff_X_pow]
+    split_ifs with h
+    · exact absurd (Fin.ext (Nat.pow_right_injective hp h)) (Ne.symm hr')
+    · rw [mul_zero]
+  · intro h; exact absurd (Finset.mem_univ r) h
+
+/-- **A linearized polynomial with a nonzero coefficient is nonzero**: if `c_r ≠ 0`
+for some `r`, then `∑_{r'<d} c_{r'}·X^{p^{r'}} ≠ 0` (its `coeff(p^r) = c_r ≠ 0`). -/
+theorem linComb_ne_zero {F : Type*} [Field F] {p d : ℕ} (hp : 1 < p) (c : Fin d → F)
+    (r : Fin d) (hcr : c r ≠ 0) :
+    (∑ r' : Fin d, Polynomial.C (c r') * Polynomial.X ^ p ^ (r' : ℕ)) ≠ 0 := by
+  intro h
+  exact hcr (by rw [← linComb_coeff hp c r, h, Polynomial.coeff_zero])
+
 /-- Any finite set of roots of a nonzero polynomial is bounded by its
 degree. -/
 theorem card_roots_le {F : Type*} [Field F] (g : Polynomial F) (hg : g ≠ 0)
