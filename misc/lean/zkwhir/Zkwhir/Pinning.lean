@@ -671,6 +671,26 @@ theorem exists_points_for_target (M : Matrix (Fin 3) (Fin 3) Fq) (hM : IsUnit M.
     funext h; exact hμ h
   rw [hfun]; exact hm
 
+/-- **Per-level `(S,R)` moment realization** (`lem:fullslice` Step 2 solve): off
+the hypersurface, every target `(S¹,R¹,R²)` is realized by a moment vector `m`
+with `momS(ζ₁) = S¹`, `momR(ζ₁) = R¹`, `momR(ζ₂) = R²`. Combines
+`exists_points_for_target`, `moment_minor_general_isUnit`, and `moment_minor_mulVec`. -/
+theorem exists_moments_realizing_SR (ζ₁ ζ₂ : Fq)
+    (h1 : ζ₁ - ζ₂ ≠ 0) (h2 : ζ₁ + ζ₂ - 1 - 2 * ζ₁ * ζ₂ ≠ 0)
+    (y : Fin 3 → Fq) (hy : Function.Injective y) (S1 R1 R2 : Fq) :
+    ∃ m : Fin 3 → Fq,
+      momS Fq ζ₁ (m 0) (m 1) = S1 ∧ momR Fq ζ₁ (m 0) (m 1) (m 2) = R1 ∧
+      momR Fq ζ₂ (m 0) (m 1) (m 2) = R2 := by
+  obtain ⟨μ, hμ⟩ := exists_points_for_target Fq
+    !![1 - ζ₁, 2 * ζ₁ - 1, 0; -(ζ₁ * (1 - ζ₁)), 1 - 2 * ζ₁ ^ 2, 2 * ζ₁ - 1;
+       -(ζ₂ * (1 - ζ₂)), 1 - 2 * ζ₂ ^ 2, 2 * ζ₂ - 1]
+    (moment_minor_general_isUnit Fq ζ₁ ζ₂ h1 h2) y hy ![S1, R1, R2]
+  rw [moment_minor_mulVec] at hμ
+  refine ⟨fun h => ∑ t, μ t * y t ^ (h : ℕ), ?_, ?_, ?_⟩
+  · simpa using congrFun hμ 0
+  · simpa using congrFun hμ 1
+  · simpa using congrFun hμ 2
+
 /-- **The η-match combination identity** (`lem:fullslice` Step 2, tex:582–584).
 With the matching coefficients `S_lo = Θ − S_hi`, `R_lo = λ_lo·(Θ − S_hi)`,
 `R_hi = λ_hi·Θ` at the top two levels (`ρ_hi = ρ_lo + λ_lo·τ_lo`, `η = ρ_hi +
