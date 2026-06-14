@@ -1242,6 +1242,22 @@ theorem crossTerm_smul_table (c : Fp P) (T : Cell P → Fp P) (ℓ : Fin P.k₀)
   rw [hl, partialEval_smul]
   ring
 
+/-- **The slot-`ℓ` factor of `preFac` splits off**: `preFac` factors as the
+slot weight `êq(X, s_ℓ)` (i.e. `if s_ℓ then X else 1−X`) times the product over
+the other coordinates. A building block for the `crossTerm` cell-coefficient
+factorization (the `α`-prefix and the slot weight pull out). -/
+theorem preFac_factor_at (ℓ : Fin P.k₀) (X : Fq) (s b : Cube P.k₀) :
+    preFac P Fq Dom ch ℓ X s b =
+      (if s ℓ then X else 1 - X) *
+        ∏ i ∈ Finset.univ.erase ℓ,
+          (if i < ℓ then (if s i then ch.α i else 1 - ch.α i)
+           else if i = ℓ then (if s i then X else 1 - X)
+           else (if s i = b i then (1 : Fq) else 0)) := by
+  unfold preFac
+  rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ ℓ)]
+  congr 1
+  simp
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
