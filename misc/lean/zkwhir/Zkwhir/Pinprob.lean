@@ -141,4 +141,13 @@ theorem spread_failure_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
           spread_term_le P Fq Dom hcard (Finset.mem_filter.mp hφ).2
     _ = _ := by rw [Finset.sum_const, nsmul_eq_mul]
 
+/-- **The dual space has `q` elements** (`#Dual = #Fq`): both are `p^d`-element
+`Fp`-spaces of the same dimension `d`. Used to simplify the SPREAD measure's
+`#{φ≠0}` factor to `≤ q`, giving `P[¬SPREAD] ≤ q·(p^{d-1})^{k₀}/q^{k₀} = p^{d-k₀}`. -/
+theorem card_dual_eq [FiniteDimensional (Fp P) Fq]
+    [Fintype (Module.Dual (Fp P) Fq)] :
+    Fintype.card (Module.Dual (Fp P) Fq) = Fintype.card Fq := by
+  rw [Module.card_eq_pow_finrank (K := Fp P) (V := Module.Dual (Fp P) Fq),
+    Subspace.dual_finrank_eq, ← Module.card_eq_pow_finrank (K := Fp P) (V := Fq)]
+
 end ZkWhir
