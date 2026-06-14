@@ -1436,6 +1436,20 @@ theorem crossTerm_single_cell_split (s : Cube P.k₀) (c : Cube P.m) (ℓ m : Fi
   rw [crossTerm_single_cell_full, prod_lt_split (m := m) (ℓ := ℓ) (hm := hm)]
   ring
 
+/-- **Cross channel nonvanishing from its factors** (cond:cross2 witness): the
+single-cell cross coefficient is nonzero whenever its three factors are — the slot
+weight `êq(y,s_ℓ)`, the `α`-prefix `∏_{i<ℓ}`, and the `ŵ` partial-eval value. This
+discharges the `crossTerm T ≠ 0` (`hT`) input of `crossTerm_trace_ne_zero_of_ne`
+with the explicit witness `T = Pi.single (s,c) 1`. -/
+theorem crossTerm_single_cell_ne_zero (s : Cube P.k₀) (c : Cube P.m) (ℓ : Fin P.k₀)
+    (y : Fq) (h1 : (if s ℓ then y else 1 - y) ≠ 0)
+    (h2 : (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+            (if s i then ch.α i else 1 - ch.α i)) ≠ 0)
+    (h3 : partialEval P Fq Dom ch S.w ℓ y (fun i => if i ≤ ℓ then false else s i) c ≠ 0) :
+    crossTerm P Fq Dom S (Pi.single (s, c) 1) ch ℓ y ≠ 0 := by
+  rw [crossTerm_single_cell_full]
+  exact mul_ne_zero h1 (mul_ne_zero h2 h3)
+
 /-- **The cross-vector entry factored as `E'(π)·G`** (`F_θ = γ²·E'(π)·G_θ`,
 cell form): pulling the middle factor `E'(π) = ∏_{m ≤ i < ℓ} êq(α_i,s_i)` to the
 front, `C_{(s,c)} = E'(π)·G`, with `G = êq(y,s_ℓ)·(∏_{i<m})·ŵ_pe(b*,c)`. This is
