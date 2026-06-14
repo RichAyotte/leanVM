@@ -4058,6 +4058,23 @@ theorem pinning_of_blockFoldSolve (hmf : MaskFree P Fq S)
   · exact fun t s => hvq s t
   · exact f1ood_zero_of_fold_neg P Fq Dom ch F (primalMask P v ρ) hfold hzf
 
+/-- **Pinning failure is covered by the three structural failures** (`cond:pinning`,
+measure bridge): since `pinning_of_blockFoldSolve` derives `Pinning` from `R_out`-SPREAD,
+`RowSurj`, and `BlockFoldSolve`, the set of challenges where `Pinning` fails is contained
+in the union of the three failure events. This is the subset feeding the `ε₃` union bound
+`P[¬Pinning] ≤ P[¬SPREAD] + P[¬RowSurj] + P[¬BlockFoldSolve]`. -/
+theorem not_pinning_subset (hmf : MaskFree P Fq S) :
+    {ch : Challenges P Fq Dom | ¬ Pinning P Fq Dom S ch} ⊆
+      ({ch | ¬ (Submodule.span (Fp P) (Set.range
+          (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)} ∪
+        {ch | ¬ RowSurj P Fq Dom ch}) ∪
+      {ch | ¬ BlockFoldSolve P Fq Dom ch} := by
+  intro ch hch
+  by_contra hmem
+  simp only [Set.mem_union, Set.mem_setOf_eq, not_or, not_not] at hmem
+  obtain ⟨⟨hRout, hrow⟩, hbf⟩ := hmem
+  exact hch (pinning_of_blockFoldSolve P Fq Dom S ch hmf hRout hrow hbf)
+
 /-- **Single-channel block extraction** (`lem:noother`, the extraction mechanism fully
 assembled): if on a set `S` the trace-slices of `w` are represented through one
 trace-channel `tr(bᵢ·w_c) = ∑_{i'} cz_{i,i'}·tr(b_{i'}·W_c)`, and the Galois-descent
