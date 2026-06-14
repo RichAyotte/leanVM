@@ -220,6 +220,28 @@ theorem hker_failure_le_sum [DecidableEq Fq] (hd0 : 0 < extDeg P Fq) :
   exact (MeasureTheory.measure_mono hsub).trans
     (MeasureTheory.measure_biUnion_finset_le _ _)
 
+/-- **`hker` failure measure** (`cond:twist` Moore-determinant Good-set bound,
+assembled): the `hker` failure probability is at most `#{(j,c) : c₀=0, c≠0} ·
+(p^{d-1}/q)^{|m>0|}`. Combines the union skeleton `hker_failure_le_sum` with the
+per-`(j,c)` bound `challenge_hker_term_le` (choosing a nonzero coordinate `r₀` of
+each `c`). This is the `hker` Good-set contribution to ε₃. -/
+theorem hker_failure_le [DecidableEq Fq] (hd0 : 0 < extDeg P Fq) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ∃ (j : Fin 2) (c : Fin (extDeg P Fq) → Fq),
+        c ⟨0, hd0⟩ = 0 ∧ c ≠ 0 ∧ ∀ m : Fin P.k₀, (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m →
+          ∑ r, c r * (ch.α m ^ P.p ^ (r : ℕ) - powSeq (ch.z j) P.k₀ m) = 0} ≤
+      ((Finset.univ.filter
+          (fun jc : Fin 2 × (Fin (extDeg P Fq) → Fq) => jc.2 ⟨0, hd0⟩ = 0 ∧ jc.2 ≠ 0)).card : ℝ≥0∞) *
+        ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^
+            (Finset.univ.filter (fun m : Fin P.k₀ => (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m)).card /
+          (Fintype.card Fq : ℝ≥0∞) ^
+            (Finset.univ.filter (fun m : Fin P.k₀ => (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m)).card) := by
+  refine (hker_failure_le_sum P Fq Dom hd0).trans ?_
+  refine (Finset.sum_le_sum (fun jc hjc => ?_)).trans
+    (le_of_eq (by rw [Finset.sum_const, nsmul_eq_mul]))
+  obtain ⟨r₀, hr₀⟩ := Function.ne_iff.mp (Finset.mem_filter.mp hjc).2.2
+  exact challenge_hker_term_le P Fq Dom jc.1 jc.2 r₀ hr₀
+
 /-- **The dual space has `q` elements** (`#Dual = #Fq`): both are `p^d`-element
 `Fp`-spaces of the same dimension `d`. Used to simplify the SPREAD measure's
 `#{φ≠0}` factor to `≤ q`, giving `P[¬SPREAD] ≤ q·(p^{d-1})^{k₀}/q^{k₀} = p^{d-k₀}`. -/
