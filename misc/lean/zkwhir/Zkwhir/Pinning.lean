@@ -1419,6 +1419,23 @@ theorem crossTerm_single_cell_full (s : Cube P.k₀) (c : Cube P.m) (ℓ : Fin P
   simp_rw [hsimp, mul_assoc]
   rw [← Finset.mul_sum, sum_filter_suffix_indicator]
 
+/-- **The cross-vector entry with the middle range extracted** (`E'(π)` form):
+splitting the `α`-prefix at `m` exposes `∏_{m ≤ i < ℓ} êq(α_i,s_i)` as a separate
+factor. With `m = 2`, `ℓ = k₀-1` this middle factor is exactly `E'(π)`, giving
+`C_{(s,c)} = êq(y,s_ℓ)·(∏_{i<m})·E'(π)·ŵ_pe(b*,c)` — the cell-coefficient form the
+`F_θ = γ²·E'(π)·G_θ` factorization reads off. -/
+theorem crossTerm_single_cell_split (s : Cube P.k₀) (c : Cube P.m) (ℓ m : Fin P.k₀)
+    (hm : m ≤ ℓ) (y : Fq) :
+    crossTerm P Fq Dom S (Pi.single (s, c) 1) ch ℓ y =
+      (if s ℓ then y else 1 - y) *
+        ((∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+            (if s i then ch.α i else 1 - ch.α i)) *
+          ((∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ),
+              (if s i then ch.α i else 1 - ch.α i)) *
+            partialEval P Fq Dom ch S.w ℓ y (fun i => if i ≤ ℓ then false else s i) c)) := by
+  rw [crossTerm_single_cell_full, prod_lt_split (m := m) (ℓ := ℓ) (hm := hm)]
+  ring
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
