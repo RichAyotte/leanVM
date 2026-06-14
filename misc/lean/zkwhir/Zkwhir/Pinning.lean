@@ -3225,4 +3225,28 @@ theorem pinFold_nonblock_eq (κ : viewKer P Fq Dom S ch) (c : Cube P.m)
   rw [hzero, add_zero]
   rfl
 
+/-- **Terminal pairing on a general fold target `F`** (`prop:pinbound` linking
+identity): the terminal functional `∑_c F_c·(∑_s êq(α,s)W₀(s,c))` decomposes into
+the two node evaluations `A_j·mle F(z_j^{2^{k₀}})` (`A_j = ∑_s êq(α,s)êq(powz_j,s)`)
+plus the `γ²` cross evaluation `∑_c F_c·ŵ(α₀,c)`. So `F`'s protocol terminal
+condition (`= 0`) is exactly the linear relation tying the node-eval channel to the
+cross channel — the equation the assembly uses to absorb the node part of `w` into
+the terminal direction. -/
+theorem terminal_pairing_F_decomp (F : Cube P.m → Fq) :
+    (∑ c, F c * ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) =
+      (∑ s, eqPoly ch.α s * eqPoly (powSeq (ch.z 0) P.k₀) s) *
+          mle F (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m)
+      + ch.γ * ((∑ s, eqPoly ch.α s * eqPoly (powSeq (ch.z 1) P.k₀) s) *
+          mle F (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m))
+      + ch.γ ^ 2 * (∑ c, F c * wHat0 P Fq Dom S ch c) := by
+  rw [show mle F (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m)
+        = ∑ c, eqPoly (powSeq (ch.z 0 ^ 2 ^ P.k₀) P.m) c * F c from rfl,
+      show mle F (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m)
+        = ∑ c, eqPoly (powSeq (ch.z 1 ^ 2 ^ P.k₀) P.m) c * F c from rfl,
+      Finset.mul_sum, Finset.mul_sum, Finset.mul_sum, Finset.mul_sum,
+      ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun c _ => ?_
+  rw [weight_fold_class_decomp]
+  ring
+
 end ZkWhir
