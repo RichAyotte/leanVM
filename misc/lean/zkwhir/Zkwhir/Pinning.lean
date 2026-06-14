@@ -3715,6 +3715,86 @@ theorem exists_Rout_fold_sub
       eqPoly ch.α s.val) hRout (G c)
   exact ⟨fun s c => lam c s, fun c => hlam c⟩
 
+/-- **The primal pinning mask** (`cond:pinning` construction): block fibers `v` on
+every block cell, `R_out` masks `ρ` on the non-block `s₀ = true` cells. After
+`assemble P 0 (-·)` the cell value is `v s c` on block positions and `ρ s c` on the
+non-block `R_out` positions, so the fold reads `v` on block positions (full SPREAD)
+and `ρ` on non-block positions (`R_out` SPREAD). The non-block `s₀ = false` cells are
+data cells and stay zero. -/
+def primalMask (v ρ : Cube P.k₀ → Cube P.m → Fp P) : MaskAssign P :=
+  fun u => if IsBlockPos P u.1.2 then -(v u.1.1 u.1.2) else -(ρ u.1.1 u.1.2)
+
+/-- On a block position every cell is a mask cell and `assemble P 0 (-primalMask)`
+reads the block fiber `v`. -/
+theorem assemble_primalMask_block (v ρ : Cube P.k₀ → Cube P.m → Fp P)
+    {c : Cube P.m} (hc : IsBlockPos P c) (s : Cube P.k₀) :
+    assemble P 0 (- primalMask P v ρ) (s, c) = v s c := by
+  have hm : IsMask P (s, c) := Or.inr hc
+  unfold assemble
+  rw [dif_pos hm]
+  show -(primalMask P v ρ ⟨(s, c), hm⟩) = v s c
+  show -(if IsBlockPos P c then -(v s c) else -(ρ s c)) = v s c
+  rw [if_pos hc, neg_neg]
+
+/-- On a non-block `R_out` position (`s₀ = true`) the cell is a mask cell and
+`assemble P 0 (-primalMask)` reads the `R_out` mask `ρ`. -/
+theorem assemble_primalMask_nonblock (v ρ : Cube P.k₀ → Cube P.m → Fp P)
+    {s : Cube P.k₀} {c : Cube P.m} (hc : ¬ IsBlockPos P c)
+    (hs : s ⟨0, P.k₀_pos⟩ = true) :
+    assemble P 0 (- primalMask P v ρ) (s, c) = ρ s c := by
+  have hm : IsMask P (s, c) := Or.inl hs
+  unfold assemble
+  rw [dif_pos hm]
+  show -(primalMask P v ρ ⟨(s, c), hm⟩) = ρ s c
+  show -(if IsBlockPos P c then -(v s c) else -(ρ s c)) = ρ s c
+  rw [if_neg hc, neg_neg]
+
+/-- **The primal mask realizes the fold `-F`** (`cond:pinning` construction, fold
+half): if the block fibers `v` realize `-F` on block positions via the full SPREAD
+sum and the `R_out` masks `ρ` realize `-F` on non-block positions via the `R_out`
+half-sum, then `foldedF₁ (assemble P 0 (-primalMask v ρ)) = -F` everywhere. The two
+halves are fully decoupled (block fold reads only `v`, non-block fold reads only `ρ`);
+the only coupling between them is in the *view* (queried/node/`zf`), handled
+separately. -/
+theorem foldedF₁_primalMask (v ρ : Cube P.k₀ → Cube P.m → Fp P) (F : Cube P.m → Fq)
+    (hblock : ∀ c, IsBlockPos P c →
+        ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (v s c) = - F c)
+    (hnonblock : ∀ c, ¬ IsBlockPos P c →
+        ∑ s ∈ Finset.univ.filter (fun s : Cube P.k₀ => s ⟨0, P.k₀_pos⟩ = true),
+          eqPoly ch.α s * algebraMap (Fp P) Fq (ρ s c) = - F c) :
+    foldedF₁ P Fq Dom (assemble P 0 (- primalMask P v ρ)) ch = fun c => - F c := by
+  funext c
+  by_cases hc : IsBlockPos P c
+  · show foldedF₁ P Fq Dom (assemble P 0 (- primalMask P v ρ)) ch c = - F c
+    unfold foldedF₁
+    rw [← hblock c hc]
+    refine Finset.sum_congr rfl fun s _ => ?_
+    unfold liftT
+    rw [assemble_primalMask_block P v ρ hc s]
+  · show foldedF₁ P Fq Dom (assemble P 0 (- primalMask P v ρ)) ch c = - F c
+    unfold foldedF₁
+    rw [← Finset.sum_filter_add_sum_filter_not Finset.univ
+        (fun s : Cube P.k₀ => s ⟨0, P.k₀_pos⟩ = true)
+        (fun s => eqPoly ch.α s * liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c))]
+    have hzero : (∑ s ∈ Finset.univ.filter
+          (fun s : Cube P.k₀ => ¬ s ⟨0, P.k₀_pos⟩ = true),
+          eqPoly ch.α s * liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c)) = 0 := by
+      refine Finset.sum_eq_zero fun s hs => ?_
+      rw [Finset.mem_filter] at hs
+      have hsf : s ⟨0, P.k₀_pos⟩ = false := by
+        cases h : s ⟨0, P.k₀_pos⟩
+        · rfl
+        · exact absurd h hs.2
+      have hz0 : liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c) = 0 := by
+        show algebraMap (Fp P) Fq (assemble P 0 (- primalMask P v ρ) (s, c)) = 0
+        rw [assemble_zero_nonmask_nonblock P (- primalMask P v ρ) s c hc hsf, map_zero]
+      rw [hz0, mul_zero]
+    rw [hzero, add_zero, ← hnonblock c hc]
+    refine Finset.sum_congr rfl fun s hs => ?_
+    rw [Finset.mem_filter] at hs
+    unfold liftT
+    rw [assemble_primalMask_nonblock P v ρ hc hs.2]
+
 /-- **Single-channel block extraction** (`lem:noother`, the extraction mechanism fully
 assembled): if on a set `S` the trace-slices of `w` are represented through one
 trace-channel `tr(bᵢ·w_c) = ∑_{i'} cz_{i,i'}·tr(b_{i'}·W_c)`, and the Galois-descent
