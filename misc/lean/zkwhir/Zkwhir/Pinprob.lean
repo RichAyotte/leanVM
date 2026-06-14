@@ -293,4 +293,35 @@ theorem spread_failure_le' [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
   exact (Finset.card_filter_le _ _).trans_eq
     (Finset.card_univ.trans (card_dual_eq P Fq))
 
+/-- **SPREAD + cond:twist combined Good-set failure measure** (ε₃ consolidation):
+the union of the SPREAD failure and the cond:twist (`hDr ∧ hker`) failure is bounded
+by the sum of their measures (`spread_failure_le'` + `condtwist_failure_le`). Two of
+the Good-set conditions whose failure feeds the `prop:pinbound` ε₃ bound. -/
+theorem spread_condtwist_failure_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Fintype (Module.Dual (Fp P) Fq)] [DecidableEq Fq]
+    (hcard : Fintype.card (Fp P) = P.p) (hdp : (extDeg P Fq).Prime)
+    (hcardq : Fintype.card Fq = P.p ^ extDeg P Fq) (hd0 : 0 < extDeg P Fq) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      ({ch : Challenges P Fq Dom |
+          Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≠ ⊤} ∪
+        ({ch : Challenges P Fq Dom | ¬ ∀ (j : Fin 2) (r : Fin (extDeg P Fq)), (r : ℕ) ≠ 0 →
+            ch.α ⟨0, P.k₀_pos⟩ ^ P.p ^ (r : ℕ) - ch.α ⟨0, P.k₀_pos⟩ ≠ 0} ∪
+          {ch : Challenges P Fq Dom | ∃ (j : Fin 2) (c : Fin (extDeg P Fq) → Fq),
+            c ⟨0, hd0⟩ = 0 ∧ c ≠ 0 ∧ ∀ m : Fin P.k₀, (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m →
+              ∑ r, c r * (ch.α m ^ P.p ^ (r : ℕ) - powSeq (ch.z j) P.k₀ m) = 0})) ≤
+      (Fintype.card Fq : ℝ≥0∞) *
+          ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ P.k₀ /
+            (Fintype.card Fq : ℝ≥0∞) ^ P.k₀) +
+        ((P.p : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞) +
+          ((Finset.univ.filter
+              (fun jc : Fin 2 × (Fin (extDeg P Fq) → Fq) => jc.2 ⟨0, hd0⟩ = 0 ∧ jc.2 ≠ 0)).card : ℝ≥0∞) *
+            ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^
+                (Finset.univ.filter (fun m : Fin P.k₀ => (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m)).card /
+              (Fintype.card Fq : ℝ≥0∞) ^
+                (Finset.univ.filter (fun m : Fin P.k₀ => (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m)).card)) := by
+  refine (MeasureTheory.measure_union_le _ _).trans ?_
+  gcongr
+  · exact spread_failure_le' P Fq Dom hcard
+  · exact condtwist_failure_le P Fq Dom hdp hcardq hd0
+
 end ZkWhir
