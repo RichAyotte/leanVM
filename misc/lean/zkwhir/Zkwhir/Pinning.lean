@@ -1466,6 +1466,31 @@ theorem Eprime_subtype_prod (s : Cube P.k₀) (lo hi : Fin P.k₀) :
         (if s j.val then ch.α j.val else 1 - ch.α j.val) :=
   Finset.prod_subtype _ (fun x => by simp [Finset.mem_filter]) _
 
+/-- **Reconstruct a cell-cube from its middle (`m ≤ i < ℓ`) and rest restrictions.**
+This is the inverse of the coordinate split that gives the cross form the product
+domain `ιπ × ιv` required by `fullslice_step4`: `E'(π)` will depend only on the
+middle block (`π`), `G` only on the rest block (`sr`) and `c`. -/
+def cellMidCombine (m ℓ : Fin P.k₀)
+    (π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool)
+    (sr : {i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)} → Bool) : Cube P.k₀ :=
+  fun i => if h : m ≤ i ∧ i < ℓ then π ⟨i, h⟩ else sr ⟨i, h⟩
+
+/-- On a middle coordinate, `cellMidCombine` reads from the `π` block. -/
+theorem cellMidCombine_mid (m ℓ : Fin P.k₀)
+    (π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool)
+    (sr : {i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)} → Bool)
+    (j : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ}) :
+    cellMidCombine P m ℓ π sr j.val = π j := by
+  simp only [cellMidCombine]; rw [dif_pos j.prop]
+
+/-- On a rest coordinate, `cellMidCombine` reads from the `sr` block. -/
+theorem cellMidCombine_rest (m ℓ : Fin P.k₀)
+    (π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool)
+    (sr : {i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)} → Bool)
+    (j : {i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)}) :
+    cellMidCombine P m ℓ π sr j.val = sr j := by
+  simp only [cellMidCombine]; rw [dif_neg j.prop]
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
