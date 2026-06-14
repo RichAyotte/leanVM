@@ -53,6 +53,27 @@ theorem challenge_alpha_dual_zero_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
     exact le_trans (Finset.card_le_card hsub) (card_filter_dual_zero_le P Fq hcard hφ)
   · simp [fieldCard]
 
+/-- **Per-functional joint term for the SPREAD measure**: for a fixed nonzero
+`Fp`-functional `φ`, the joint event `∀ i, φ(α_i) = 0` has probability at most
+`(p^{d-1})^{k₀} / q^{k₀}`. Combines the joint multi-coordinate bound `uniform_pi_all`
+(via the challenge marginal `challenge_α_event_le`) with the kernel-card bound
+`card_filter_dual_zero_le`. This is each term of the SPREAD-failure union sum. -/
+theorem challenge_alpha_all_dual_zero_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    (hcard : Fintype.card (Fp P) = P.p) {φ : Module.Dual (Fp P) Fq} (hφ : φ ≠ 0) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ∀ i, φ (ch.α i) = 0} ≤
+      (P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ P.k₀ /
+        (Fintype.card Fq : ℝ≥0∞) ^ P.k₀ := by
+  classical
+  refine challenge_α_event_le P Fq Dom (fun α => ∀ i, φ (α i) = 0) _ ?_
+  have h := uniform_pi_all (ι := Fin P.k₀) (β := Fq) {a : Fq | φ a = 0}
+    (P.p ^ (Module.finrank (Fp P) Fq - 1))
+    (fun s hs => (Finset.card_le_card (fun a ha =>
+      Finset.mem_filter.mpr ⟨Finset.mem_univ a, hs a ha⟩)).trans
+      (card_filter_dual_zero_le P Fq hcard hφ))
+  rw [Fintype.card_fin, Nat.cast_pow] at h
+  simpa only [Set.mem_setOf_eq] using h
+
 /-- **SPREAD-failure union bound** (the SPREAD measure skeleton): the probability
 that the SPREAD span misses `⊤` is at most the sum, over nonzero `Fp`-functionals
 `φ` on `Fq` (a finite set), of `P[φ` vanishes on every `êq(α,s)]`. By
