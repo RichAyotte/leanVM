@@ -3440,6 +3440,30 @@ theorem terminal_part_vanishes (F : Cube P.m → Fq) (aterm : Fq)
     rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun c _ => by ring,
     hterm, mul_zero]
 
+/-- **The protocol-form expression annihilates a protocol-killed `F`** (`prop:pinbound`
+channel-wiring, assembled): the full protocol-shape vector — queried combo + `zf` combo
++ `aterm`·terminal-weight — pairs to zero against any protocol-killed `F`. Assembles the
+channel trio (`queried_zf_part_vanishes` + `terminal_part_vanishes`). This is the
+`hw`-free core of `sum_w_F_eq_zero_of_protocol_form`: the protocol *directions* are
+orthogonal to the protocol-killed subspace, independent of which `w` realizes them. -/
+theorem protocolExpr_pairing_zero (F : Cube P.m → Fq) (aq : Fin P.t₀ → Fq)
+    (az : Fin P.s₁ → Fq) (aterm : Fq)
+    (hq : ∀ t, mle F (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0)
+    (hz : ∀ k, mle F (powSeq (ch.zf k) P.m) = 0)
+    (hterm : (∑ c, F c * ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) = 0) :
+    (∑ c, ((∑ t, aq t * eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c)
+        + (∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c)
+        + aterm * (∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c))) * F c) = 0 := by
+  rw [show (∑ c, ((∑ t, aq t * eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c)
+          + (∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c)
+          + aterm * (∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c))) * F c)
+      = (∑ c, ((∑ t, aq t * eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c)
+          + (∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c)) * F c)
+        + ∑ c, aterm * (∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) * F c from by
+    rw [← Finset.sum_add_distrib]; exact Finset.sum_congr rfl fun c _ => by ring,
+    queried_zf_part_vanishes P Fq Dom ch F aq az hq hz,
+    terminal_part_vanishes P Fq Dom S ch F aterm hterm, add_zero]
+
 /-- **Final step of the `prop:pinbound` assembly**: once the trace-dual `w` is in
 *protocol form* — a queried combination, a `zf` combination, and a single multiple
 `aterm` of the terminal weight `∑_s êq(α,s)W₀(s,·)` (the node part having been
