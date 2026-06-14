@@ -3893,6 +3893,39 @@ theorem oodAnswer_primalMask_zero (v ρ : Cube P.k₀ → Cube P.m → Fp P)
       Finset.sum_congr rfl fun s _ => by rw [hnode s j]]
   exact hood j
 
+/-- **The primal message polynomial in node-system form** (`cond:pinning`
+construction, message half): expanding `hPoly` by the channel decomposition and
+substituting the fibers' node values `n`, the round message equals the node-system
+message row plus `γ²` times the (`v`-independent) cross term. -/
+theorem hPoly_primalMask_eq (hmf : MaskFree P Fq S)
+    (v ρ : Cube P.k₀ → Cube P.m → Fp P) (n : Cube P.k₀ → Fin 2 → Fq)
+    (hnode : ∀ s j, mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = n s j)
+    (ℓ : Fin P.k₀) (y : Fq) :
+    hPoly P Fq Dom S (assemble P 0 (- primalMask P v ρ)) ch ℓ y =
+      msgRow P Fq Dom ch ℓ y n +
+      ch.γ ^ 2 * crossTerm P Fq Dom S (assemble P 0 (- primalMask P 0 ρ)) ch ℓ y := by
+  rw [hPoly_channel P Fq Dom S (assemble P 0 (- primalMask P v ρ)) ch ℓ y,
+    evalT_eq_sum_classes, evalT_eq_sum_classes,
+    crossTerm_primalMask_eq P Fq Dom S ch hmf v ρ ℓ y]
+  simp only [hnode]
+  unfold msgRow
+  ring
+
+/-- **The message view vanishes** (`cond:pinning` construction, view half, message
+field): if the fibers hit the node system `n` and `n` solves the message row against
+`−γ²·crossTerm`, the round message vanishes. -/
+theorem hPoly_primalMask_zero (hmf : MaskFree P Fq S)
+    (v ρ : Cube P.k₀ → Cube P.m → Fp P) (n : Cube P.k₀ → Fin 2 → Fq)
+    (hnode : ∀ s j, mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = n s j)
+    (ℓ : Fin P.k₀) (y : Fq)
+    (hmsg : msgRow P Fq Dom ch ℓ y n =
+      -(ch.γ ^ 2 * crossTerm P Fq Dom S (assemble P 0 (- primalMask P 0 ρ)) ch ℓ y)) :
+    hPoly P Fq Dom S (assemble P 0 (- primalMask P v ρ)) ch ℓ y = 0 := by
+  rw [hPoly_primalMask_eq P Fq Dom S ch hmf v ρ n hnode ℓ y, hmsg]
+  ring
+
 /-- **The primal mask realizes the fold `-F`** (`cond:pinning` construction, fold
 half): if the block fibers `v` realize `-F` on block positions via the full SPREAD
 sum and the `R_out` masks `ρ` realize `-F` on non-block positions via the `R_out`
