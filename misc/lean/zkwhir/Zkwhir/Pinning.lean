@@ -3288,4 +3288,21 @@ theorem queried_part_vanishes (F : Cube P.m → Fq) (aq : Fin P.t₀ → Fq)
         exact Finset.sum_congr rfl fun c _ => by ring
     _ = 0 := Finset.sum_eq_zero fun t _ => by rw [hq t, mul_zero]
 
+/-- **`zf` channel vanishes on a protocol-killed `F`** (`prop:pinbound` assembly,
+easy channel): any `Fq`-combination of the `f̂₁` out-of-domain weight vectors
+`êq(zf_k, ·)`, paired against `F`, vanishes when `F`'s `zf` evaluations all vanish
+(`mle F(zf_k) = 0`). The `zf` contribution to the final `φ(-F) = 0` computation. -/
+theorem zf_part_vanishes (F : Cube P.m → Fq) (az : Fin P.s₁ → Fq)
+    (hz : ∀ k, mle F (powSeq (ch.zf k) P.m) = 0) :
+    (∑ c, (∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c) * F c) = 0 := by
+  calc (∑ c, (∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c) * F c)
+      = ∑ c, ∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c * F c := by
+        refine Finset.sum_congr rfl fun c _ => ?_; rw [Finset.sum_mul]
+    _ = ∑ k, ∑ c, az k * eqPoly (powSeq (ch.zf k) P.m) c * F c := Finset.sum_comm
+    _ = ∑ k, az k * mle F (powSeq (ch.zf k) P.m) := by
+        refine Finset.sum_congr rfl fun k _ => ?_
+        rw [mle, Finset.mul_sum]
+        exact Finset.sum_congr rfl fun c _ => by ring
+    _ = 0 := Finset.sum_eq_zero fun k _ => by rw [hz k, mul_zero]
+
 end ZkWhir
