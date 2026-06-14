@@ -3408,6 +3408,25 @@ theorem zf_part_vanishes (F : Cube P.m → Fq) (az : Fin P.s₁ → Fq)
         exact Finset.sum_congr rfl fun c _ => by ring
     _ = 0 := Finset.sum_eq_zero fun k _ => by rw [hz k, mul_zero]
 
+/-- **Non-terminal channels vanish on a protocol-killed `F`** (`prop:pinbound`
+channel-wiring step): both view channels — queried *and* `zf` — paired against a
+protocol-killed `F` vanish together. Combines `queried_part_vanishes` and
+`zf_part_vanishes`. In the `pinning_of_dual` channel-wiring route this isolates
+`φ(F)` to its node + terminal contribution, the only part the cross-channel /
+absorption argument must handle. -/
+theorem queried_zf_part_vanishes (F : Cube P.m → Fq) (aq : Fin P.t₀ → Fq)
+    (az : Fin P.s₁ → Fq)
+    (hq : ∀ t, mle F (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0)
+    (hz : ∀ k, mle F (powSeq (ch.zf k) P.m) = 0) :
+    (∑ c, ((∑ t, aq t * eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c)
+        + (∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c)) * F c) = 0 := by
+  rw [show (∑ c, ((∑ t, aq t * eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c)
+          + (∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c)) * F c)
+      = (∑ c, (∑ t, aq t * eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c) * F c)
+        + ∑ c, (∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c) * F c from by
+    rw [← Finset.sum_add_distrib]; exact Finset.sum_congr rfl fun c _ => by ring,
+    queried_part_vanishes P Fq Dom ch F aq hq, zf_part_vanishes P Fq Dom ch F az hz, add_zero]
+
 /-- **Final step of the `prop:pinbound` assembly**: once the trace-dual `w` is in
 *protocol form* — a queried combination, a `zf` combination, and a single multiple
 `aterm` of the terminal weight `∑_s êq(α,s)W₀(s,·)` (the node part having been
