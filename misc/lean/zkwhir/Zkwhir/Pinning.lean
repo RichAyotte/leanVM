@@ -4166,6 +4166,35 @@ theorem crossFold_family_zero [FiniteDimensional (Fp P) Fq] (ψ : Cube P.m → F
   rw [crossFold_pairing]
   exact Finset.sum_eq_zero fun s _ => hper s
 
+/-- **Cross-fold annihilation, dual characterization** (`cond:cross2`, the iff): a test
+weight `ψ` annihilates the cross fold of *every* confinement-kernel family iff, for each
+class `s`, the per-cell weight `c ↦ tr(ψ_c·êq(α,s))` annihilates `confineKer`. The `←`
+direction is `crossFold_family_zero`; the `→` direction tests against single-class families
+(`0 ∈ confineKer`). This turns the surjectivity dual of `ConfineFoldSurj` into the per-class
+`confineGen`-span conditions that the `cond:cross2` measure bounds. -/
+theorem crossFold_annihilate_iff [FiniteDimensional (Fp P) Fq] (ψ : Cube P.m → Fq) :
+    (∀ δ : Cube P.k₀ → Cube P.m → Fp P, (∀ s, δ s ∈ confineKer P Fq Dom ch) →
+        Algebra.trace (Fp P) Fq
+          (∑ c, ψ c * ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (δ s c)) = 0)
+      ↔ (∀ s, ∀ g ∈ confineKer P Fq Dom ch,
+          ∑ c, g c • Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s) = 0) := by
+  classical
+  constructor
+  · intro h s g hg
+    have hfam : ∀ s', (fun s'' => if s'' = s then g else 0) s' ∈ confineKer P Fq Dom ch := by
+      intro s'
+      by_cases hs' : s' = s
+      · simp only [hs', if_true]; exact hg
+      · simp only [if_neg hs']; exact (confineKer P Fq Dom ch).zero_mem
+    have hz := h (fun s' => if s' = s then g else 0) hfam
+    rw [crossFold_pairing] at hz
+    rw [Finset.sum_eq_single s (fun s' _ hne => Finset.sum_eq_zero fun c _ => by
+        simp only [if_neg hne, Pi.zero_apply, zero_smul]) (by simp)] at hz
+    simpa using hz
+  · intro h δ hδ
+    rw [crossFold_pairing]
+    exact Finset.sum_eq_zero fun s _ => h s (δ s) (hδ s)
+
 /-- **`CrossSolve` from confinement-kernel fold surjectivity** (`cond:cross2`, reduction to
 the confine submodule): the confinement kernel `confineKer` (block-supported fibers vanishing
 at the queried points, commitment nodes, *and* `f̂₁` nodes) is *contained* in the
