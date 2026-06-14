@@ -611,6 +611,35 @@ theorem moment_minor_solvable (ζ : Fq) (hζ : ζ * (1 - ζ) ≠ 0) (b : Fin 3 �
         -(ζ * (1 - ζ)), 1 - 2 * ζ ^ 2, 2 * ζ - 1]).mulVec m = b :=
   exists_mulVec_of_isUnit_det _ (moment_minor_isUnit Fq ζ hζ) b
 
+/-- **The general-challenge `(S,R)` minor factors** (`lem:fullslice` Step 2, the
+two-block η-match): the `(S¹,R¹,R²)` coefficient matrix at diagonals `ζ₁` (block 1)
+and `ζ₂` (block 2) has determinant `(ζ₁−ζ₂)·(ζ₁+ζ₂−1−2ζ₁ζ₂)`. At `ζ₁ = 0` this is
+`ζ₂(1−ζ₂)` (recovering `moment_minor_det_at_zero`), so the minor is a nonzero
+polynomial — the Schwartz–Zippel input, and the invertibility certificate for the
+η-match solve at general challenges. -/
+theorem moment_minor_det_general (ζ₁ ζ₂ : Fq) :
+    Matrix.det !![1 - ζ₁, 2 * ζ₁ - 1, 0;
+        -(ζ₁ * (1 - ζ₁)), 1 - 2 * ζ₁ ^ 2, 2 * ζ₁ - 1;
+        -(ζ₂ * (1 - ζ₂)), 1 - 2 * ζ₂ ^ 2, 2 * ζ₂ - 1] =
+      (ζ₁ - ζ₂) * (ζ₁ + ζ₂ - 1 - 2 * ζ₁ * ζ₂) := by
+  rw [Matrix.det_fin_three]
+  simp only [Matrix.of_apply, Matrix.cons_val', Matrix.cons_val_zero,
+    Matrix.cons_val_one, Matrix.head_cons, Matrix.head_fin_const,
+    Matrix.cons_val_fin_one, Matrix.empty_val', Matrix.cons_val_two,
+    Matrix.tail_cons]
+  ring
+
+/-- The general η-match matrix is invertible off its (factored) hypersurface
+`ζ₁ = ζ₂` or `ζ₁+ζ₂ = 1+2ζ₁ζ₂` — the invertibility certificate for the solve at
+general challenges. -/
+theorem moment_minor_general_isUnit (ζ₁ ζ₂ : Fq)
+    (h1 : ζ₁ - ζ₂ ≠ 0) (h2 : ζ₁ + ζ₂ - 1 - 2 * ζ₁ * ζ₂ ≠ 0) :
+    IsUnit (Matrix.det !![1 - ζ₁, 2 * ζ₁ - 1, 0;
+        -(ζ₁ * (1 - ζ₁)), 1 - 2 * ζ₁ ^ 2, 2 * ζ₁ - 1;
+        -(ζ₂ * (1 - ζ₂)), 1 - 2 * ζ₂ ^ 2, 2 * ζ₂ - 1]) := by
+  rw [moment_minor_det_general]
+  exact isUnit_iff_ne_zero.mpr (mul_ne_zero h1 h2)
+
 /-- **The `S`-coefficient is the moment combination of the `eqf` weight**
 (`lem:fullslice` Step 2, tex:577): with moments `m₀ = ∑ μ_t`, `m₁ = ∑ μ_t y_t`,
 the `ρ`-coefficient `momS ζ m₀ m₁` equals `∑_t μ_t · êq(y_t, ζ)`, since the
