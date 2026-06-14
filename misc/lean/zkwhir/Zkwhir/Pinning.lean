@@ -4235,6 +4235,32 @@ theorem hview_of_nodeHyp (hdom : (0 : Fp P) ∉ Dom)
     rw [h]
     ring
 
+/-- **`BlockFoldSolve` from node genericity and cross-coupling** (`cond:cross2`, assembled):
+composing the view solve (`hview_of_nodeHyp`, under `NodeHyp`) with the reduction
+`blockFoldSolve_of_view_fold`, `BlockFoldSolve` holds whenever `NodeHyp` and `CrossSolve`
+hold. So the `cond:cross2` content of the whole campaign is exactly `NodeHyp` (already
+measured, `ε₁`) plus `CrossSolve` — its failure measure is the only remaining probability
+bound. -/
+theorem blockFoldSolve_of_nodeHyp_crossSolve (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hnode : NodeHyp P Fq Dom ch) (hcross : CrossSolve P Fq Dom ch) :
+    BlockFoldSolve P Fq Dom ch :=
+  blockFoldSolve_of_view_fold P Fq Dom ch
+    (hview_of_nodeHyp P Fq Dom ch hdom hbudget hnode) hcross
+
+/-- **`BlockFoldSolve` failure is covered by node and cross-coupling failure** (`cond:cross2`,
+measure bridge): by `blockFoldSolve_of_nodeHyp_crossSolve`, the `BlockFoldSolve` failure event
+lies in the union of `¬NodeHyp` (measured by `ε₁`) and `¬CrossSolve` (the sole remaining
+`cond:cross2` measure). -/
+theorem not_blockFoldSolve_subset (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a) :
+    {ch : Challenges P Fq Dom | ¬ BlockFoldSolve P Fq Dom ch} ⊆
+      {ch | ¬ NodeHyp P Fq Dom ch} ∪ {ch | ¬ CrossSolve P Fq Dom ch} := by
+  intro ch hch
+  by_contra hmem
+  simp only [Set.mem_union, Set.mem_setOf_eq, not_or, not_not] at hmem
+  exact hch (blockFoldSolve_of_nodeHyp_crossSolve P Fq Dom ch hdom hbudget hmem.1 hmem.2)
+
 /-- **Pinning failure is covered by the three structural failures** (`cond:pinning`,
 measure bridge): since `pinning_of_blockFoldSolve` derives `Pinning` from `R_out`-SPREAD,
 `RowSurj`, and `BlockFoldSolve`, the set of challenges where `Pinning` fails is contained
