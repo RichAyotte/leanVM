@@ -3265,4 +3265,27 @@ theorem protocol_killed_linking (F : Cube P.m → Fq)
       + ch.γ ^ 2 * (∑ c, F c * wHat0 P Fq Dom S ch c) = 0 := by
   rw [← terminal_pairing_F_decomp]; exact hterm
 
+/-- **Queried channel vanishes on a protocol-killed `F`** (`prop:pinbound`
+assembly, easy channel): any `Fq`-combination of the queried-point weight vectors
+`êq(qs_t, ·)`, paired against `F`, vanishes when `F`'s queried evaluations all
+vanish (`mle F(qs_t) = 0`). This is the queried contribution to the final
+`φ(-F) = 0` computation; the analogous statement for the `zf` channel is identical
+in shape. -/
+theorem queried_part_vanishes (F : Cube P.m → Fq) (aq : Fin P.t₀ → Fq)
+    (hq : ∀ t, mle F (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) :
+    (∑ c, (∑ t, aq t *
+        eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c) * F c) = 0 := by
+  calc (∑ c, (∑ t, aq t *
+          eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c) * F c)
+      = ∑ c, ∑ t, aq t *
+          eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c * F c := by
+        refine Finset.sum_congr rfl fun c _ => ?_; rw [Finset.sum_mul]
+    _ = ∑ t, ∑ c, aq t *
+          eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c * F c := Finset.sum_comm
+    _ = ∑ t, aq t * mle F (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) := by
+        refine Finset.sum_congr rfl fun t _ => ?_
+        rw [mle, Finset.mul_sum]
+        exact Finset.sum_congr rfl fun c _ => by ring
+    _ = 0 := Finset.sum_eq_zero fun t _ => by rw [hq t, mul_zero]
+
 end ZkWhir
