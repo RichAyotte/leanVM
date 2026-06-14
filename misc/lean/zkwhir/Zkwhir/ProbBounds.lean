@@ -209,6 +209,33 @@ theorem uniform_pi_coord_le {ι β : Type*} [Fintype ι] [DecidableEq ι]
           exact ENNReal.mul_div_mul_right _ _ hq hqtop
       _ ≤ (k : ℝ≥0∞) / (Fintype.card β : ℝ≥0∞) := le_rfl
 
+/-- **Joint bound over all coordinates for uniform functions**: under a uniform
+`f : ι → β`, the event that *every* coordinate lands in `B` (with `|B| ≤ k`) has
+probability at most `(k / |β|)^{|ι|}`. The event set is the `piFinset` of `B` in
+every coordinate, of cardinality `≤ k^{|ι|}`, over `|β|^{|ι|}` total. This is the
+multi-coordinate joint-independence bound the SPREAD failure measure needs. -/
+theorem uniform_pi_all {ι β : Type*} [Fintype ι] [DecidableEq ι]
+    [Fintype β] [Nonempty β] (B : Set β) (k : ℕ)
+    (hB : ∀ s : Finset β, (∀ a ∈ s, a ∈ B) → s.card ≤ k) :
+    (PMF.uniformOfFintype (ι → β)).toOuterMeasure {f | ∀ i, f i ∈ B} ≤
+      (k : ℝ≥0∞) ^ Fintype.card ι / (Fintype.card β : ℝ≥0∞) ^ Fintype.card ι := by
+  classical
+  set Bf : Finset β := Finset.univ.filter (fun b => b ∈ B) with hBf
+  have hBfk : Bf.card ≤ k := hB Bf fun a ha => (Finset.mem_filter.mp ha).2
+  have hcount : (Finset.univ.filter (fun f : ι → β => ∀ i, f i ∈ B)).card
+      ≤ k ^ Fintype.card ι := by
+    have hset : Finset.univ.filter (fun f : ι → β => ∀ i, f i ∈ B)
+        = Fintype.piFinset (fun _ => Bf) := by
+      ext f
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fintype.mem_piFinset,
+        hBf]
+    rw [hset, Fintype.card_piFinset, Finset.prod_const, Finset.card_univ]
+    exact Nat.pow_le_pow_left hBfk _
+  refine (uniform_toOuterMeasure_le _ (k ^ Fintype.card ι) (fun s hs => ?_)).trans ?_
+  · exact (Finset.card_le_card
+      (fun a ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a, hs a ha⟩)).trans hcount
+  · rw [Fintype.card_fun]; push_cast; rfl
+
 /-- **Pair bound for uniform functions**: under a uniform function `ι → β`,
 a joint event on two fixed distinct coordinates whose every first-coordinate
 fiber has at most `k` outcomes has probability at most `k / |β|`. -/
