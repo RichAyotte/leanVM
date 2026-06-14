@@ -3513,6 +3513,17 @@ theorem span_eqPoly_le_adjoin :
   rintro _ ⟨s, rfl⟩
   exact eqPoly_mem_adjoin P Fq Dom ch s
 
+/-- **SPREAD forces the `α_i` to generate `Fq`** (necessary condition): since
+`span_Fp(range êq(α,·)) ≤ adjoin{α_i}`, the SPREAD condition `span = ⊤` implies
+`adjoin{α_i} = ⊤`, i.e. the `α`-coordinates generate `Fq` over `Fp`. So `¬(α
+generate)` is one way SPREAD fails — the measure-side characterization of when the
+SPREAD Good-set condition can break. -/
+theorem adjoin_top_of_spread
+    (hspread : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) = ⊤) :
+    Algebra.adjoin (Fp P) (Set.range ch.α) = ⊤ := by
+  rw [← Algebra.toSubmodule_eq_top, eq_top_iff, ← hspread]
+  exact span_eqPoly_le_adjoin P Fq Dom ch
+
 /-- **Queried protocol dual kills `range pinFold`** (`ann(range pinFold) ⊇` protocol
 span, dual form): the queried-eval dual `g ↦ tr(b·mle g(qs_t))` annihilates every
 view-vanishing mask-fold, since `mle(pinFold κ)(qs_t) = 0` (`pinFold_queried_zero`). -/
