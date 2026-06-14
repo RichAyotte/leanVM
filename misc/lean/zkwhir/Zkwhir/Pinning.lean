@@ -3178,4 +3178,20 @@ theorem nodechannel_untwisted [FiniteDimensional (Fp P) Fq]
       rw [hθeq j (eqPoly ch.α s)]]
   exact hT V hood hmsg1 hmsg2
 
+/-- **A mask-only table vanishes off the mask support** (`prop:pinbound` assembly,
+non-block handling): with zero data, `assemble 0 m` is `0` at any cell `(s,c)` that
+is not a mask cell — `c` outside the block (`¬IsBlockPos c`) and `s` in the lower
+half (`s₀ = false`). This isolates which `(s,c)` the non-block fold reads, the
+input to splitting `pinFold` along the block/`R_out` structure. -/
+theorem assemble_zero_nonmask_nonblock (m : MaskAssign P) (s : Cube P.k₀) (c : Cube P.m)
+    (hc : ¬ IsBlockPos P c) (hs : s ⟨0, P.k₀_pos⟩ = false) :
+    assemble P 0 m (s, c) = 0 := by
+  have hnm : ¬ IsMask P (s, c) := by
+    rintro (h | h)
+    · simp [hs] at h
+    · exact hc h
+  unfold assemble
+  rw [dif_neg hnm]
+  rfl
+
 end ZkWhir
