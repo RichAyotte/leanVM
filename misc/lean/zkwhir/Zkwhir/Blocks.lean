@@ -247,6 +247,27 @@ theorem eqPoly_head_factor {R : Type*} [CommRing R] {j : ℕ} (α : Fin (j + 1) 
   rw [Fin.prod_univ_succ]
   rfl
 
+/-- **The `R_out` half spans** (`cond:pinning` non-block solvability): if `α 0 ≠ 0` and
+the tail eqPoly family spans `Fq`, then the `R_out` weight family `{êq(α, cons true s) :
+s}` spans `Fq`. Since each `R_out` weight is `α 0 ·` a tail eqPoly (`eqPoly_head_factor`),
+scaling by the unit `α 0` preserves the (top) span. This is what `exists_pointwise_span_solution`
+consumes to realize an arbitrary non-block fold from `R_out` mask values. -/
+theorem eqPoly_Rout_span {R : Type*} [Field R] {j : ℕ} (α : Fin (j + 1) → R) (hα0 : α 0 ≠ 0)
+    (htail : Submodule.span R (Set.range (eqPoly (Fin.tail α))) = ⊤) :
+    Submodule.span R (Set.range (fun s : Cube j => eqPoly α (Fin.cons true s))) = ⊤ := by
+  have hg : (fun s : Cube j => eqPoly α (Fin.cons true s))
+      = fun s => α 0 • eqPoly (Fin.tail α) s := by
+    funext s
+    rw [eqPoly_head_factor]
+    simp [Fin.cons_zero, Fin.tail_cons, smul_eq_mul]
+  rw [hg]
+  refine le_antisymm le_top ?_
+  rw [← htail, Submodule.span_le]
+  rintro _ ⟨x, rfl⟩
+  rw [show eqPoly (Fin.tail α) x = (α 0)⁻¹ • (α 0 • eqPoly (Fin.tail α) x) from by
+    rw [smul_smul, inv_mul_cancel₀ hα0, one_smul]]
+  exact Submodule.smul_mem _ _ (Submodule.subset_span ⟨x, rfl⟩)
+
 /-- **Trace of a channel weight is a sum over conjugate eqPoly weights** (`lem:noother`
 linchpin): for a Galois extension `Fq/Fp`, `algebraMap (tr(M·êq(pow z, c))) = ∑_σ
 σ(M)·êq(pow(σ z), c)` over the Galois group. Combines `trace_eq_sum_automorphisms`
