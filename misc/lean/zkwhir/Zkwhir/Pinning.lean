@@ -1509,6 +1509,23 @@ theorem crossTerm_sum {ι : Type*} [DecidableEq ι] (s : Finset ι)
   | insert a s ha ih =>
     rw [Finset.sum_insert ha, crossTerm_add_table, ih, Finset.sum_insert ha]
 
+/-- **The value-row decomposition of the cross channel**: `crossTerm` is the
+`Fp`-combination `∑_u algebraMap(T u)·C_u` of the cross vectors `C_u =
+crossTerm(Pi.single u 1)` (i.e. the data cells pair against the cross channel
+through the cross-vector entries). The structural form `cond:cross2`/`lem:fullslice`
+use to read off the `C_v` system. -/
+theorem crossTerm_eq_sum_cells (T : Cell P → Fp P) (ℓ : Fin P.k₀) (y : Fq) :
+    crossTerm P Fq Dom S T ch ℓ y =
+      ∑ u : Cell P, algebraMap (Fp P) Fq (T u) *
+        crossTerm P Fq Dom S (Pi.single u 1) ch ℓ y := by
+  have hT : T = ∑ u : Cell P, T u • Pi.single u (1 : Fp P) := by
+    funext v
+    simp [Finset.sum_apply, Pi.single_apply, smul_eq_mul, Finset.sum_ite_eq, eq_comm]
+  conv_lhs => rw [hT]
+  rw [crossTerm_sum]
+  refine Finset.sum_congr rfl fun u _ => ?_
+  rw [crossTerm_smul_table]
+
 /-- **The single-class block probe mask**: place `−v` on the block of class `s`. -/
 def blockClassMask (s : Cube P.k₀) (v : Cube P.m → Fp P) : MaskAssign P :=
   fun u => if u.1.1 = s then -(v u.1.2) else 0
