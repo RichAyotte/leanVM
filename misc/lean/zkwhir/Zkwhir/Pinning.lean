@@ -3986,6 +3986,78 @@ theorem f1ood_zero_of_fold_neg (F : Cube P.m → Fq) (κ : MaskAssign P)
   rw [hfold, show (fun c => - F c) = (fun c => (-1 : Fq) * F c) from by funext c; ring,
     mle_const_mul, hzf j, mul_zero]
 
+/-- **The block-fold joint solve** (`cond:cross2`, the irreducible solvability of the
+primal construction): for every fold target `F`, node system `n`, and `R_out` masks
+`ρ`, block-supported fibers `v` exist that simultaneously realize the block fold `-F`,
+make the queried view vanish, and hit the node system `n`. This bundles the two-point
+CRT (`exists_block_fiber`) with the block SPREAD into a single joint system whose
+genericity is `cond:cross2`; it is a Good-set predicate, consumed by
+`pinning_of_blockFoldSolve`. -/
+def BlockFoldSolve : Prop :=
+  ∀ (F : Cube P.m → Fq) (n : Cube P.k₀ → Fin 2 → Fq) (ρ : Cube P.k₀ → Cube P.m → Fp P),
+    ∃ v : Cube P.k₀ → Cube P.m → Fp P,
+      (∀ s c, v s c ≠ 0 → IsBlockPos P c) ∧
+      (∀ c, IsBlockPos P c →
+        ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (v s c) = - F c) ∧
+      (∀ s t, mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c))
+        (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) ∧
+      (∀ s j, mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = n s j)
+
+/-- **Primal `Pinning` from the joint solve** (`cond:pinning`, the construction): under
+the `R_out`-SPREAD condition, the node-system row surjectivity (`RowSurj`), and the
+block-fold joint solve (`BlockFoldSolve`), every protocol-killed fold target `F` is the
+fold of a view-vanishing mask `primalMask v ρ`. The `R_out` masks `ρ` realize `-F` off
+the blocks (R_out SPREAD); the node system `n` cancels the cross term in the messages
+(`RowSurj`); the block fibers `v` realize `-F` on the blocks and zero the queried/node
+view (`BlockFoldSolve`); the `f̂₁` channel vanishes because the fold is `-F` and `F` is
+`f̂₁`-killed. -/
+theorem pinning_of_blockFoldSolve (hmf : MaskFree P Fq S)
+    (hRout : Submodule.span (Fp P) (Set.range
+      (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)
+    (hrow : RowSurj P Fq Dom ch) (hbf : BlockFoldSolve P Fq Dom ch) :
+    Pinning P Fq Dom S ch := by
+  classical
+  intro F hq hzf hterm
+  -- `R_out` masks realizing the non-block fold
+  obtain ⟨xR, hxR⟩ := exists_Rout_fold_sub P Fq Dom ch hRout (fun c => - F c)
+  set ρ : Cube P.k₀ → Cube P.m → Fp P :=
+    fun s c => if h : s ⟨0, P.k₀_pos⟩ = true then xR ⟨s, h⟩ c else 0 with hρ
+  have hnonblock : ∀ c, ¬ IsBlockPos P c →
+      ∑ s ∈ Finset.univ.filter (fun s : Cube P.k₀ => s ⟨0, P.k₀_pos⟩ = true),
+        eqPoly ch.α s * algebraMap (Fp P) Fq (ρ s c) = - F c := by
+    intro c _
+    have hmem : ∀ s : Cube P.k₀,
+        s ∈ Finset.univ.filter (fun s : Cube P.k₀ => s ⟨0, P.k₀_pos⟩ = true)
+          ↔ s ⟨0, P.k₀_pos⟩ = true := by
+      intro s
+      rw [Finset.mem_filter]
+      exact ⟨fun h => h.2, fun h => ⟨Finset.mem_univ s, h⟩⟩
+    rw [Finset.sum_subtype (Finset.univ.filter (fun s : Cube P.k₀ => s ⟨0, P.k₀_pos⟩ = true))
+      hmem (fun s => eqPoly ch.α s * algebraMap (Fp P) Fq (ρ s c))]
+    rw [← hxR c]
+    refine Finset.sum_congr rfl fun s _ => ?_
+    have hρs : ρ s.val c = xR s c := by
+      show (if h : s.val ⟨0, P.k₀_pos⟩ = true then xR ⟨s.val, h⟩ c else 0) = xR s c
+      rw [dif_pos s.property]
+    rw [hρs, mul_comm]
+  -- node system cancelling the (`v`-independent) cross term
+  obtain ⟨n, hnood, hnm1, hnm2⟩ := hrow (fun _ => 0)
+    (fun ℓ => -(ch.γ ^ 2 *
+      crossTerm P Fq Dom S (assemble P 0 (- primalMask P 0 ρ)) ch ℓ 1))
+    (fun ℓ => -(ch.γ ^ 2 *
+      crossTerm P Fq Dom S (assemble P 0 (- primalMask P 0 ρ)) ch ℓ 2))
+  -- block fibers from the joint solve
+  obtain ⟨v, hvb, hvfold, hvq, hvn⟩ := hbf F n ρ
+  have hfold : foldedF₁ P Fq Dom (assemble P 0 (- primalMask P v ρ)) ch = fun c => - F c :=
+    foldedF₁_primalMask P Fq Dom ch v ρ F hvfold hnonblock
+  refine ⟨primalMask P v ρ, ⟨?_, ?_, ?_, ?_, ?_⟩, hfold⟩
+  · exact fun j => oodAnswer_primalMask_zero P Fq Dom ch v ρ n hvn hnood j
+  · exact fun ℓ => hPoly_primalMask_zero P Fq Dom S ch hmf v ρ n hvn ℓ 1 (hnm1 ℓ)
+  · exact fun ℓ => hPoly_primalMask_zero P Fq Dom S ch hmf v ρ n hvn ℓ 2 (hnm2 ℓ)
+  · exact fun t s => hvq s t
+  · exact f1ood_zero_of_fold_neg P Fq Dom ch F (primalMask P v ρ) hfold hzf
+
 /-- **Single-channel block extraction** (`lem:noother`, the extraction mechanism fully
 assembled): if on a set `S` the trace-slices of `w` are represented through one
 trace-channel `tr(bᵢ·w_c) = ∑_{i'} cz_{i,i'}·tr(b_{i'}·W_c)`, and the Galois-descent
