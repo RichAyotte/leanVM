@@ -3577,6 +3577,20 @@ theorem eqPoly_boolPoint {j : ℕ} (c b : Cube j) :
   congr 1
   simp [funext_iff]
 
+/-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
+`prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
+queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
+`pinFold_queried_zero`/`pinFold_zf_zero`/`pinFold_terminal_zero`. The hard converse
+`range pinFold ⊇ W'` (equivalently `H`) is what remains. -/
+theorem pinFold_protocol_killed (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (κ : viewKer P Fq Dom S ch) :
+    (∀ t, mle (pinFold P Fq Dom S ch κ)
+        (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0) ∧
+      (∀ j, mle (pinFold P Fq Dom S ch κ) (powSeq (ch.zf j) P.m) = 0) ∧
+      ((∑ c, pinFold P Fq Dom S ch κ c * ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) = 0) :=
+  ⟨pinFold_queried_zero P Fq Dom S ch κ, pinFold_zf_zero P Fq Dom S ch κ,
+    pinFold_terminal_zero P Fq Dom S ch h2 hmf κ⟩
+
 /-- **Queried protocol dual kills `range pinFold`** (`ann(range pinFold) ⊇` protocol
 span, dual form): the queried-eval dual `g ↦ tr(b·mle g(qs_t))` annihilates every
 view-vanishing mask-fold, since `mle(pinFold κ)(qs_t) = 0` (`pinFold_queried_zero`). -/
