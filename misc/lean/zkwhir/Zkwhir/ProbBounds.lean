@@ -275,6 +275,24 @@ theorem linComb_root_card_le {F : Type*} [Field F] [Fintype F] [DecidableEq F]
   simp only [Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_X]
   rw [hx.2, sub_self]
 
+/-- **Root count for the `hker` shifted form** `∑_r c_r·(x^{p^r} − K) = 0`: rewriting
+to `∑_r c_r·x^{p^r} = (∑_r c_r)·K`, this has at most `p^{d-1}` solutions
+(`linComb_root_card_le`). This is the per-coordinate root set in `hker`'s measure. -/
+theorem hker_root_card_le {F : Type*} [Field F] [Fintype F] [DecidableEq F]
+    {p d : ℕ} (hp : 1 < p) (c : Fin d → F) (r₀ : Fin d) (hcr : c r₀ ≠ 0) (K : F) :
+    (Finset.univ.filter (fun x : F => ∑ r, c r * (x ^ p ^ (r : ℕ) - K) = 0)).card
+      ≤ p ^ (d - 1) := by
+  have hset : (Finset.univ.filter (fun x : F => ∑ r, c r * (x ^ p ^ (r : ℕ) - K) = 0))
+      = Finset.univ.filter (fun x : F => ∑ r, c r * x ^ p ^ (r : ℕ) = (∑ r, c r) * K) := by
+    apply Finset.filter_congr
+    intro x _
+    rw [show (∑ r, c r * (x ^ p ^ (r : ℕ) - K))
+        = (∑ r, c r * x ^ p ^ (r : ℕ)) - (∑ r, c r) * K from by
+      rw [Finset.sum_mul, ← Finset.sum_sub_distrib]
+      exact Finset.sum_congr rfl fun r _ => by ring, sub_eq_zero]
+  rw [hset]
+  exact linComb_root_card_le hp c r₀ hcr ((∑ r, c r) * K)
+
 /-- **Joint bound over all coordinates for uniform functions**: under a uniform
 `f : ι → β`, the event that *every* coordinate lands in `B` (with `|B| ≤ k`) has
 probability at most `(k / |β|)^{|ι|}`. The event set is the `piFinset` of `B` in
