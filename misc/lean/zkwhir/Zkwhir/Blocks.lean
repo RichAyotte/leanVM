@@ -235,6 +235,23 @@ theorem eqPoly_powSeq_map {R : Type*} [CommRing R] (φ : R →+* R) {j : ℕ} (z
   rw [show powSeq (φ z) j = fun k => φ (powSeq z j k) from by
     funext k; simp [powSeq, map_pow], eqPoly_map]
 
+/-- **Trace of a channel weight is a sum over conjugate eqPoly weights** (`lem:noother`
+linchpin): for a Galois extension `Fq/Fp`, `algebraMap (tr(M·êq(pow z, c))) = ∑_σ
+σ(M)·êq(pow(σ z), c)` over the Galois group. Combines `trace_eq_sum_automorphisms`
+(`algebraMap(tr x) = ∑_σ σ x`) with `eqPoly_powSeq_map` (`σ(êq(pow z,c)) = êq(pow(σ z),c)`).
+So a vanishing channel-trace combination becomes a vanishing combination of eqPoly
+weights at the *conjugate* points `σ z` — which the block independence then kills. -/
+theorem trace_mul_eqPoly_powSeq {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [IsGalois Fp Fq] {j : ℕ} (M z : Fq) (c : Cube j) :
+    algebraMap Fp Fq (Algebra.trace Fp Fq (M * eqPoly (powSeq z j) c))
+      = ∑ σ : Fq ≃ₐ[Fp] Fq, σ M * eqPoly (powSeq (σ z) j) c := by
+  rw [trace_eq_sum_automorphisms]
+  refine Finset.sum_congr rfl fun σ _ => ?_
+  rw [map_mul]
+  congr 1
+  have h := eqPoly_powSeq_map (σ : Fq →+* Fq) z c
+  simpa using h.symm
+
 /-- The `pow`-point commutes with scalar extension. -/
 theorem powSeq_algebraMap {R A : Type*} [CommRing R] [CommRing A] [Algebra R A]
     (z : R) (j : ℕ) :
