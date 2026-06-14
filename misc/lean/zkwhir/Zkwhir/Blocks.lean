@@ -597,6 +597,31 @@ theorem eqPoly_powSeq_block_linearIndependent {F : Type*} [Field F] {m a : ℕ} 
   · exact h
   · exact absurd h (pow_ne_zero _ (hz0 t))
 
+/-- **Channel-weight Fp-independence over the block** (`lem:noother`, per weight): if
+the conjugates `{σ z : σ ∈ Gal(Fq/Fp)}` are distinct and `z ≠ 0` and there are at most
+`2^a` of them, then `tr(M·êq(pow z, c)) = 0` for all block cells `c` forces `M = 0`.
+Proof: `trace_mul_eqPoly_powSeq` rewrites the (algebraMap of the) vanishing trace as
+`∑_σ σ(M)·êq(pow(σz),c) = 0` over the block; the conjugate points `σz` are distinct +
+nonzero, so `eqPoly_powSeq_block_linearIndependent` forces every `σ(M)=0`, in particular
+`M = (1)·M = 0`. This is the trace/basis blowup that makes the confine node/zf slice
+coefficients unique — resolving the apparent γ=1 obstruction via the Galois conjugates. -/
+theorem trace_weight_block_indep {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [IsGalois Fp Fq] {m a : ℕ} (ham : a ≤ m) (M z : Fq) (hz0 : z ≠ 0)
+    (hconj : Function.Injective (fun σ : Fq ≃ₐ[Fp] Fq => σ z))
+    (hcard : Fintype.card (Fq ≃ₐ[Fp] Fq) ≤ 2 ^ a)
+    (hM : ∀ c ∈ Finset.univ.filter (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true),
+        Algebra.trace Fp Fq (M * eqPoly (powSeq z m) c) = 0) :
+    M = 0 := by
+  classical
+  have key : ∀ c ∈ Finset.univ.filter (fun c : Cube m => ∀ i : Fin m, a ≤ (i : ℕ) → c i = true),
+      ∑ σ : Fq ≃ₐ[Fp] Fq, σ M * eqPoly (powSeq (σ z) m) c = 0 := by
+    intro c hc
+    rw [← trace_mul_eqPoly_powSeq M z c, hM c hc, map_zero]
+  have hcoef := eqPoly_powSeq_block_linearIndependent ham (fun σ : Fq ≃ₐ[Fp] Fq => σ z)
+    hconj (fun σ => by simpa using hz0) hcard (fun σ => σ M) key
+  have h1 := congrFun hcoef 1
+  simpa using h1
+
 /-! ## The cell polynomials
 
 `êq(pow(x, j), c)`, as a polynomial in `x`: the univariate face of a position
