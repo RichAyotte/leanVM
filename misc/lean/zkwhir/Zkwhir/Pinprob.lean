@@ -478,6 +478,34 @@ theorem tail_spread_failure_le_sum [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
   exact (MeasureTheory.measure_mono hsub).trans
     (MeasureTheory.measure_biUnion_finset_le _ _)
 
+/-- **Tail-SPREAD failure measure** (assembled): the probability that the head-erased
+tail family misses `⊤` is at most `#{φ ≠ 0} · (p^{d-1})^{k₀-1}/q^{k₀-1}` — the union bound
+`tail_spread_failure_le_sum` combined with the per-`φ` term `tail_spread_term_le`. This is
+the remaining `εSPREAD` content; with `Rout_spread_failure_le` it closes the `R_out`-SPREAD
+measure entirely. -/
+theorem tail_spread_failure_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Fintype (Module.Dual (Fp P) Fq)] (hcard : Fintype.card (Fp P) = P.p) :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom | Submodule.span (Fp P) (Set.range
+          (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} =>
+            ∏ j ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+              (if s.val j then ch.α j else 1 - ch.α j))) ≠ ⊤} ≤
+      ((Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0)).card : ℝ≥0∞) *
+        ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ (P.k₀ - 1) /
+          (Fintype.card Fq : ℝ≥0∞) ^ (P.k₀ - 1)) := by
+  refine (tail_spread_failure_le_sum P Fq Dom).trans ?_
+  calc ∑ φ ∈ Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0),
+        (challengePMF P Fq Dom).toOuterMeasure
+          {ch : Challenges P Fq Dom | ∀ s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true},
+            φ (∏ j ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+              (if s.val j then ch.α j else 1 - ch.α j)) = 0}
+      ≤ ∑ _φ ∈ Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0),
+          ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ (P.k₀ - 1) /
+            (Fintype.card Fq : ℝ≥0∞) ^ (P.k₀ - 1)) :=
+        Finset.sum_le_sum fun φ hφ =>
+          tail_spread_term_le P Fq Dom hcard (Finset.mem_filter.mp hφ).2
+    _ = _ := by rw [Finset.sum_const, nsmul_eq_mul]
+
 /-- **`R_out`-SPREAD failure measure** (`εSPREAD` glue): combining the split
 `not_Rout_spread_subset` with the head bound `challenge_alpha0_zero_le`, the `R_out`-SPREAD
 failure is at most `1/q` (the `α₀ = 0` head event) plus the tail-SPREAD failure. Reduces
