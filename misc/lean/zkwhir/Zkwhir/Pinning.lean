@@ -1093,6 +1093,27 @@ theorem nodePair_eta_match (δ : Cell P → Fp P) (j : Fin 2) (lo hi : Fin P.k�
     (lamData P Fq Dom ch (ch.z j) lo) (lamData P Fq Dom ch (ch.z j) hi) Θ S_hi hρ hη
   simpa [smul_eq_mul] using hcombo
 
+/-- **The two-block η-match for the cross form** (`lem:fullslice` Step 2): the
+cross form `F_θ` equals the sum over the two blocks of the matched two-level node
+combinations (with per-block free parameters `S_hi0`, `S_hi1` and targets
+`Θ_j = θ_j`). This rewrites `crossForm` into the form `channel_moment_SR`'s node
+part realizes — the bridge between cond:cross2's `F_θ` and the moment system. -/
+theorem crossForm_eta_match (δ : Cell P → Fp P) (θ : Fin 2 → Fq) (lo hi : Fin P.k₀)
+    (hlohi : lo < hi) (hcons : ∀ i : Fin P.k₀, lo ≤ i → i < hi → i = lo)
+    (htop : ∀ i : Fin P.k₀, hi ≤ i → i = hi) (S_hi0 S_hi1 : Fq) :
+    crossForm P Fq Dom ch δ θ =
+      ((θ 0 - S_hi0) * nodePairRho P Fq Dom ch δ 0 lo
+        + lamData P Fq Dom ch (ch.z 0) lo * (θ 0 - S_hi0) * nodePairTau P Fq Dom ch δ 0 lo
+        + S_hi0 * nodePairRho P Fq Dom ch δ 0 hi
+        + lamData P Fq Dom ch (ch.z 0) hi * θ 0 * nodePairTau P Fq Dom ch δ 0 hi)
+      + ((θ 1 - S_hi1) * nodePairRho P Fq Dom ch δ 1 lo
+        + lamData P Fq Dom ch (ch.z 1) lo * (θ 1 - S_hi1) * nodePairTau P Fq Dom ch δ 1 lo
+        + S_hi1 * nodePairRho P Fq Dom ch δ 1 hi
+        + lamData P Fq Dom ch (ch.z 1) hi * θ 1 * nodePairTau P Fq Dom ch δ 1 hi) := by
+  unfold crossForm
+  rw [← nodePair_eta_match P Fq Dom ch δ 0 lo hi hlohi hcons htop (θ 0) S_hi0,
+    ← nodePair_eta_match P Fq Dom ch δ 1 lo hi hlohi hcons htop (θ 1) S_hi1]
+
 /-- **The cross form in the `ρ/τ` staircase basis** (`lem:fullslice` Step 2/3
 interface): `F_θ(δ) = ∑_j θ_j (⟨ρ^{(j)}_ℓ, V⟩ + ∑_{i ≥ ℓ} λ^{(j)}_i ⟨τ^{(j)}_i, V⟩)`,
 the form against which the matched moment combination is compared. -/
