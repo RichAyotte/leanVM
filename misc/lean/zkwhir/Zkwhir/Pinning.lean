@@ -1491,6 +1491,20 @@ theorem cellMidCombine_rest (m ℓ : Fin P.k₀)
     cellMidCombine P m ℓ π sr j.val = sr j := by
   simp only [cellMidCombine]; rw [dif_neg j.prop]
 
+/-- **`E'` depends only on the `π` block.** The middle product evaluated at a
+reconstructed cell `cellMidCombine π sr` equals the product taken directly over
+`π` — so `E'(cellMidCombine π sr) = E'(π)`, the independence `fullslice_step4`
+needs from its `E' : ιπ → Fq`. -/
+theorem Eprime_combine (m ℓ : Fin P.k₀)
+    (π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool)
+    (sr : {i : Fin P.k₀ // ¬(m ≤ i ∧ i < ℓ)} → Bool) :
+    (∏ j : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ},
+        (if cellMidCombine P m ℓ π sr j.val then ch.α j.val else 1 - ch.α j.val)) =
+      ∏ j : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ},
+        (if π j then ch.α j.val else 1 - ch.α j.val) := by
+  refine Finset.prod_congr rfl fun j _ => ?_
+  rw [cellMidCombine_mid]
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
