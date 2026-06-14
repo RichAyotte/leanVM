@@ -242,6 +242,32 @@ theorem hker_failure_le [DecidableEq Fq] (hd0 : 0 < extDeg P Fq) :
   obtain ⟨r₀, hr₀⟩ := Function.ne_iff.mp (Finset.mem_filter.mp hjc).2.2
   exact challenge_hker_term_le P Fq Dom jc.1 jc.2 r₀ hr₀
 
+/-- **`cond:twist` Good-set failure measure**: `cond:twist`'s genericity is `hDr ∧
+hker` (the Frobenius gap and the Moore-determinant kernel triviality), so its
+failure probability is bounded by the union `P[¬hDr] + P[¬hker] ≤ p/q + #{(j,c)}·
+(p^{d-1}/q)^{|m>0|}` (`hDr_failure_le` + `hker_failure_le`). The `cond:twist`
+contribution to ε₃. -/
+theorem condtwist_failure_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq] [DecidableEq Fq]
+    (hdp : (extDeg P Fq).Prime) (hcardq : Fintype.card Fq = P.p ^ extDeg P Fq)
+    (hd0 : 0 < extDeg P Fq) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      ({ch : Challenges P Fq Dom | ¬ ∀ (j : Fin 2) (r : Fin (extDeg P Fq)), (r : ℕ) ≠ 0 →
+          ch.α ⟨0, P.k₀_pos⟩ ^ P.p ^ (r : ℕ) - ch.α ⟨0, P.k₀_pos⟩ ≠ 0} ∪
+        {ch : Challenges P Fq Dom | ∃ (j : Fin 2) (c : Fin (extDeg P Fq) → Fq),
+          c ⟨0, hd0⟩ = 0 ∧ c ≠ 0 ∧ ∀ m : Fin P.k₀, (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m →
+            ∑ r, c r * (ch.α m ^ P.p ^ (r : ℕ) - powSeq (ch.z j) P.k₀ m) = 0}) ≤
+      (P.p : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞) +
+        ((Finset.univ.filter
+            (fun jc : Fin 2 × (Fin (extDeg P Fq) → Fq) => jc.2 ⟨0, hd0⟩ = 0 ∧ jc.2 ≠ 0)).card : ℝ≥0∞) *
+          ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^
+              (Finset.univ.filter (fun m : Fin P.k₀ => (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m)).card /
+            (Fintype.card Fq : ℝ≥0∞) ^
+              (Finset.univ.filter (fun m : Fin P.k₀ => (⟨0, P.k₀_pos⟩ : Fin P.k₀) < m)).card) := by
+  refine (MeasureTheory.measure_union_le _ _).trans ?_
+  gcongr
+  · exact hDr_failure_le P Fq Dom hdp hcardq
+  · exact hker_failure_le P Fq Dom hd0
+
 /-- **The dual space has `q` elements** (`#Dual = #Fq`): both are `p^d`-element
 `Fp`-spaces of the same dimension `d`. Used to simplify the SPREAD measure's
 `#{φ≠0}` factor to `≤ q`, giving `P[¬SPREAD] ≤ q·(p^{d-1})^{k₀}/q^{k₀} = p^{d-k₀}`. -/
