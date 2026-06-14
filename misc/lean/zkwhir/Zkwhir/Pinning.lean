@@ -765,6 +765,20 @@ theorem crossForm_theta_smul (δ : Cell P → Fp P) (a : Fq) (θ : Fin 2 → Fq)
     crossForm P Fq Dom ch δ (a • θ) = a * crossForm P Fq Dom ch δ θ := by
   unfold crossForm; simp only [Pi.smul_apply, smul_eq_mul]; ring
 
+/-- **The cross form as a node-value pairing** (the `prop:pinbound` assembly
+bridge): `F_θ(δ) = ∑_{s,j} θ_j·êq(α,s)·V_{s,j}` where `V_{s,j} = ⟨δ-fiber of class
+`s`, node `j`⟩`. This is exactly the form `nodechannel_untwisted` constrains, so
+it ties the node-channel output `θ` to the cross form on a perturbation. -/
+theorem crossForm_eq_nodeValues (δ : Cell P → Fp P) (θ : Fin 2 → Fq) :
+    crossForm P Fq Dom ch δ θ =
+      ∑ s, ∑ j, θ j * eqPoly ch.α s *
+        mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) := by
+  unfold crossForm nodePair
+  simp_rw [Fin.sum_univ_two]
+  rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun s _ => ?_
+  ring
+
 /-- **`cond:cross2` injectivity heart (Cramer).** If two mask perturbations
 `δ, δ''` give a nonzero `2×2` node-pairing minor, then the only direction `θ`
 killing `F_θ` at both is `θ = 0` — i.e. `θ ↦ F_θ` is injective. This is the
