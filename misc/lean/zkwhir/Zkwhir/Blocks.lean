@@ -252,6 +252,27 @@ theorem trace_mul_eqPoly_powSeq {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra F
   have h := eqPoly_powSeq_map (σ : Fq →+* Fq) z c
   simpa using h.symm
 
+/-- **Galois expansion of a basis-trace-weighted sum** (`lem:noother`, node/zf collapse
+analysis): an `Fq`-weighted sum of basis traces `∑ᵢ algebraMap(tr(bᵢ·W))·Dᵢ` expands over
+the Galois group as `∑_σ (∑ᵢ Dᵢ·σ(bᵢ))·σ(W)`. So the "messy" double-basis node/zf part of
+the dual-basis reconstruction is a combination of the `Galois`-conjugates `σ(W)` with the
+*Moore-transformed* coefficients `∑ᵢ Dᵢ·σ(bᵢ)` — clean (a single `Fq` multiple of `W`)
+exactly when those Moore coefficients vanish for `σ ≠ 1`, the condition the confine's
+Galois-equivariance supplies. -/
+theorem basis_trace_smul_galois {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq]
+    [FiniteDimensional Fp Fq] [IsGalois Fp Fq] {ιβ : Type*} [Fintype ιβ]
+    (b D : ιβ → Fq) (W : Fq) :
+    (∑ i, algebraMap Fp Fq (Algebra.trace Fp Fq (b i * W)) * D i)
+      = ∑ σ : Fq ≃ₐ[Fp] Fq, (∑ i, D i * σ (b i)) * σ W := by
+  have hstep : ∀ i, algebraMap Fp Fq (Algebra.trace Fp Fq (b i * W)) * D i
+      = ∑ σ : Fq ≃ₐ[Fp] Fq, D i * σ (b i) * σ W := by
+    intro i
+    rw [trace_eq_sum_automorphisms, Finset.sum_mul]
+    refine Finset.sum_congr rfl fun σ _ => ?_
+    rw [map_mul]; ring
+  rw [Finset.sum_congr rfl fun i _ => hstep i, Finset.sum_comm]
+  exact Finset.sum_congr rfl fun σ _ => by rw [Finset.sum_mul]
+
 /-- The `pow`-point commutes with scalar extension. -/
 theorem powSeq_algebraMap {R A : Type*} [CommRing R] [CommRing A] [Algebra R A]
     (z : R) (j : ℕ) :
