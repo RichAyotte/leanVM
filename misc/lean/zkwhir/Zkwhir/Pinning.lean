@@ -1365,6 +1365,27 @@ theorem prod_erase_split {M : Type*} [CommMonoid M] (ℓ : Fin P.k₀) (g : Fin 
     exact ⟨fun ⟨hne, hle⟩ => lt_of_le_of_ne hle (Ne.symm hne),
       fun h => ⟨ne_of_gt h, le_of_lt h⟩⟩
 
+/-- The prefix product `∏_{i<ℓ}` splits at any `m ≤ ℓ` into `∏_{i<m}·∏_{m≤i<ℓ}`.
+Used to extract the middle-range factor `E'(π) = ∏_{2≤i≤k₀-2}` from the `C_v`
+prefix. -/
+theorem prod_lt_split {M : Type*} [CommMonoid M] (m ℓ : Fin P.k₀) (hm : m ≤ ℓ)
+    (g : Fin P.k₀ → M) :
+    ∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ), g i =
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m), g i) *
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ), g i) := by
+  classical
+  rw [← Finset.prod_filter_mul_prod_filter_not
+    (Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ)) (fun i => i < m) g]
+  congr 1
+  · refine Finset.prod_congr ?_ (fun _ _ => rfl)
+    ext i
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    exact ⟨fun h => h.2, fun h => ⟨lt_of_lt_of_le h hm, h⟩⟩
+  · refine Finset.prod_congr ?_ (fun _ _ => rfl)
+    ext i
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, not_lt]
+    exact ⟨fun ⟨h1, h2⟩ => ⟨h2, h1⟩, fun ⟨h1, h2⟩ => ⟨h2, h1⟩⟩
+
 /-- **The fully factored cross-vector entry** (`cond:cross2`/`lem:fullslice`
 value-row layer): `C_{(s,c)} = êq(y,s_ℓ) · (∏_{i<ℓ} êq(α_i,s_i)) · ŵ_pe(b*,c)`,
 where `b* i = if i ≤ ℓ then false else s_i` is the unique data-cell index agreeing
