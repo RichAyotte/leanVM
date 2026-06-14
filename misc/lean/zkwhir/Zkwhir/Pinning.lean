@@ -3338,4 +3338,26 @@ theorem sum_w_F_eq_zero_of_protocol_form (F w : Cube P.m → Fq)
         rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun c _ => by ring,
       hterm, mul_zero]
 
+/-- **`φ` kills a protocol-killed `F`, given protocol form** (`prop:pinbound` /
+`pinning_of_dual` conclusion, modulo the protocol form): if `φ` is the trace-dual
+of a `w` in protocol form, then `φ F = 0` for any protocol-killed `F`. Composes the
+trace-dual representation with `sum_w_F_eq_zero_of_protocol_form`. The sole
+remaining gap toward `pinning_of_dual` is establishing the protocol form `hw` of
+`w` (the node→terminal absorption + non-block handling). -/
+theorem phi_protocol_killed_zero (φ : Module.Dual (Fp P) (Cube P.m → Fq))
+    (w : Cube P.m → Fq)
+    (hwrep : ∀ g, φ g = Algebra.trace (Fp P) Fq (∑ c, w c * g c))
+    (F : Cube P.m → Fq) (aq : Fin P.t₀ → Fq) (az : Fin P.s₁ → Fq) (aterm : Fq)
+    (hw : ∀ c, w c =
+        (∑ t, aq t * eqPoly (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) c)
+        + (∑ k, az k * eqPoly (powSeq (ch.zf k) P.m) c)
+        + aterm * (∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)))
+    (hq : ∀ t, mle F (powSeq (algebraMap (Fp P) Fq (ch.qs t : Fp P)) P.m) = 0)
+    (hz : ∀ k, mle F (powSeq (ch.zf k) P.m) = 0)
+    (hterm : (∑ c, F c * ∑ s, eqPoly ch.α s * W₀ P Fq Dom S ch (s, c)) = 0) :
+    φ F = 0 := by
+  rw [hwrep F,
+    sum_w_F_eq_zero_of_protocol_form P Fq Dom S ch F w aq az aterm hw hq hz hterm,
+    map_zero]
+
 end ZkWhir
