@@ -656,6 +656,19 @@ theorem exists_points_for_target (M : Matrix (Fin 3) (Fin 3) Fq) (hM : IsUnit M.
     funext h; exact hμ h
   rw [hfun]; exact hm
 
+/-- **The η-match combination identity** (`lem:fullslice` Step 2, tex:582–584).
+With the matching coefficients `S_lo = Θ − S_hi`, `R_lo = λ_lo·(Θ − S_hi)`,
+`R_hi = λ_hi·Θ` at the top two levels (`ρ_hi = ρ_lo + λ_lo·τ_lo`, `η = ρ_hi +
+λ_hi·τ_hi`), the two-level node combination equals `Θ·η`. Pure linear algebra —
+the `lem:fullslice` analog of `coupled_repr_block1/2`. -/
+theorem eta_match_combo {V : Type*} [AddCommGroup V] [Module Fq V]
+    (ρlo ρhi τlo τhi η : V) (lamlo lamhi Θ S_hi : Fq)
+    (hρ : ρhi = ρlo + lamlo • τlo) (hη : η = ρhi + lamhi • τhi) :
+    (Θ - S_hi) • ρlo + (lamlo * (Θ - S_hi)) • τlo + S_hi • ρhi + (lamhi * Θ) • τhi =
+      Θ • η := by
+  subst hρ hη
+  match_scalars <;> ring
+
 /-- **The `S`-coefficient is the moment combination of the `eqf` weight**
 (`lem:fullslice` Step 2, tex:577): with moments `m₀ = ∑ μ_t`, `m₁ = ∑ μ_t y_t`,
 the `ρ`-coefficient `momS ζ m₀ m₁` equals `∑_t μ_t · êq(y_t, ζ)`, since the
