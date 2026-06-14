@@ -3873,6 +3873,26 @@ theorem crossTerm_primalMask_eq (hmf : MaskFree P Fq S)
   intro s c hc
   rw [assemble_primalMask_value, assemble_primalMask_value, if_neg hc, if_neg hc]
 
+/-- **The out-of-domain view vanishes** (`cond:pinning` construction, view half, node
+field): if the primal fibers hit the node system `n` at the commitment nodes and `n`
+solves the out-of-domain rows, the out-of-domain answers vanish. Mirrors the `ood`
+branch of `maskViewSection_of_rowSurj` for the `δ = 0` primal table. -/
+theorem oodAnswer_primalMask_zero (v ρ : Cube P.k₀ → Cube P.m → Fp P)
+    (n : Cube P.k₀ → Fin 2 → Fq)
+    (hnode : ∀ s j, mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = n s j)
+    (hood : ∀ j, oodRow P Fq Dom ch j n = 0) (j : Fin 2) :
+    oodAnswer P Fq (assemble P 0 (- primalMask P v ρ)) (ch.z j) = 0 := by
+  show evalT P Fq (assemble P 0 (- primalMask P v ρ)) (powSeq (ch.z j) P.k₀)
+    (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) = 0
+  rw [evalT_eq_sum_classes,
+    show (∑ s, eqPoly (powSeq (ch.z j) P.k₀) s *
+        mle (fun c => liftT P Fq (assemble P 0 (- primalMask P v ρ)) (s, c))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))
+        = ∑ s, eqPoly (powSeq (ch.z j) P.k₀) s * n s j from
+      Finset.sum_congr rfl fun s _ => by rw [hnode s j]]
+  exact hood j
+
 /-- **The primal mask realizes the fold `-F`** (`cond:pinning` construction, fold
 half): if the block fibers `v` realize `-F` on block positions via the full SPREAD
 sum and the `R_out` masks `ρ` realize `-F` on non-block positions via the `R_out`
