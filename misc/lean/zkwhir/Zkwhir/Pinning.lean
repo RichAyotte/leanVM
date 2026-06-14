@@ -3804,6 +3804,26 @@ theorem spread_iff_dual [FiniteDimensional (Fp P) Fq] :
       ∀ φ : Module.Dual (Fp P) Fq, (∀ s, φ (eqPoly ch.α s) = 0) → φ = 0 :=
   ⟨fun h φ hφ => dual_eq_zero_of_spread P Fq Dom ch h φ hφ, spread_of_dual P Fq Dom ch⟩
 
+/-- **Kernel of a nonzero `Fp`-functional has `≤ p^{d-1}` elements** (SPREAD measure
+ingredient): a nonzero `φ : Fq →ₗ[Fp] Fp` has `ker φ` a proper subspace, so
+`|{a | φ a = 0}| = p^{finrank(ker φ)} ≤ p^{d-1}`. This bounds the per-coordinate
+probability `P[φ(α_i) = 0] ≤ 1/p` in the SPREAD failure union. -/
+theorem card_filter_dual_zero_le [FiniteDimensional (Fp P) Fq]
+    (hcard : Fintype.card (Fp P) = P.p) {φ : Module.Dual (Fp P) Fq} (hφ : φ ≠ 0) :
+    (Finset.univ.filter (fun a : Fq => φ a = 0)).card
+      ≤ P.p ^ (Module.finrank (Fp P) Fq - 1) := by
+  classical
+  have hkc : (Finset.univ.filter (fun a : Fq => φ a = 0)).card
+      = Fintype.card (LinearMap.ker φ) := by
+    rw [← Fintype.card_subtype]
+    exact Fintype.card_congr (Equiv.subtypeEquivRight (fun a => (LinearMap.mem_ker).symm))
+  rw [hkc, Module.card_eq_pow_finrank (K := Fp P), hcard]
+  apply Nat.pow_le_pow_right P.pPrime.pos
+  have hsum := LinearMap.finrank_range_add_finrank_ker φ
+  have hpos : Module.finrank (Fp P) (LinearMap.range φ) ≠ 0 := fun h0 =>
+    hφ (LinearMap.range_eq_bot.mp (Submodule.finrank_eq_zero.mp h0))
+  omega
+
 /-- **`range pinFold ⊆ W'`** (the protocol-killed space; the easy direction of
 `prop:pinbound`, bundled): every view-vanishing mask-fold is protocol-killed — its
 queried and `f̂₁`-ood evaluations vanish and its terminal pairing is zero. Bundles
