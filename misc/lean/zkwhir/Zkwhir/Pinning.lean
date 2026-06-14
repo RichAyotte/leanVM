@@ -792,6 +792,19 @@ theorem oodRow_nodeValues (δ : Cell P → Fp P) (j : Fin 2) :
   unfold oodRow oodAnswer
   rw [evalT_eq_sum_classes]
 
+/-- **The message row of a perturbation's node values, plus the cross term, is
+its message** (`hPoly_channel` in node-value form): `msgRow + γ²·crossTerm = hPoly`.
+So for a view-vanishing mask (`hPoly = 0`), `msgRow(V) = −γ²·crossTerm` — the cross
+form `F_θ` is carried by the message row, not the ood row. -/
+theorem msgRow_nodeValues (δ : Cell P → Fp P) (ℓ : Fin P.k₀) (y : Fq) :
+    msgRow P Fq Dom ch ℓ y
+        (fun s j' => mle (fun c => liftT P Fq δ (s, c))
+          (powSeq (ch.z j' ^ 2 ^ P.k₀) P.m))
+      + ch.γ ^ 2 * crossTerm P Fq Dom S δ ch ℓ y =
+      hPoly P Fq Dom S δ ch ℓ y := by
+  unfold msgRow
+  rw [hPoly_channel, evalT_eq_sum_classes, evalT_eq_sum_classes]
+
 /-- **`cond:cross2` injectivity heart (Cramer).** If two mask perturbations
 `δ, δ''` give a nonzero `2×2` node-pairing minor, then the only direction `θ`
 killing `F_θ` at both is `θ = 0` — i.e. `θ ↦ F_θ` is injective. This is the
