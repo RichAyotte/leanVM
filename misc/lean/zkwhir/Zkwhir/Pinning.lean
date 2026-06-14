@@ -1436,6 +1436,23 @@ theorem crossTerm_single_cell_split (s : Cube P.k₀) (c : Cube P.m) (ℓ m : Fi
   rw [crossTerm_single_cell_full, prod_lt_split (m := m) (ℓ := ℓ) (hm := hm)]
   ring
 
+/-- **The cross-vector entry factored as `E'(π)·G`** (`F_θ = γ²·E'(π)·G_θ`,
+cell form): pulling the middle factor `E'(π) = ∏_{m ≤ i < ℓ} êq(α_i,s_i)` to the
+front, `C_{(s,c)} = E'(π)·G`, with `G = êq(y,s_ℓ)·(∏_{i<m})·ŵ_pe(b*,c)`. This is
+the per-cell shape `lem:fullslice` Step 4 (`fullslice_step4`/`fullslice_trace_ne_zero`)
+consumes (the `E'` multipliers span `Fq` over `Fp`, killing the trace). -/
+theorem crossTerm_single_cell_Eprime (s : Cube P.k₀) (c : Cube P.m) (ℓ m : Fin P.k₀)
+    (hm : m ≤ ℓ) (y : Fq) :
+    crossTerm P Fq Dom S (Pi.single (s, c) 1) ch ℓ y =
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ),
+          (if s i then ch.α i else 1 - ch.α i)) *
+        ((if s ℓ then y else 1 - y) *
+          (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < m),
+              (if s i then ch.α i else 1 - ch.α i)) *
+          partialEval P Fq Dom ch S.w ℓ y (fun i => if i ≤ ℓ then false else s i) c) := by
+  rw [crossTerm_single_cell_full, prod_lt_split (m := m) (ℓ := ℓ) (hm := hm)]
+  ring
+
 /-- `nodePair` is homogeneous in the perturbation table over `Fp`. -/
 theorem nodePair_smul_table (a : Fp P) (δ : Cell P → Fp P) (j : Fin 2)
     (w : Cube P.k₀ → Fq) :
