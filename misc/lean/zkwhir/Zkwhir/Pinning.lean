@@ -3635,6 +3635,18 @@ theorem exists_Rout_fold {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq] {
   exists_pointwise_span_solution (fun s : Cube j => eqPoly α (Fin.cons true s))
     (eqPoly_Rout_span_base α hα0 htail) G
 
+/-- **Full-SPREAD fold realization** (`cond:pinning` block step): given SPREAD
+(`span_Fp{êq(α,s) : s} = ⊤`), *any* target fold `G : Cube m → Fq` is realized by mask
+values `x` over *all* classes `s` (base-field, per cell). On block positions every class
+is a mask cell, so the fold reads all `s` and full SPREAD applies (vs. the `R_out`-only
+`exists_Rout_fold` on non-block positions). Composes SPREAD with
+`exists_pointwise_span_solution`. -/
+theorem exists_full_fold {Fp Fq : Type*} [Field Fp] [Field Fq] [Algebra Fp Fq] {k m : ℕ}
+    (α : Fin k → Fq) (hspread : Submodule.span Fp (Set.range (eqPoly α)) = ⊤) (G : Cube m → Fq) :
+    ∃ x : Cube k → Cube m → Fp, ∀ c,
+      ∑ s : Cube k, algebraMap Fp Fq (x s c) * eqPoly α s = G c :=
+  exists_pointwise_span_solution (eqPoly α) hspread G
+
 /-- **Single-channel block extraction** (`lem:noother`, the extraction mechanism fully
 assembled): if on a set `S` the trace-slices of `w` are represented through one
 trace-channel `tr(bᵢ·w_c) = ∑_{i'} cz_{i,i'}·tr(b_{i'}·W_c)`, and the Galois-descent
