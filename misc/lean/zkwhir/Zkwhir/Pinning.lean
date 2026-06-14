@@ -3502,6 +3502,17 @@ theorem eqPoly_mem_adjoin (s : Cube P.k₀) :
   · rw [if_pos h]; exact Algebra.subset_adjoin ⟨i, rfl⟩
   · rw [if_neg h]; exact sub_mem (one_mem _) (Algebra.subset_adjoin ⟨i, rfl⟩)
 
+/-- **The SPREAD span sits inside `adjoin{α_i}`** (packaging `eqPoly_mem_adjoin`):
+`span_Fp(range êq(α,·)) ≤ adjoin{α_i}`. Together with the genericity part (the
+`α_i` generating `Fq` and the square-free monomials spanning), this is the route to
+the SPREAD condition `span = ⊤` and its measure. -/
+theorem span_eqPoly_le_adjoin :
+    Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≤
+      (Algebra.adjoin (Fp P) (Set.range ch.α)).toSubmodule := by
+  rw [Submodule.span_le]
+  rintro _ ⟨s, rfl⟩
+  exact eqPoly_mem_adjoin P Fq Dom ch s
+
 /-- **Queried protocol dual kills `range pinFold`** (`ann(range pinFold) ⊇` protocol
 span, dual form): the queried-eval dual `g ↦ tr(b·mle g(qs_t))` annihilates every
 view-vanishing mask-fold, since `mle(pinFold κ)(qs_t) = 0` (`pinFold_queried_zero`). -/
