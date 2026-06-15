@@ -1172,6 +1172,41 @@ theorem masked_whir_statistical_zk_of_crossSolve
       hprime hpdvd hcop hdk hslack hcross2)
     dataStar hStar
 
+/-- **Product-conditioning bound for a uniform distribution** (the clean joint-SZ tool):
+for a uniform draw on `A × B`, if every first-coordinate slice has conditional probability
+`≤ c`, then the whole event has probability `≤ c`. (Law of total probability with a uniform
+conditional; `#(A×B) = #A·#B` and the `#A` factor cancels.) This conditions out the
+non-`α` challenges and reduces the `cond:cross2` measure to a per-slice Schwartz–Zippel
+bound. -/
+theorem uniform_prod_event_le {A B : Type*} [Fintype A] [Fintype B] [Nonempty A] [Nonempty B]
+    (E : Set (A × B)) (c : ℝ≥0∞)
+    (hc : ∀ a, (PMF.uniformOfFintype B).toOuterMeasure {b | (a, b) ∈ E} ≤ c) :
+    (PMF.uniformOfFintype (A × B)).toOuterMeasure E ≤ c := by
+  classical
+  have hAne : (Fintype.card A : ℝ≥0∞) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
+  have hAtop : (Fintype.card A : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
+  rw [PMF.toOuterMeasure_apply, tsum_fintype, Fintype.sum_prod_type]
+  have hstep : ∀ a : A, ∑ b, E.indicator (PMF.uniformOfFintype (A × B)) (a, b)
+      = (Fintype.card A : ℝ≥0∞)⁻¹ *
+          (PMF.uniformOfFintype B).toOuterMeasure {b | (a, b) ∈ E} := by
+    intro a
+    rw [PMF.toOuterMeasure_apply, tsum_fintype, Finset.mul_sum]
+    refine Finset.sum_congr rfl fun b _ => ?_
+    by_cases hb : (a, b) ∈ E
+    · rw [Set.indicator_of_mem hb,
+        Set.indicator_of_mem (show b ∈ {b | (a, b) ∈ E} from hb),
+        PMF.uniformOfFintype_apply, PMF.uniformOfFintype_apply, Fintype.card_prod,
+        Nat.cast_mul, ENNReal.mul_inv (Or.inl hAne) (Or.inl hAtop)]
+    · rw [Set.indicator_of_notMem hb,
+        Set.indicator_of_notMem (show b ∉ {b | (a, b) ∈ E} from hb), mul_zero]
+  simp_rw [hstep, ← Finset.mul_sum]
+  calc (Fintype.card A : ℝ≥0∞)⁻¹ *
+        ∑ a, (PMF.uniformOfFintype B).toOuterMeasure {b | (a, b) ∈ E}
+      ≤ (Fintype.card A : ℝ≥0∞)⁻¹ * ∑ _a : A, c := by gcongr with a; exact hc a
+    _ = c := by
+        rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← mul_assoc,
+          ENNReal.inv_mul_cancel hAne hAtop, one_mul]
+
 /-- The challenge tuple as a (left-nested) product type, for the `Fintype`/uniform structure.
 The left-nesting matches the associativity produced by iterating `ENNReal.tsum_prod`. -/
 def challengesEquiv :
