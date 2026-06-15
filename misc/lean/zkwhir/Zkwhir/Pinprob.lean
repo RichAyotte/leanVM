@@ -1207,6 +1207,35 @@ theorem uniform_prod_event_le {A B : Type*} [Fintype A] [Fintype B] [Nonempty A]
         rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← mul_assoc,
           ENNReal.inv_mul_cancel hAne hAtop, one_mul]
 
+/-- **`êq(α, s)` as a multilinear polynomial in the `α` coordinates** (the building block of the
+`cond:cross2` rank-matrix entries `tr(ψ_c · êq(α, s))`). -/
+noncomputable def eqMvPoly {R : Type*} [CommRing R] {j : ℕ} (b : Cube j) :
+    MvPolynomial (Fin j) R :=
+  ∏ i, if b i then MvPolynomial.X i else 1 - MvPolynomial.X i
+
+theorem eqMvPoly_eval {R : Type*} [CommRing R] {j : ℕ} (x : Fin j → R) (b : Cube j) :
+    MvPolynomial.eval x (eqMvPoly b) = eqPoly x b := by
+  unfold eqMvPoly eqPoly
+  rw [map_prod]
+  refine Finset.prod_congr rfl fun i _ => ?_
+  by_cases hb : b i <;> simp [hb]
+
+/-- `êq` has total degree `≤ j` (a product of `j` affine factors), so any determinant of an
+`n × n` matrix of `êq`-built entries has total degree `≤ n · j` (`mvpoly_det_totalDegree_le`). -/
+theorem eqMvPoly_totalDegree_le {R : Type*} [CommRing R] [Nontrivial R] {j : ℕ} (b : Cube j) :
+    (eqMvPoly (R := R) b).totalDegree ≤ j := by
+  unfold eqMvPoly
+  refine le_trans (MvPolynomial.totalDegree_finsetProd _ _) ?_
+  calc ∑ i, (if b i then (MvPolynomial.X i : MvPolynomial (Fin j) R)
+          else 1 - MvPolynomial.X i).totalDegree
+      ≤ ∑ _i : Fin j, 1 := Finset.sum_le_sum fun i _ => by
+        by_cases hb : b i
+        · simp [hb]
+        · simp only [hb, if_false]
+          refine le_trans (MvPolynomial.totalDegree_sub _ _) ?_
+          simp
+    _ = j := by simp
+
 /-- **Uniform is transported to uniform by a bijection.** -/
 theorem uniformOfFintype_map_equiv {S T : Type*} [Fintype S] [Fintype T] [Nonempty S]
     [Nonempty T] (e : S ≃ T) : (PMF.uniformOfFintype S).map e = PMF.uniformOfFintype T := by
