@@ -4195,6 +4195,58 @@ theorem crossFold_annihilate_iff [FiniteDimensional (Fp P) Fq] (ψ : Cube P.m �
     rw [crossFold_pairing]
     exact Finset.sum_eq_zero fun s _ => h s (δ s) (hδ s)
 
+/-- **Common kernel of the confinement generators is the confinement kernel** (factored from
+`confine_slice_in_genSpan`): a block vector annihilated by every `confineGen` generator lies
+in `confineKer`. The non-block coordinate projections force block support; the queried/node/`zf`
+generators force the slice vanishings (`mem_confineKer_iff_slices`). -/
+theorem mem_confineKer_of_genKer [FiniteDimensional (Fp P) Fq] [Algebra.IsSeparable (Fp P) Fq]
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    {v : Cube P.m → Fp P} (hv : ∀ i, confineGen P Fq Dom ch b i v = 0) :
+    v ∈ confineKer P Fq Dom ch := by
+  rw [mem_confineKer_iff_slices P Fq Dom ch b]
+  refine ⟨fun c hc => ?_, fun t => ?_, fun j i => ?_, fun k i => ?_⟩
+  · by_contra hblk
+    have hgc := hv (Sum.inl c)
+    simp only [confineGen, if_neg hblk, LinearMap.proj_apply] at hgc
+    exact hc hgc
+  · have hgt := hv (Sum.inr (Sum.inl t))
+    simp only [confineGen, dotFunc_apply] at hgt
+    rw [mle]; exact hgt
+  · have hgji := hv (Sum.inr (Sum.inr (Sum.inl (j, i))))
+    simp only [confineGen, dotFunc_apply] at hgji
+    rw [show mle (fun c => algebraMap (Fp P) Fq (v c))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) =
+        ∑ c, eqPoly (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) c * algebraMap (Fp P) Fq (v c)
+        from rfl, trace_smul_pairing]
+    rw [Finset.sum_congr rfl fun c _ => mul_comm (v c) _]
+    exact hgji
+  · have hgki := hv (Sum.inr (Sum.inr (Sum.inr (k, i))))
+    simp only [confineGen, dotFunc_apply] at hgki
+    rw [show mle (fun c => algebraMap (Fp P) Fq (v c)) (powSeq (ch.zf k) P.m) =
+        ∑ c, eqPoly (powSeq (ch.zf k) P.m) c * algebraMap (Fp P) Fq (v c)
+        from rfl, trace_smul_pairing]
+    rw [Finset.sum_congr rfl fun c _ => mul_comm (v c) _]
+    exact hgki
+
+/-- **The cond:cross2 dual condition in `confineGen`-span form** (`cond:cross2` measure
+setup): if a test weight `ψ` annihilates every `confineKer` cross fold (per class, by
+`crossFold_annihilate_iff`), then for each class `s` the per-cell weight functional
+`c ↦ tr(ψ_c·êq(α,s))` lies in `span{confineGen}`. This is the linear (in `ψ`) condition whose
+nontrivial solution set is `ker M(α)`; `¬ConfineFoldSurj ⟺ ker M(α) ≠ 0`, bounded by a
+Schwartz–Zippel rank bound on `M(α)` over `α` (the `cond:cross2` term). -/
+theorem crossFold_dual_in_genSpan [FiniteDimensional (Fp P) Fq] [Algebra.IsSeparable (Fp P) Fq]
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq) (ψ : Cube P.m → Fq)
+    (h : ∀ s, ∀ g ∈ confineKer P Fq Dom ch,
+        ∑ c, g c • Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s) = 0)
+    (s : Cube P.k₀) :
+    dotFunc (fun c => Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s))
+      ∈ Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b)) := by
+  apply mem_span_of_forall_ker (confineGen P Fq Dom ch b)
+  intro v hv
+  have hvker := mem_confineKer_of_genKer P Fq Dom ch b hv
+  rw [dotFunc_apply, Finset.sum_congr rfl fun c _ => mul_comm _ (v c)]
+  simpa [smul_eq_mul] using h s v hvker
+
 /-- **`CrossSolve` from confinement-kernel fold surjectivity** (`cond:cross2`, reduction to
 the confine submodule): the confinement kernel `confineKer` (block-supported fibers vanishing
 at the queried points, commitment nodes, *and* `f̂₁` nodes) is *contained* in the
