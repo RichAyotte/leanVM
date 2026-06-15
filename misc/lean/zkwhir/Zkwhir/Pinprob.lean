@@ -201,6 +201,37 @@ theorem spread_failure_le_at_one_sum [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
   exact (MeasureTheory.measure_mono hsub).trans
     (MeasureTheory.measure_biUnion_finset_le _ _)
 
+/-- **Hyperplane count** (`lem:span`, Gap A cardinality): the duals vanishing at `1` form the
+annihilator of the line `span{1}`, of dimension `d − 1`, so there are at most `p^{d-1}` of
+them. This is the cardinality factor for `spread_failure_le_at_one_sum`, replacing the loose
+`#Dual = q = p^d` by `p^{d-1}` (a factor `p` toward the sharp `lem:span` bound). -/
+theorem card_dual_at_one_le [FiniteDimensional (Fp P) Fq]
+    [Fintype (Module.Dual (Fp P) Fq)]
+    (hcard : Fintype.card (Fp P) = P.p) :
+    (Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0 ∧ φ 1 = 0)).card
+      ≤ P.p ^ (Module.finrank (Fp P) Fq - 1) := by
+  classical
+  set W : Submodule (Fp P) Fq := Submodule.span (Fp P) {(1 : Fq)} with hW
+  have hWrank : Module.finrank (Fp P) W = 1 := by
+    rw [hW, finrank_span_singleton (one_ne_zero : (1 : Fq) ≠ 0)]
+  have hannrank : Module.finrank (Fp P) (W.dualAnnihilator) = Module.finrank (Fp P) Fq - 1 := by
+    have hsum := Subspace.finrank_add_finrank_dualAnnihilator_eq W
+    omega
+  have hcardann : Fintype.card (W.dualAnnihilator) = P.p ^ (Module.finrank (Fp P) Fq - 1) := by
+    rw [Module.card_eq_pow_finrank (K := Fp P), hcard, hannrank]
+  calc (Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0 ∧ φ 1 = 0)).card
+      ≤ (W.dualAnnihilator : Set (Module.Dual (Fp P) Fq)).toFinset.card := by
+        apply Finset.card_le_card
+        intro φ hφ
+        rw [Finset.mem_filter] at hφ
+        rw [Set.mem_toFinset, SetLike.mem_coe, Submodule.mem_dualAnnihilator]
+        intro w hw
+        rw [hW, Submodule.mem_span_singleton] at hw
+        obtain ⟨c, rfl⟩ := hw
+        rw [map_smul, hφ.2.2, smul_zero]
+    _ = P.p ^ (Module.finrank (Fp P) Fq - 1) := by
+        rw [Set.toFinset_card]; exact hcardann
+
 /-- **SPREAD failure measure** (`lem:span` measure, assembled): the probability that
 the SPREAD span misses `⊤` is at most `#{φ ≠ 0} · (p^{d-1})^{k₀}/q^{k₀}`. Combines the
 union bound `spread_failure_le_sum` with the per-term bound `spread_term_le`. Since the
