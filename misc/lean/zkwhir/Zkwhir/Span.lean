@@ -213,4 +213,101 @@ theorem monomialSpan_eq_top (hprime : (Module.finrank K L).Prime) (α : ι → L
       Submodule.finrank_le _
     exact Submodule.eq_top_of_finrank_eq (le_antisymm hle (by omega))
 
+/-! ## `lem:span` (i): the `êq`-product family spans the monomial space -/
+
+omit [FiniteDimensional K L] in
+/-- `x·V ⊔ (1−x)·V = V ⊔ x·V`: the two-branch eq-split and the monomial split
+generate the same subspace (`v = x·v + (1−x)·v`, and `(1−x)·v = v − x·v`). -/
+theorem sup_map_mulLeft_one_sub {V : Submodule K L} (x : L) :
+    V.map (LinearMap.mulLeft K x) ⊔ V.map (LinearMap.mulLeft K (1 - x)) =
+      V ⊔ V.map (LinearMap.mulLeft K x) := by
+  apply le_antisymm
+  · refine sup_le le_sup_right ?_
+    rw [Submodule.map_le_iff_le_comap]
+    intro v hv
+    simp only [Submodule.mem_comap, LinearMap.mulLeft_apply]
+    have hv' : v ∈ V ⊔ V.map (LinearMap.mulLeft K x) := Submodule.mem_sup_left hv
+    have hxv : x * v ∈ V ⊔ V.map (LinearMap.mulLeft K x) :=
+      Submodule.mem_sup_right (Submodule.mem_map_of_mem hv)
+    have heq : (1 - x) * v = v - x * v := by ring
+    rw [heq]; exact Submodule.sub_mem _ hv' hxv
+  · refine sup_le ?_ le_sup_left
+    intro v hv
+    have hxv : x * v ∈ V.map (LinearMap.mulLeft K x) := Submodule.mem_map_of_mem hv
+    have h1xv : (1 - x) * v ∈ V.map (LinearMap.mulLeft K (1 - x)) :=
+      Submodule.mem_map_of_mem hv
+    have heq : v = x * v + (1 - x) * v := by ring
+    rw [heq]
+    exact Submodule.add_mem _ (Submodule.mem_sup_left hxv) (Submodule.mem_sup_right h1xv)
+
+/-- The `K`-span of the `êq`-products `∏_{i ∈ T} (sᵢ ? αᵢ : 1 − αᵢ)`, `s : ι → Bool`.
+These are the fold multipliers of `def:spread`. -/
+def eqSpan (α : ι → L) (T : Finset ι) : Submodule K L :=
+  Submodule.span K
+    ((fun s : ι → Bool => ∏ i ∈ T, (if s i then α i else 1 - α i)) '' Set.univ)
+
+omit [FiniteDimensional K L] in
+theorem eqProd_mem_eqSpan (α : ι → L) (T : Finset ι) (s : ι → Bool) :
+    (∏ i ∈ T, (if s i then α i else 1 - α i)) ∈ eqSpan (K := K) α T :=
+  Submodule.subset_span ⟨s, Set.mem_univ _, rfl⟩
+
+omit [FiniteDimensional K L] in
+/-- **`lem:span` (i) recursion.** Adjoining a fresh index `j` splits the `êq`-span
+into the `αⱼ`- and `(1−αⱼ)`-branches. -/
+theorem eqSpan_insert (α : ι → L) {j : ι} {T : Finset ι} (hj : j ∉ T) :
+    eqSpan (K := K) α (insert j T) =
+      (eqSpan (K := K) α T).map (LinearMap.mulLeft K (α j)) ⊔
+        (eqSpan (K := K) α T).map (LinearMap.mulLeft K (1 - α j)) := by
+  apply le_antisymm
+  · apply Submodule.span_le.mpr
+    rintro _ ⟨s, -, rfl⟩
+    simp only [Finset.prod_insert hj]
+    split
+    · exact Submodule.mem_sup_left (Submodule.mem_map_of_mem (eqProd_mem_eqSpan α T s))
+    · exact Submodule.mem_sup_right (Submodule.mem_map_of_mem (eqProd_mem_eqSpan α T s))
+  · refine sup_le ?_ ?_
+    · rw [Submodule.map_le_iff_le_comap]
+      apply Submodule.span_le.mpr
+      rintro _ ⟨s, -, rfl⟩
+      simp only [Submodule.mem_comap, LinearMap.mulLeft_apply, SetLike.mem_coe]
+      have hkey : α j * ∏ i ∈ T, (if s i then α i else 1 - α i) =
+          ∏ i ∈ insert j T, (if (Function.update s j true) i then α i else 1 - α i) := by
+        rw [Finset.prod_insert hj, Function.update_self, if_pos rfl]
+        congr 1
+        exact Finset.prod_congr rfl fun i hi => by
+          rw [Function.update_of_ne (ne_of_mem_of_not_mem hi hj)]
+      rw [hkey]
+      exact eqProd_mem_eqSpan α (insert j T) _
+    · rw [Submodule.map_le_iff_le_comap]
+      apply Submodule.span_le.mpr
+      rintro _ ⟨s, -, rfl⟩
+      simp only [Submodule.mem_comap, LinearMap.mulLeft_apply, SetLike.mem_coe]
+      have hkey : (1 - α j) * ∏ i ∈ T, (if s i then α i else 1 - α i) =
+          ∏ i ∈ insert j T, (if (Function.update s j false) i then α i else 1 - α i) := by
+        rw [Finset.prod_insert hj, Function.update_self, if_neg (by simp)]
+        congr 1
+        exact Finset.prod_congr rfl fun i hi => by
+          rw [Function.update_of_ne (ne_of_mem_of_not_mem hi hj)]
+      rw [hkey]
+      exact eqProd_mem_eqSpan α (insert j T) _
+
+omit [FiniteDimensional K L] in
+theorem eqSpan_empty (α : ι → L) :
+    eqSpan (K := K) α ∅ = Submodule.span K {(1 : L)} := by
+  unfold eqSpan
+  congr 1
+  ext x
+  simp only [Set.image_univ, Set.mem_range, Finset.prod_empty, Set.mem_singleton_iff]
+  exact ⟨fun ⟨_, h⟩ => h.symm, fun h => ⟨fun _ => true, h.symm⟩⟩
+
+/-- **`lem:span` (i).** The `êq`-product family and the squarefree-monomial family
+have the same `K`-span. -/
+theorem eqSpan_eq_monomialSpan (α : ι → L) (T : Finset ι) :
+    eqSpan (K := K) α T = monomialSpan (K := K) α T := by
+  classical
+  induction T using Finset.induction with
+  | empty => rw [eqSpan_empty, monomialSpan_empty]
+  | @insert j T hj ih =>
+    rw [eqSpan_insert α hj, monomialSpan_insert α hj, ih, sup_map_mulLeft_one_sub]
+
 end ZkWhir
