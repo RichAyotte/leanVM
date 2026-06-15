@@ -177,6 +177,30 @@ theorem spread_failure_le_sum [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
   exact (MeasureTheory.measure_mono hsub).trans
     (MeasureTheory.measure_biUnion_finset_le _ _)
 
+/-- **SPREAD-failure union bound over hyperplanes through `1`** (`lem:span`, Gap A tightening):
+restricting the union to functionals that also vanish at `1` (`exists_dual_of_not_spread_at_one`).
+This drops the index set from all `q − 1` nonzero duals to the `≈ p^{d-1}` duals on the
+hyperplane `{φ : φ 1 = 0}` — a factor-`p` tightening toward the sharp `lem:span` bound (and,
+after quotienting by scaling, the `~p^{d-2}` hyperplanes through `1` giving `~p/q`). -/
+theorem spread_failure_le_at_one_sum [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Fintype (Module.Dual (Fp P) Fq)] :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom |
+          Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≠ ⊤} ≤
+      ∑ φ ∈ Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0 ∧ φ 1 = 0),
+        (challengePMF P Fq Dom).toOuterMeasure
+          {ch : Challenges P Fq Dom | ∀ s, φ (eqPoly ch.α s) = 0} := by
+  classical
+  have hsub : {ch : Challenges P Fq Dom |
+        Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≠ ⊤} ⊆
+      ⋃ φ ∈ Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0 ∧ φ 1 = 0),
+        {ch : Challenges P Fq Dom | ∀ s, φ (eqPoly ch.α s) = 0} := by
+    intro ch hch
+    obtain ⟨φ, hφ0, hφ1, hφv⟩ := exists_dual_of_not_spread_at_one P Fq Dom ch hch
+    exact Set.mem_biUnion (Finset.mem_filter.mpr ⟨Finset.mem_univ φ, hφ0, hφ1⟩) hφv
+  exact (MeasureTheory.measure_mono hsub).trans
+    (MeasureTheory.measure_biUnion_finset_le _ _)
+
 /-- **SPREAD failure measure** (`lem:span` measure, assembled): the probability that
 the SPREAD span misses `⊤` is at most `#{φ ≠ 0} · (p^{d-1})^{k₀}/q^{k₀}`. Combines the
 union bound `spread_failure_le_sum` with the per-term bound `spread_term_le`. Since the
