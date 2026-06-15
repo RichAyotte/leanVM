@@ -1179,7 +1179,15 @@ coordinates has probability at most `2^{k₀+7}/q`. This reduces the sole remain
 `hcross2` to: **constructing the `cond:cross2` rank determinant `detPoly`, bounding its degree,
 and exhibiting a non-vanishing witness** (the coupled-chains specialization of `zk_leanVM.tex`
 line 529 — the genuine research-level piece). The probability/Schwartz–Zippel infrastructure
-is now machine-checked. -/
+is now machine-checked.
+
+**CAVEAT (α-only).** This reduction is Schwartz–Zippel over `α` *alone* (`challenge_α_event_le`),
+so it requires the event to lie in the zero-set of a polynomial in `ch.α` *only*. The actual
+`cond:cross2` event also depends on `ch.qs`/`ch.z`/`ch.zf` (via `confineGen`), so its `hsub`
+hypothesis is likely **unsatisfiable for the true event** by a fixed `α`-polynomial. The
+correct reduction needs *joint* Schwartz–Zippel over the full uniform-product challenge space
+(`challengePMF` is uniform over `(z, γ, α, zf, qs)`); the sound interface to the remaining
+obligation is `goodSetAbsorption_of_crossSolve_sharp` (the cond:cross2 *probability* bound). -/
 theorem event_le_of_detPoly [Nonempty Fq] (E : Set (Challenges P Fq Dom))
     (detPoly : MvPolynomial (Fin P.k₀) Fq) (hne : detPoly ≠ 0)
     (hdeg : detPoly.totalDegree ≤ 2 ^ (P.k₀ + 7))
