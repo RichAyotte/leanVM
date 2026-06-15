@@ -4392,6 +4392,21 @@ theorem not_confineFoldSurj_genSpan [FiniteDimensional (Fp P) Fq]
   exact ⟨ψ, hψne, fun s => crossFold_dual_in_genSpan P Fq Dom ch b ψ
     ((crossFold_annihilate_iff P Fq Dom ch ψ).mp (fun δ hδ => hψann δ hδ)) s⟩
 
+/-- **`ConfineFoldSurj` failure is covered by the cond:cross2 event** (`cond:cross2`, measure
+bridge): by `not_confineFoldSurj_genSpan`, the `ConfineFoldSurj` failure event lies in the
+explicit `cond:cross2` event — challenges admitting a nonzero `ψ` whose per-class weights all
+fall in `span{confineGen}` (a nontrivial kernel of `M(α)`). The sole remaining probability
+bound of the whole campaign is the measure of *this* event over `α` (the `cond:cross2`
+Schwartz–Zippel rank bound). -/
+theorem not_confineFoldSurj_subset [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq) :
+    {ch : Challenges P Fq Dom | ¬ ConfineFoldSurj P Fq Dom ch} ⊆
+      {ch : Challenges P Fq Dom | ∃ ψ : Cube P.m → Fq, ψ ≠ 0 ∧
+        ∀ s, dotFunc (fun c => Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s))
+          ∈ Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b))} :=
+  fun ch hch => not_confineFoldSurj_genSpan P Fq Dom ch b hch
+
 /-- **`BlockFoldSolve` from the view solve and the cross-coupling** (`cond:cross2`, the
 reduction): if the queried/node view is solvable (`hview`, from `exists_block_fiber` under
 `NodeHyp`) and the cross-coupling holds (`CrossSolve`), then `BlockFoldSolve` holds. Solve
