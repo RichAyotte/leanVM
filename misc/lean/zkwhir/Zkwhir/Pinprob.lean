@@ -684,4 +684,33 @@ theorem goodSetAbsorption_of_crossSolve_bound [FiniteDimensional (Fp P) Fq]
     ε₁ εSPREAD εrow (ε₁ + εCross) hA hSPREAD hrow ?_ hsum
   exact (blockFoldSolve_failure_le P Fq Dom hdom hbudget).trans (add_le_add hA hcross)
 
+/-- **`GoodSetAbsorption` from the cond:cross2 event measure** (Phase F, master single-gap
+form): composing `goodSetAbsorption_of_crossSolve_bound` with `crossSolve_failure_le`, the
+`CrossSolve` measure obligation becomes the explicit `cond:cross2` event measure — the
+probability that some nonzero `ψ` has all its per-class weights `c ↦ tr(ψ_c·êq(α,s))` in
+`span{confineGen}`. So, modulo the three already-closed measures (`nodeHyp_failure_le`,
+`Rout_spread_failure_le_closed`, `rowsLI_failure_le_closed`) and the `εZK` arithmetic, the
+**entire** masked-WHIR zero-knowledge proof rests on bounding this one Schwartz–Zippel
+rank event over `α`. -/
+theorem goodSetAbsorption_of_condCross2_event [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (ε₁ εSPREAD εrow εCross : ℝ≥0∞)
+    (hA : (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ NodeHyp P Fq Dom ch} ≤ ε₁)
+    (hSPREAD : (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+        (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)} ≤ εSPREAD)
+    (hrow : (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)} ≤ εrow)
+    (hcross2 : (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ∃ ψ : Cube P.m → Fq, ψ ≠ 0 ∧
+        ∀ s, dotFunc (fun c => Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s))
+          ∈ Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b))} ≤ εCross)
+    (hsum : ε₁ + εrow + ((εSPREAD + εrow) + (ε₁ + εCross)) ≤ εZK P Fq) :
+    GoodSetAbsorption P Fq Dom S :=
+  goodSetAbsorption_of_crossSolve_bound P Fq Dom S h2 hmf hdom hbudget ε₁ εSPREAD εrow εCross
+    hA hSPREAD hrow ((crossSolve_failure_le P Fq Dom b).trans hcross2) hsum
+
 end ZkWhir
