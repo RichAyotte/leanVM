@@ -1226,6 +1226,27 @@ theorem exists_moment_coeffs {F : Type*} [Field F] {n : ℕ} (y : Fin n → F)
   simp only [Matrix.vecMul, dotProduct, Matrix.vandermonde_apply] at hh
   exact hh
 
+open Algebra in
+/-- **Step 4 core of `lem:fullslice`** (trace nondegeneracy against a spanning set): if a set
+`S` of scalars spans `Fq` over `Fp` and `tr(s · v) = 0` for every `s ∈ S`, then `v = 0`.
+Combined with the proven `lem:span` (the `E'(π)` multipliers span `Fq`), this is exactly the
+deduction `tr∘F_θ = 0 ⟹ γ²·G_θ = 0 ⟹ F_θ ≡ 0` of `lem:fullslice` Step 4. -/
+theorem eq_zero_of_trace_mul_span {K L : Type*} [Field K] [Field L] [Algebra K L]
+    [FiniteDimensional K L] [Algebra.IsSeparable K L] {S : Set L}
+    (hS : Submodule.span K S = ⊤) {v : L}
+    (h : ∀ s ∈ S, Algebra.trace K L (s * v) = 0) : v = 0 := by
+  have hφ : ∀ w : L, Algebra.trace K L (w * v) = 0 := by
+    have key : ((Algebra.trace K L).comp (LinearMap.mulRight K v)) = 0 := by
+      apply LinearMap.ext_on hS
+      intro s hs
+      simpa using h s hs
+    intro w
+    have := LinearMap.congr_fun key w
+    simpa using this
+  refine (traceForm_nondegenerate K L).1 v (fun w => ?_)
+  rw [Algebra.traceForm_apply, mul_comm]
+  exact hφ w
+
 /-- **`êq(α, s)` as a multilinear polynomial in the `α` coordinates** (the building block of the
 `cond:cross2` rank-matrix entries `tr(ψ_c · êq(α, s))`). -/
 noncomputable def eqMvPoly {R : Type*} [CommRing R] {j : ℕ} (b : Cube j) :
