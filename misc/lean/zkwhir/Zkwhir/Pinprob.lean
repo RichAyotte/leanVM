@@ -256,6 +256,40 @@ theorem spread_failure_le [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
           spread_term_le P Fq Dom hcard (Finset.mem_filter.mp hφ).2
     _ = _ := by rw [Finset.sum_const, nsmul_eq_mul]
 
+/-- **SPREAD failure measure, at-one (`lem:span`, Gap A affine count)**: combining the
+hyperplane-through-`1` union bound `spread_failure_le_at_one_sum` with the per-term bound
+`spread_term_le` and the cardinality `card_dual_at_one_le` (`#{φ≠0 ∣ φ1=0} ≤ p^{d-1}`),
+the SPREAD-failure probability is `≤ p^{d-1} · (p^{d-1})^{k₀}/q^{k₀}`. With `q = p^d` this
+is `p^{(d-1)(k₀+1) − d·k₀} = p^{d-1-k₀}` — a factor `p` sharper than the all-dual
+`spread_failure_le` (which uses `#Dual = q`), since `1 ∈ span(êq(α,·))` always forces the
+witnessing dual to lie on the codim-1 hyperplane `{φ 1 = 0}`. -/
+theorem spread_failure_le_at_one [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Fintype (Module.Dual (Fp P) Fq)] (hcard : Fintype.card (Fp P) = P.p) :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom |
+          Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≠ ⊤} ≤
+      (P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) *
+        ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ P.k₀ /
+          (Fintype.card Fq : ℝ≥0∞) ^ P.k₀) := by
+  refine (spread_failure_le_at_one_sum P Fq Dom).trans ?_
+  calc ∑ φ ∈ Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0 ∧ φ 1 = 0),
+        (challengePMF P Fq Dom).toOuterMeasure
+          {ch : Challenges P Fq Dom | ∀ s, φ (eqPoly ch.α s) = 0}
+      ≤ ∑ _φ ∈ Finset.univ.filter (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0 ∧ φ 1 = 0),
+          ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ P.k₀ /
+            (Fintype.card Fq : ℝ≥0∞) ^ P.k₀) :=
+        Finset.sum_le_sum fun φ hφ =>
+          spread_term_le P Fq Dom hcard (Finset.mem_filter.mp hφ).2.1
+    _ = ((Finset.univ.filter
+            (fun φ : Module.Dual (Fp P) Fq => φ ≠ 0 ∧ φ 1 = 0)).card : ℝ≥0∞) *
+          ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ P.k₀ /
+            (Fintype.card Fq : ℝ≥0∞) ^ P.k₀) := by rw [Finset.sum_const, nsmul_eq_mul]
+    _ ≤ (P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) *
+          ((P.p ^ (Module.finrank (Fp P) Fq - 1) : ℝ≥0∞) ^ P.k₀ /
+            (Fintype.card Fq : ℝ≥0∞) ^ P.k₀) := by
+        gcongr
+        exact_mod_cast card_dual_at_one_le P Fq hcard
+
 /-- **Uniform-`α` inner bound for `hker`** (fixed `j`, `c`, with `c_{r₀} ≠ 0`): under
 a uniform `α`, the probability that `∑_r c_r(α_m^{p^r} − powz_m) = 0` holds at every
 coordinate `m > 0` is at most `(p^{d-1}/q)^{|m>0|}`. Combines `uniform_pi_subset`
