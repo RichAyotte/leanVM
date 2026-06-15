@@ -458,6 +458,24 @@ theorem blockFoldSolve_failure_le (hdom : (0 : Fp P) ∉ Dom)
   (MeasureTheory.measure_mono (not_blockFoldSolve_subset P Fq Dom hdom hbudget)).trans
     (MeasureTheory.measure_union_le _ _)
 
+/-- **`CrossSolve` failure reduced to the cond:cross2 event measure** (`cond:cross2`, the
+final measure target): chaining `not_crossSolve_subset` (`{¬CrossSolve} ⊆ {¬ConfineFoldSurj}`)
+with `not_confineFoldSurj_subset` (`⊆` the `cond:cross2` event), the `CrossSolve` failure
+measure is bounded by the probability that some nonzero test weight `ψ` has all its per-class
+weights `c ↦ tr(ψ_c·êq(α,s))` in `span{confineGen}` — the explicit `M(α)`-rank-deficiency
+event. Bounding *this* over `α` (the Schwartz–Zippel rank bound) is the single remaining
+probability obligation of the development. -/
+theorem crossSolve_failure_le [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq) :
+    (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ CrossSolve P Fq Dom ch} ≤
+      (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom | ∃ ψ : Cube P.m → Fq, ψ ≠ 0 ∧
+          ∀ s, dotFunc (fun c => Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s))
+            ∈ Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b))} :=
+  MeasureTheory.measure_mono
+    ((not_crossSolve_subset P Fq Dom).trans (not_confineFoldSurj_subset P Fq Dom b))
+
 /-- **Tail-SPREAD failure union bound** (the tail-SPREAD measure skeleton): the probability
 that the head-erased tail family misses `⊤` is at most the sum, over nonzero `Fp`-functionals
 `φ`, of `P[φ` vanishes on every tail product`]`. By `exists_dual_of_not_tail_spread`, every
