@@ -811,6 +811,24 @@ theorem Rout_spread_failure_le_closed [Nonempty Fq] [FiniteDimensional (Fp P) Fq
   (Rout_spread_failure_le P Fq Dom).trans
     (add_le_add le_rfl (tail_spread_failure_le P Fq Dom hcard))
 
+/-- **`R_out`-SPREAD failure measure, sharp closed form** (`εSPREAD` = `εZK` spread term):
+combining `Rout_spread_failure_le` (head split, `1/q`) with the **sharp** tail bound
+`tail_spread_failure_le_sharp` (`B (p/q)^e`), the `R_out`-SPREAD failure has measure at most
+`1/q + C(k₀−1, e)·(p/q)^e` with `e = k₀−d+1` — **exactly** the `εZK` spread term
+`1/q + B(p/q)^e`. This is the sharp `lem:spread` bound, the production-parameter discharge of
+`εSPREAD` (replacing the lossy `Rout_spread_failure_le_closed`). -/
+theorem Rout_spread_failure_le_sharp (hprime : (Module.finrank (Fp P) Fq).Prime)
+    (hdk : Module.finrank (Fp P) Fq ≤ P.k₀) :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+          (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)} ≤
+      1 / (Fintype.card Fq : ℝ≥0∞) +
+        (((P.k₀ - 1).choose (P.k₀ - Module.finrank (Fp P) Fq + 1) : ℕ) : ℝ≥0∞) *
+          ((P.p : ℝ≥0∞) ^ (P.k₀ - Module.finrank (Fp P) Fq + 1) /
+            (Fintype.card Fq : ℝ≥0∞) ^ (P.k₀ - Module.finrank (Fp P) Fq + 1)) :=
+  (Rout_spread_failure_le P Fq Dom).trans
+    (add_le_add le_rfl (tail_spread_failure_le_sharp P Fq Dom hprime hdk))
+
 /-- **Row-dependence failure measure** (`εrow`, the two-point-rank `ε₂` term): composing
 `not_rowsLI_subset` with the coupled-genericity bound `coupledGen_failure_le`, the
 `rowWeights` linear-dependence event has measure at most `1/q + k₀·d/q` (the `γ = 0` event
