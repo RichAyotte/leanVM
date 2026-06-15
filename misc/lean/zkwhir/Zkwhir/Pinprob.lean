@@ -1172,4 +1172,52 @@ theorem masked_whir_statistical_zk_of_crossSolve
       hprime hpdvd hcop hdk hslack hcross2)
     dataStar hStar
 
+/-- **Schwartz–Zippel reduction of the `cond:cross2` measure** (wiring Mathlib's
+`MvPolynomial.schwartz_zippel_totalDegree` into the campaign). Any challenge event contained
+in the zero-set of a *nonzero* polynomial `detPoly` of total degree `≤ 2^{k₀+7}` in the `α`
+coordinates has probability at most `2^{k₀+7}/q`. This reduces the sole remaining obligation
+`hcross2` to: **constructing the `cond:cross2` rank determinant `detPoly`, bounding its degree,
+and exhibiting a non-vanishing witness** (the coupled-chains specialization of `zk_leanVM.tex`
+line 529 — the genuine research-level piece). The probability/Schwartz–Zippel infrastructure
+is now machine-checked. -/
+theorem event_le_of_detPoly [Nonempty Fq] (E : Set (Challenges P Fq Dom))
+    (detPoly : MvPolynomial (Fin P.k₀) Fq) (hne : detPoly ≠ 0)
+    (hdeg : detPoly.totalDegree ≤ 2 ^ (P.k₀ + 7))
+    (hsub : E ⊆ {ch : Challenges P Fq Dom | MvPolynomial.eval ch.α detPoly = 0}) :
+    (challengePMF P Fq Dom).toOuterMeasure E ≤
+      ((2 ^ (P.k₀ + 7) : ℕ) : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞) := by
+  classical
+  refine (MeasureTheory.measure_mono hsub).trans ?_
+  refine challenge_α_event_le P Fq Dom (fun α => MvPolynomial.eval α detPoly = 0)
+    (((2 ^ (P.k₀ + 7) : ℕ) : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞)) ?_
+  have hqpos : 0 < Fintype.card Fq := Fintype.card_pos
+  have hkpos : 0 < P.k₀ := P.k₀_pos
+  -- Schwartz–Zippel: the zero-set is small
+  have hSZcard : (Finset.univ.filter
+      (fun α : Fin P.k₀ → Fq => MvPolynomial.eval α detPoly = 0)).card
+      ≤ 2 ^ (P.k₀ + 7) * (Fintype.card Fq) ^ (P.k₀ - 1) := by
+    have hSZ := MvPolynomial.schwartz_zippel_totalDegree hne (Finset.univ : Finset Fq)
+    rw [Finset.card_univ, Fintype.piFinset_univ,
+      div_le_div_iff₀ (by positivity) (by positivity)] at hSZ
+    -- `hSZ` in `ℚ≥0` becomes a `ℕ` inequality `N * q ≤ totalDegree * q ^ k₀`
+    have hnat : (Finset.univ.filter
+          (fun α : Fin P.k₀ → Fq => MvPolynomial.eval α detPoly = 0)).card * Fintype.card Fq
+        ≤ detPoly.totalDegree * Fintype.card Fq ^ P.k₀ := by exact_mod_cast hSZ
+    have hk₀ : Fintype.card Fq ^ P.k₀ = Fintype.card Fq ^ (P.k₀ - 1) * Fintype.card Fq := by
+      rw [← pow_succ, Nat.sub_add_cancel hkpos]
+    rw [hk₀, ← mul_assoc] at hnat
+    exact le_trans (Nat.le_of_mul_le_mul_right hnat hqpos) (by gcongr)
+  refine (uniform_toOuterMeasure_le _ (2 ^ (P.k₀ + 7) * (Fintype.card Fq) ^ (P.k₀ - 1))
+    (fun s hs => le_trans (Finset.card_le_card (fun α hα =>
+      Finset.mem_filter.mpr ⟨Finset.mem_univ α, hs α hα⟩)) hSZcard)).trans ?_
+  rw [fieldCard, Fintype.card_pi]
+  simp only [Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+  rw [show Fintype.card Fq ^ P.k₀ = Fintype.card Fq ^ (P.k₀ - 1) * Fintype.card Fq from by
+    rw [← pow_succ, Nat.sub_add_cancel hkpos]]
+  push_cast
+  rw [mul_comm ((2 : ℝ≥0∞) ^ (P.k₀ + 7)) ((Fintype.card Fq : ℝ≥0∞) ^ (P.k₀ - 1)),
+    ENNReal.mul_div_mul_left _ _
+      (by exact_mod_cast (pow_pos hqpos (P.k₀ - 1)).ne')
+      (ENNReal.pow_ne_top (ENNReal.natCast_ne_top _))]
+
 end ZkWhir
