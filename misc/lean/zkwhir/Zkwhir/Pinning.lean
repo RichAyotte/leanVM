@@ -4128,6 +4128,22 @@ def CrossSolve : Prop :=
     (∀ c, IsBlockPos P c →
       ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (δ s c) = H c)
 
+/-- **The cross fold of a fiber family** (`cond:cross2`, the linear object): the `α`-fold of
+a base-field family `δ`, lifted to `F_q`. Linear in `δ`; the `ConfineFoldSurj` /
+`CrossSolve` surjectivity is exactly surjectivity of `familyFold` (over `confineKer`
+families) onto the block functions. -/
+def familyFold (δ : Cube P.k₀ → Cube P.m → Fp P) : Cube P.m → Fq :=
+  fun c => ∑ s, eqPoly ch.α s * algebraMap (Fp P) Fq (δ s c)
+
+/-- The cross fold of a block-supported family vanishes off the blocks. So its image lies in
+the block-supported functions — the target space of the `cond:cross2` surjectivity. -/
+theorem familyFold_offBlock_zero (δ : Cube P.k₀ → Cube P.m → Fp P)
+    (hδ : ∀ s c, δ s c ≠ 0 → IsBlockPos P c) {c : Cube P.m} (hc : ¬ IsBlockPos P c) :
+    familyFold P Fq Dom ch δ c = 0 := by
+  refine Finset.sum_eq_zero fun s _ => ?_
+  have hzero : δ s c = 0 := by by_contra h; exact hc (hδ s c h)
+  rw [hzero, map_zero, mul_zero]
+
 /-- **Cross-fold trace pairing** (`cond:cross2` dual analysis, entry algebra): pairing a
 test weight `ψ` (via the trace form) against the cross fold of base-field fibers `δ`
 rearranges into the per-cell `Fp`-bilinear form `∑_{s,c} δ_{s,c}·tr(ψ_c·êq(α,s))`. The base
