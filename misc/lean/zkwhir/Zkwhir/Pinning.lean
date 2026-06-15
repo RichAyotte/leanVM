@@ -4374,6 +4374,24 @@ theorem not_confineFoldSurj_dual [FiniteDimensional (Fp P) Fq]
     rw [← hw (familyFold P Fq Dom ch δ)]
     exact hfx
 
+/-- **`¬ConfineFoldSurj` lands in the `confineGen`-span (`M(α)`-kernel) event** (`cond:cross2`,
+assembled dual): chaining the surjectivity dual (`not_confineFoldSurj_dual`), the dual
+characterization (`crossFold_annihilate_iff`), and the span form (`crossFold_dual_in_genSpan`):
+if the confinement-fold is not surjective, there is a nonzero test weight `ψ` such that for
+every class `s` the per-cell weight `c ↦ tr(ψ_c·êq(α,s))` lies in `span{confineGen}`. This is
+the explicit `cond:cross2` event (a nontrivial kernel of `M(α)`); its probability over `α` is
+the `cond:cross2` term of `εZK`, the sole remaining measure. -/
+theorem not_confineFoldSurj_genSpan [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (hns : ¬ ConfineFoldSurj P Fq Dom ch) :
+    ∃ ψ : Cube P.m → Fq, ψ ≠ 0 ∧
+      ∀ s, dotFunc (fun c => Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s))
+        ∈ Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b)) := by
+  obtain ⟨ψ, hψne, hψann⟩ := not_confineFoldSurj_dual P Fq Dom ch hns
+  exact ⟨ψ, hψne, fun s => crossFold_dual_in_genSpan P Fq Dom ch b ψ
+    ((crossFold_annihilate_iff P Fq Dom ch ψ).mp (fun δ hδ => hψann δ hδ)) s⟩
+
 /-- **`BlockFoldSolve` from the view solve and the cross-coupling** (`cond:cross2`, the
 reduction): if the queried/node view is solvable (`hview`, from `exists_block_fiber` under
 `NodeHyp`) and the cross-coupling holds (`CrossSolve`), then `BlockFoldSolve` holds. Solve
