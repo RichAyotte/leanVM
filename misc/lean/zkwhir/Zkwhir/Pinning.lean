@@ -4325,6 +4325,55 @@ theorem not_crossSolve_subset :
   simp only [Set.mem_setOf_eq] at hch ⊢
   exact fun h => hch (crossSolve_of_confineFoldSurj P Fq Dom ch h)
 
+/-- **Surjectivity ⟹ dual for `ConfineFoldSurj`** (`cond:cross2`, the dual entry): if the
+confinement-kernel cross fold is *not* surjective onto the block functions, there is a
+nonzero test weight `ψ` annihilating every `confineKer` cross fold. The unrealized block
+target `g₀` is not in the fold range (a submodule), so a separating functional exists
+(`exists_dual_map_eq_bot_of_notMem`, finite-dimensional), represented as a trace pairing
+against `ψ` (`exists_trace_pairing_rep`). Combined with `crossFold_annihilate_iff` +
+`crossFold_dual_in_genSpan`, this lands `¬ConfineFoldSurj` in the `M(α)`-rank event whose
+measure is `cond:cross2`. -/
+theorem not_confineFoldSurj_dual [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    (hns : ¬ ConfineFoldSurj P Fq Dom ch) :
+    ∃ ψ : Cube P.m → Fq, ψ ≠ 0 ∧
+      ∀ δ : Cube P.k₀ → Cube P.m → Fp P, (∀ s, δ s ∈ confineKer P Fq Dom ch) →
+        Algebra.trace (Fp P) Fq (∑ c, ψ c * familyFold P Fq Dom ch δ c) = 0 := by
+  classical
+  set A : Submodule (Fp P) (Cube P.m → Fq) :=
+    Submodule.map (familyFoldₗ P Fq Dom ch)
+      (Submodule.pi Set.univ (fun _ : Cube P.k₀ => confineKer P Fq Dom ch)) with hA
+  rw [ConfineFoldSurj] at hns
+  push_neg at hns
+  obtain ⟨H₀, hH₀⟩ := hns
+  set g₀ : Cube P.m → Fq := fun c => if IsBlockPos P c then H₀ c else 0 with hg₀
+  have hg₀notmem : g₀ ∉ A := by
+    rintro ⟨δ, hδpi, hδeq⟩
+    have hδmem : ∀ s, δ s ∈ confineKer P Fq Dom ch :=
+      fun s => (Submodule.mem_pi).mp hδpi s (Set.mem_univ s)
+    obtain ⟨c, hcblk, hcne⟩ := hH₀ δ hδmem
+    apply hcne
+    have hval := congrFun hδeq c
+    rw [hg₀] at hval
+    simp only [if_pos hcblk] at hval
+    exact hval
+  obtain ⟨f, hfne, hfA⟩ := A.exists_dual_map_eq_bot_of_notMem hg₀notmem inferInstance
+  obtain ⟨w, hw⟩ := exists_trace_pairing_rep (Fp := Fp P) (ι := Cube P.m) f
+  refine ⟨w, ?_, ?_⟩
+  · intro hw0
+    apply hfne
+    rw [hw g₀, hw0]
+    simp
+  · intro δ hδ
+    have hmem : familyFold P Fq Dom ch δ ∈ A :=
+      ⟨δ, (Submodule.mem_pi).mpr fun s _ => hδ s, rfl⟩
+    have hfx : f (familyFold P Fq Dom ch δ) = 0 := by
+      have hin := Submodule.mem_map_of_mem (f := f) hmem
+      rw [hfA, Submodule.mem_bot] at hin
+      exact hin
+    rw [← hw (familyFold P Fq Dom ch δ)]
+    exact hfx
+
 /-- **`BlockFoldSolve` from the view solve and the cross-coupling** (`cond:cross2`, the
 reduction): if the queried/node view is solvable (`hview`, from `exists_block_fiber` under
 `NodeHyp`) and the cross-coupling holds (`CrossSolve`), then `BlockFoldSolve` holds. Solve
