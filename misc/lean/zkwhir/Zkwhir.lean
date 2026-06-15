@@ -1,6 +1,7 @@
 import Zkwhir.Statement
 import Zkwhir.Toolbox
 import Zkwhir.CRT
+import Zkwhir.Span
 import Zkwhir.Sumcheck
 import Zkwhir.Channel
 import Zkwhir.Blocks
