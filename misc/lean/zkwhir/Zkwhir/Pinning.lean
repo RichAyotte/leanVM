@@ -5252,6 +5252,21 @@ theorem exists_dual_of_not_spread [FiniteDimensional (Fp P) Fq]
   obtain ⟨s, hs⟩ := hc φ hne
   exact hs (hφ s)
 
+/-- **A SPREAD-failure dual vanishes at `1`** (`lem:span`, sharp-measure entry): strengthening
+`exists_dual_of_not_spread` with `φ 1 = 0` (since `1 ∈ span{êq(α,·)}`). This confines the
+union in the SPREAD measure to the proper hyperplane `{φ : φ 1 = 0}`, dropping its
+cardinality factor from `q = p^d` toward `p^{d-2}` (hyperplanes through `1`) — the
+tightening that brings the SPREAD bound to `~p/q`, within the `εZK` `twist`/`slice` slack. -/
+theorem exists_dual_of_not_spread_at_one [FiniteDimensional (Fp P) Fq]
+    (h : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≠ ⊤) :
+    ∃ φ : Module.Dual (Fp P) Fq, φ ≠ 0 ∧ φ 1 = 0 ∧ ∀ s, φ (eqPoly ch.α s) = 0 := by
+  obtain ⟨φ, hφ0, hφv⟩ := exists_dual_of_not_spread P Fq Dom ch h
+  have hker : Submodule.span (Fp P) (Set.range (eqPoly ch.α)) ≤ LinearMap.ker φ := by
+    rw [Submodule.span_le]
+    rintro _ ⟨s, rfl⟩
+    exact LinearMap.mem_ker.mpr (hφv s)
+  exact ⟨φ, hφ0, LinearMap.mem_ker.mp (hker (one_mem_span_eqPoly P Fq Dom ch)), hφv⟩
+
 /-- **`¬tail-SPREAD ⟹` a nonzero functional vanishes on all head-erased weights** (the
 tail-SPREAD measure entry point): if the head-erased "tail" product family does not span
 `Fq` over `Fp`, there is a nonzero `Fp`-functional `φ` killing every tail product. The
