@@ -310,4 +310,17 @@ theorem eqSpan_eq_monomialSpan (α : ι → L) (T : Finset ι) :
   | @insert j T hj ih =>
     rw [eqSpan_insert α hj, monomialSpan_insert α hj, ih, sup_map_mulLeft_one_sub]
 
+/-- **`lem:span` (the `def:spread` form).** The fold-multiplier family
+`∏_{i ∈ T} (sᵢ ? αᵢ : 1 − αᵢ)` spans `L` over `K` as soon as at least `d − 1`
+of the `αᵢ` (`i ∈ T`) lie outside the base field. This is the sharp SPREAD
+criterion: it is what fails with probability `B (p/q)^e`, not the lossy
+union-over-duals bound. -/
+theorem eqSpan_eq_top (hprime : (Module.finrank K L).Prime) (α : ι → L)
+    (T : Finset ι)
+    (hcard : Module.finrank K L - 1 ≤
+        (T.filter (fun i => α i ∉ Set.range (algebraMap K L))).card) :
+    eqSpan (K := K) α T = ⊤ := by
+  rw [eqSpan_eq_monomialSpan]
+  exact monomialSpan_eq_top hprime α T hcard
+
 end ZkWhir
