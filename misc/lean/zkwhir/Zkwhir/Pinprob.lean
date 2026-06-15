@@ -1207,6 +1207,25 @@ theorem uniform_prod_event_le {A B : Type*} [Fintype A] [Fintype B] [Nonempty A]
         rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← mul_assoc,
           ENNReal.inv_mul_cancel hAne hAtop, one_mul]
 
+open Matrix in
+/-- **Moments and coefficients are equivalent at distinct points** (`lem:fullslice` Step 2,
+the Vandermonde fact): for distinct evaluation points `y`, any prescribed moments
+`(m_h)` are realized by some coefficients `μ` with `∑_t μ_t · y_t^h = m_h`. (The Vandermonde
+matrix is invertible at distinct points.) This is the two-level moment-system ingredient of
+the `y`-family argument. -/
+theorem exists_moment_coeffs {F : Type*} [Field F] {n : ℕ} (y : Fin n → F)
+    (hy : Function.Injective y) (m : Fin n → F) :
+    ∃ μ : Fin n → F, ∀ h : Fin n, ∑ t, μ t * y t ^ (h : ℕ) = m h := by
+  have hdet : (Matrix.vandermonde y).det ≠ 0 :=
+    Matrix.det_vandermonde_ne_zero_iff.mpr hy
+  refine ⟨Matrix.vecMul m (Matrix.vandermonde y)⁻¹, fun h => ?_⟩
+  have hkey : Matrix.vecMul (Matrix.vecMul m (Matrix.vandermonde y)⁻¹)
+      (Matrix.vandermonde y) = m := by
+    rw [Matrix.vecMul_vecMul, Matrix.nonsing_inv_mul _ hdet.isUnit, Matrix.vecMul_one]
+  have hh := congrFun hkey h
+  simp only [Matrix.vecMul, dotProduct, Matrix.vandermonde_apply] at hh
+  exact hh
+
 /-- **`êq(α, s)` as a multilinear polynomial in the `α` coordinates** (the building block of the
 `cond:cross2` rank-matrix entries `tr(ψ_c · êq(α, s))`). -/
 noncomputable def eqMvPoly {R : Type*} [CommRing R] {j : ℕ} (b : Cube j) :
