@@ -1207,6 +1207,27 @@ theorem uniform_prod_event_le {A B : Type*} [Fintype A] [Fintype B] [Nonempty A]
         rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← mul_assoc,
           ENNReal.inv_mul_cancel hAne hAtop, one_mul]
 
+/-- **Uniform is transported to uniform by a bijection.** -/
+theorem uniformOfFintype_map_equiv {S T : Type*} [Fintype S] [Fintype T] [Nonempty S]
+    [Nonempty T] (e : S ≃ T) : (PMF.uniformOfFintype S).map e = PMF.uniformOfFintype T := by
+  classical
+  ext t
+  rw [PMF.map_apply, PMF.uniformOfFintype_apply,
+    tsum_eq_single (e.symm t)
+      (fun s hs => if_neg (fun h => hs (by rw [h, Equiv.symm_apply_apply]))),
+    if_pos (by rw [Equiv.apply_symm_apply]), PMF.uniformOfFintype_apply, Fintype.card_congr e]
+
+/-- **Product-conditioning bound through an equivalence** (the joint-SZ tool, packaged): for
+a uniform draw on a finite type `T ≃ A × B`, if every `A`-slice has conditional probability
+`≤ c`, the whole event has probability `≤ c`. Combines `uniformOfFintype_map_equiv`,
+`PMF.toOuterMeasure_map_apply`, and `uniform_prod_event_le`. -/
+theorem uniform_event_le_of_equiv {T A B : Type*} [Fintype T] [Fintype A] [Fintype B]
+    [Nonempty T] [Nonempty A] [Nonempty B] (e : T ≃ A × B) (E : Set T) (c : ℝ≥0∞)
+    (hc : ∀ a, (PMF.uniformOfFintype B).toOuterMeasure {b | e.symm (a, b) ∈ E} ≤ c) :
+    (PMF.uniformOfFintype T).toOuterMeasure E ≤ c := by
+  rw [← uniformOfFintype_map_equiv e.symm, PMF.toOuterMeasure_map_apply]
+  exact uniform_prod_event_le (e.symm ⁻¹' E) c hc
+
 /-- The challenge tuple as a (left-nested) product type, for the `Fintype`/uniform structure.
 The left-nesting matches the associativity produced by iterating `ENNReal.tsum_prod`. -/
 def challengesEquiv :
@@ -1266,6 +1287,34 @@ theorem challenge_event_le_card (E : Set (Challenges P Fq Dom)) (k : ℕ)
     (challengePMF P Fq Dom).toOuterMeasure E ≤ k / Fintype.card (Challenges P Fq Dom) := by
   rw [challengePMF_eq_uniform]
   exact uniform_toOuterMeasure_le E k hk
+
+/-- The challenge tuple as `Others × α`, isolating the `α` coordinate (others are `z, γ, zf, qs`).
+Used to condition the `cond:cross2` measure on the non-`α` challenges. -/
+def alphaEquiv :
+    Challenges P Fq Dom ≃
+      (((Fin 2 → Fq) × Fq × (Fin P.s₁ → Fq) × (Fin P.t₀ → {x // x ∈ Dom})) ×
+        (Fin P.k₀ → Fq)) where
+  toFun c := ((c.z, c.γ, c.zf, c.qs), c.α)
+  invFun p := ⟨p.1.1, p.1.2.1, p.2, p.1.2.2.1, p.1.2.2.2⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+/-- **α-conditional reduction of a challenge event** (the correct cond:cross2 measure tool):
+if, for *every* fixing of the non-`α` challenges `(z, γ, zf, qs)`, the conditional probability
+over a uniform `α` of the event is `≤ c`, then the full challenge probability is `≤ c`. This is
+the sound replacement for the α-only `event_le_of_detPoly`: the `cond:cross2` event's
+dependence on `z/zf/qs` (via `confineGen`) is handled by conditioning, and what remains per
+slice is a Schwartz–Zippel bound over `α` alone. -/
+theorem challenge_alpha_marginal_le (E : Set (Challenges P Fq Dom)) (c : ℝ≥0∞)
+    (hc : ∀ (z : Fin 2 → Fq) (γ : Fq) (zf : Fin P.s₁ → Fq)
+        (qs : Fin P.t₀ → {x // x ∈ Dom}),
+      (PMF.uniformOfFintype (Fin P.k₀ → Fq)).toOuterMeasure
+        {α | (⟨z, γ, α, zf, qs⟩ : Challenges P Fq Dom) ∈ E} ≤ c) :
+    (challengePMF P Fq Dom).toOuterMeasure E ≤ c := by
+  rw [challengePMF_eq_uniform]
+  refine uniform_event_le_of_equiv (alphaEquiv P Fq Dom) E c (fun a => ?_)
+  obtain ⟨z, γ, zf, qs⟩ := a
+  exact hc z γ zf qs
 
 /-- **Schwartz–Zippel reduction of the `cond:cross2` measure** (wiring Mathlib's
 `MvPolynomial.schwartz_zippel_totalDegree` into the campaign). Any challenge event contained
