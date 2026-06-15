@@ -4144,6 +4144,26 @@ theorem familyFold_offBlock_zero (δ : Cube P.k₀ → Cube P.m → Fp P)
   have hzero : δ s c = 0 := by by_contra h; exact hc (hδ s c h)
   rw [hzero, map_zero, mul_zero]
 
+/-- **The cross fold as an `Fp`-linear map** (`cond:cross2`, the linear-algebra object): the
+`Fp`-linear map sending a base-field fiber family to its lifted `α`-cross-fold. The
+`cond:cross2` condition `ConfineFoldSurj` is the statement that this map, restricted to
+`confineKer` families, is surjective onto the block functions — so its measure is governed by
+the rank of this map (`¬surjective ⟺ dual annihilator nontrivial`). -/
+def familyFoldₗ : (Cube P.k₀ → Cube P.m → Fp P) →ₗ[Fp P] (Cube P.m → Fq) where
+  toFun := familyFold P Fq Dom ch
+  map_add' δ δ' := by
+    funext c
+    simp only [familyFold, Pi.add_apply]
+    rw [← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl fun s _ => ?_
+    rw [map_add]; ring
+  map_smul' r δ := by
+    funext c
+    simp only [familyFold, Pi.smul_apply, smul_eq_mul, RingHom.id_apply]
+    rw [Algebra.smul_def, Finset.mul_sum]
+    refine Finset.sum_congr rfl fun s _ => ?_
+    rw [map_mul]; ring
+
 /-- **Cross-fold trace pairing** (`cond:cross2` dual analysis, entry algebra): pairing a
 test weight `ψ` (via the trace form) against the cross fold of base-field fibers `δ`
 rearranges into the per-cell `Fp`-bilinear form `∑_{s,c} δ_{s,c}·tr(ψ_c·êq(α,s))`. The base
