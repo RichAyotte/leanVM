@@ -1236,6 +1236,33 @@ theorem eqMvPoly_totalDegree_le {R : Type*} [CommRing R] [Nontrivial R] {j : ℕ
           simp
     _ = j := by simp
 
+/-- **The cross fold as a polynomial in the `α` challenges** (`familyFold` with `α`
+indeterminate): `δ ↦ (c ↦ ∑_s êq(α,s)·δ(s,c))` lifted to `MvPolynomial`. Evaluating at a
+concrete `α` recovers `familyFold`. This is the entry source for the `cond:cross2` rank
+matrix `M(α)`. -/
+noncomputable def familyFoldMv (δ : Cube P.k₀ → Cube P.m → Fp P) (c : Cube P.m) :
+    MvPolynomial (Fin P.k₀) Fq :=
+  ∑ s, eqMvPoly s * MvPolynomial.C (algebraMap (Fp P) Fq (δ s c))
+
+theorem familyFoldMv_eval (α : Fin P.k₀ → Fq) (δ : Cube P.k₀ → Cube P.m → Fp P)
+    (c : Cube P.m) :
+    MvPolynomial.eval α (familyFoldMv P Fq δ c)
+      = ∑ s, eqPoly α s * algebraMap (Fp P) Fq (δ s c) := by
+  unfold familyFoldMv
+  rw [map_sum]
+  refine Finset.sum_congr rfl fun s _ => ?_
+  rw [map_mul, eqMvPoly_eval, MvPolynomial.eval_C]
+
+/-- The polynomial cross fold has total degree `≤ k₀` (a sum of `êq`-times-constants), so the
+`cond:cross2` rank determinant (an `n × n` minor of `M(α)`) has total degree `≤ n · k₀`. -/
+theorem familyFoldMv_totalDegree_le (δ : Cube P.k₀ → Cube P.m → Fp P) (c : Cube P.m) :
+    (familyFoldMv P Fq δ c).totalDegree ≤ P.k₀ := by
+  unfold familyFoldMv
+  refine le_trans (MvPolynomial.totalDegree_finsetSum _ _) (Finset.sup_le fun s _ => ?_)
+  refine le_trans (MvPolynomial.totalDegree_mul _ _) ?_
+  rw [MvPolynomial.totalDegree_C, add_zero]
+  exact eqMvPoly_totalDegree_le s
+
 /-- **Uniform is transported to uniform by a bijection.** -/
 theorem uniformOfFintype_map_equiv {S T : Type*} [Fintype S] [Fintype T] [Nonempty S]
     [Nonempty T] (e : S ≃ T) : (PMF.uniformOfFintype S).map e = PMF.uniformOfFintype T := by
