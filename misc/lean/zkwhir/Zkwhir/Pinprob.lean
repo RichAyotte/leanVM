@@ -1220,4 +1220,38 @@ theorem event_le_of_detPoly [Nonempty Fq] (E : Set (Challenges P Fq Dom))
       (by exact_mod_cast (pow_pos hqpos (P.k₀ - 1)).ne')
       (ENNReal.pow_ne_top (ENNReal.natCast_ne_top _))]
 
+/-- **Masked WHIR statistical HVZK, conditional on the `cond:cross2` determinant.** The main
+theorem with its hypothesis reduced — past `GoodSetAbsorption`, past the `cond:cross2`
+probability bound — all the way to a **concrete algebraic-geometry statement**: the existence
+of a nonzero polynomial `detPoly` of total degree `≤ 2^{k₀+7}` in the `α` challenges whose
+zero-set contains the `cond:cross2` rank event. This is the sharpest reduction of the entire
+masked-WHIR ZK proof: everything else (the `lem:span` SPREAD bound, node/row/cross reductions,
+`Pinning`/`MaskViewSection` linear algebra, the `εZK` arithmetic, and the Schwartz–Zippel
+measure step) is machine-checked. The remaining content is exactly the construction of the
+coupled-chains rank determinant and its non-vanishing witness (`zk_leanVM.tex` line 529). -/
+theorem masked_whir_statistical_zk_of_detPoly
+    [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hprime : (Module.finrank (Fp P) Fq).Prime)
+    (hpdvd : (P.p - 1) ∣ (Fintype.card Fq - 1))
+    (hcop : Nat.Coprime (2 ^ P.k₀) ((Fintype.card Fq - 1) / (P.p - 1)))
+    (hdk : Module.finrank (Fp P) Fq ≤ P.k₀)
+    (hslack : 1 + P.k₀ * (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1)) ≤
+        Module.finrank (Fp P) Fq * P.p)
+    (detPoly : MvPolynomial (Fin P.k₀) Fq) (hne : detPoly ≠ 0)
+    (hdeg : detPoly.totalDegree ≤ 2 ^ (P.k₀ + 7))
+    (hsub : {ch : Challenges P Fq Dom | ∃ ψ : Cube P.m → Fq, ψ ≠ 0 ∧
+        ∀ s, dotFunc (fun c => Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s))
+          ∈ Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b))} ⊆
+        {ch : Challenges P Fq Dom | MvPolynomial.eval ch.α detPoly = 0})
+    (dataStar : DataAssign P) (hStar : Consistent P Fq S dataStar) :
+    IsSimulator P Fq Dom S
+      (honestTranscript P Fq Dom S dataStar) (εZK P Fq) :=
+  masked_whir_statistical_zk_of_crossSolve P Fq Dom S b h2 hmf hdom hbudget
+    hprime hpdvd hcop hdk hslack
+    (event_le_of_detPoly P Fq Dom _ detPoly hne hdeg hsub) dataStar hStar
+
 end ZkWhir
