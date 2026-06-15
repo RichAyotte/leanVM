@@ -21,6 +21,8 @@ set_option linter.style.header false
 
 noncomputable section
 
+open scoped Classical
+
 namespace ZkWhir
 
 variable {K L : Type*} [Field K] [Field L] [Algebra K L] [FiniteDimensional K L]
@@ -101,5 +103,114 @@ theorem finrank_lt_sup_map_mulLeft (hprime : (Module.finrank K L).Prime)
   have hWle : V.map (LinearMap.mulLeft K α) ≤ V := sup_eq_left.mp heq.symm
   have hmem : (LinearMap.mulLeft K α) v ∈ V := hWle (Submodule.mem_map_of_mem hv)
   rwa [LinearMap.mulLeft_apply] at hmem
+
+/-! ## Multiplicative span (`lem:span`) -/
+
+variable {ι : Type*} [DecidableEq ι]
+
+/-- The `K`-span of the squarefree monomials `∏_{i ∈ S} αᵢ` over subsets `S ⊆ T`. -/
+def monomialSpan (α : ι → L) (T : Finset ι) : Submodule K L :=
+  Submodule.span K ((fun S => ∏ i ∈ S, α i) '' (T.powerset : Set (Finset ι)))
+
+omit [FiniteDimensional K L] in
+theorem one_mem_monomialSpan (α : ι → L) (T : Finset ι) :
+    (1 : L) ∈ monomialSpan (K := K) α T := by
+  apply Submodule.subset_span
+  exact ⟨∅, by simp, by simp⟩
+
+omit [FiniteDimensional K L] in
+/-- **`lem:span` recursion.** Adjoining a fresh index `j` multiplies the previous
+monomial span by `αⱼ`: `monomialSpan (insert j T) = monomialSpan T ⊔ αⱼ · monomialSpan T`. -/
+theorem monomialSpan_insert (α : ι → L) {j : ι} {T : Finset ι} (hj : j ∉ T) :
+    monomialSpan (K := K) α (insert j T) =
+      monomialSpan (K := K) α T ⊔
+        (monomialSpan (K := K) α T).map (LinearMap.mulLeft K (α j)) := by
+  unfold monomialSpan
+  rw [Submodule.map_span, ← Submodule.span_union]
+  congr 1
+  rw [Finset.powerset_insert, Finset.coe_union, Set.image_union, Finset.coe_image]
+  simp only [← Set.image_comp]
+  congr 1
+  apply Set.image_congr
+  intro S hS
+  simp only [Finset.mem_coe, Finset.mem_powerset] at hS
+  have hjS : j ∉ S := fun h => hj (hS h)
+  simp only [Function.comp_apply, LinearMap.mulLeft_apply]
+  rw [Finset.prod_insert hjS]
+
+omit [FiniteDimensional K L] in
+/-- Multiplying a subspace by a base-field element does not enlarge it. -/
+theorem map_mulLeft_le_of_mem_range {V : Submodule K L} {x : L}
+    (hx : x ∈ Set.range (algebraMap K L)) :
+    V.map (LinearMap.mulLeft K x) ≤ V := by
+  rintro _ ⟨v, hv, rfl⟩
+  obtain ⟨c, rfl⟩ := hx
+  rw [LinearMap.mulLeft_apply, ← Algebra.smul_def]
+  exact V.smul_mem c hv
+
+omit [FiniteDimensional K L] in
+theorem monomialSpan_empty (α : ι → L) :
+    monomialSpan (K := K) α ∅ = Submodule.span K {(1 : L)} := by
+  unfold monomialSpan
+  congr 1
+  simp
+
+/-- **`lem:span` dimension bound.** Either the monomial span over `T` is already
+all of `L`, or its dimension exceeds the number of indices in `T` lying outside
+the base field (`1 +` that count). Each outside-`K` index strictly grows the span
+(growth form of `lem:stabilizer`); base-field indices leave it unchanged. -/
+theorem monomialSpan_dim (hprime : (Module.finrank K L).Prime) (α : ι → L)
+    (T : Finset ι) :
+    monomialSpan (K := K) α T = ⊤ ∨
+      1 + (T.filter (fun i => α i ∉ Set.range (algebraMap K L))).card ≤
+        Module.finrank K (monomialSpan (K := K) α T) := by
+  induction T using Finset.induction with
+  | empty =>
+    right
+    rw [monomialSpan_empty, finrank_span_singleton (one_ne_zero : (1 : L) ≠ 0),
+      Finset.filter_empty, Finset.card_empty]
+  | @insert j T hj ih =>
+    by_cases hjK : α j ∈ Set.range (algebraMap K L)
+    · -- base-field index: span and outside-count unchanged
+      have hmap : (monomialSpan (K := K) α T).map (LinearMap.mulLeft K (α j)) ≤
+          monomialSpan (K := K) α T := map_mulLeft_le_of_mem_range hjK
+      have hsame : monomialSpan (K := K) α (insert j T) = monomialSpan (K := K) α T := by
+        rw [monomialSpan_insert α hj, sup_eq_left.mpr hmap]
+      rw [hsame, Finset.filter_insert, if_neg (not_not.mpr hjK)]
+      exact ih
+    · -- outside-`K` index: the count goes up by one
+      have hfilt : (insert j T).filter (fun i => α i ∉ Set.range (algebraMap K L)) =
+          insert j (T.filter (fun i => α i ∉ Set.range (algebraMap K L))) := by
+        rw [Finset.filter_insert, if_pos hjK]
+      have hjnotmem : j ∉ T.filter (fun i => α i ∉ Set.range (algebraMap K L)) :=
+        fun h => hj (Finset.mem_of_mem_filter _ h)
+      have hMSle : monomialSpan (K := K) α T ≤ monomialSpan (K := K) α (insert j T) := by
+        rw [monomialSpan_insert α hj]; exact le_sup_left
+      rcases ih with htop | hdim
+      · left
+        rw [eq_top_iff]; exact le_trans (by rw [htop]) hMSle
+      · by_cases hMStop : monomialSpan (K := K) α T = ⊤
+        · left
+          rw [eq_top_iff]; exact le_trans (by rw [hMStop]) hMSle
+        · right
+          have hgrow : Module.finrank K (monomialSpan (K := K) α T) <
+              Module.finrank K ↥(monomialSpan (K := K) α T ⊔
+                (monomialSpan (K := K) α T).map (LinearMap.mulLeft K (α j))) :=
+            finrank_lt_sup_map_mulLeft hprime (one_mem_monomialSpan α T) hMStop hjK
+          rw [monomialSpan_insert α hj, hfilt, Finset.card_insert_of_notMem hjnotmem]
+          omega
+
+/-- **`lem:span` (ii).** If at least `d − 1` of the indices in `T` carry values
+outside the base field (`d = [L:K]`, prime), the monomial span is all of `L`. -/
+theorem monomialSpan_eq_top (hprime : (Module.finrank K L).Prime) (α : ι → L)
+    (T : Finset ι)
+    (hcard : Module.finrank K L - 1 ≤
+        (T.filter (fun i => α i ∉ Set.range (algebraMap K L))).card) :
+    monomialSpan (K := K) α T = ⊤ := by
+  rcases monomialSpan_dim hprime α T with h | h
+  · exact h
+  · have hle : Module.finrank K (monomialSpan (K := K) α T) ≤ Module.finrank K L :=
+      Submodule.finrank_le _
+    exact Submodule.eq_top_of_finrank_eq (le_antisymm hle (by omega))
 
 end ZkWhir
