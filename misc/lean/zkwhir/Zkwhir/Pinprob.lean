@@ -1254,4 +1254,39 @@ theorem masked_whir_statistical_zk_of_detPoly
     hprime hpdvd hcop hdk hslack
     (event_le_of_detPoly P Fq Dom _ detPoly hne hdeg hsub) dataStar hStar
 
+/-- **Total-degree bound for the determinant of an `MvPolynomial` matrix** (reusable): if
+every entry of an `n × n` matrix over `MvPolynomial σ R` has total degree `≤ d`, the
+determinant has total degree `≤ n · d`. (Each of the `n!` signed terms is a product of `n`
+entries.) This is the degree input for the `cond:cross2` rank determinant. -/
+theorem mvpoly_det_totalDegree_le {σ R : Type*} [CommRing R] {n : ℕ}
+    (M : Matrix (Fin n) (Fin n) (MvPolynomial σ R)) (d : ℕ)
+    (hM : ∀ i j, (M i j).totalDegree ≤ d) :
+    M.det.totalDegree ≤ n * d := by
+  rw [Matrix.det_apply]
+  refine le_trans (MvPolynomial.totalDegree_finsetSum _ _) (Finset.sup_le fun p _ => ?_)
+  refine le_trans (MvPolynomial.totalDegree_smul_le _ _) ?_
+  refine le_trans (MvPolynomial.totalDegree_finsetProd _ _) ?_
+  calc ∑ i, (M (p i) i).totalDegree ≤ ∑ _i : Fin n, d := Finset.sum_le_sum fun i _ => hM _ _
+    _ = n * d := by
+        rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
+
+/-- **Schwartz–Zippel reduction of the `cond:cross2` measure, matrix form.** The campaign's
+`cond:cross2` rank event lies in the zero-set of `M.det` whenever `M : Matrix (Fin n) (Fin n)
+(MvPolynomial (Fin k₀) Fq)` is a parametrization (in the `α` challenges) of the rank matrix:
+if `M.det ≠ 0`, every entry has degree `≤ d` with `n · d ≤ 2^{k₀+7}`, and the event is
+contained in `{(M.map (eval ch.α)).det = 0}`, then the event has measure `≤ 2^{k₀+7}/q`.
+This further reduces the sole remaining obligation to **constructing the rank matrix `M`** (the
+coupled-chains matrix of `zk_leanVM.tex`) with a non-vanishing-determinant witness. -/
+theorem event_le_of_detMatrix [Nonempty Fq] {n : ℕ} (E : Set (Challenges P Fq Dom))
+    (M : Matrix (Fin n) (Fin n) (MvPolynomial (Fin P.k₀) Fq)) (hne : M.det ≠ 0)
+    (d : ℕ) (hM : ∀ i j, (M i j).totalDegree ≤ d) (hnd : n * d ≤ 2 ^ (P.k₀ + 7))
+    (hsub : E ⊆ {ch : Challenges P Fq Dom | (M.map (MvPolynomial.eval ch.α)).det = 0}) :
+    (challengePMF P Fq Dom).toOuterMeasure E ≤
+      ((2 ^ (P.k₀ + 7) : ℕ) : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞) :=
+  event_le_of_detPoly P Fq Dom E M.det hne
+    (le_trans (mvpoly_det_totalDegree_le M d hM) hnd)
+    (hsub.trans fun ch hch => by
+      simp only [Set.mem_setOf_eq] at hch ⊢
+      rw [RingHom.map_det]; exact hch)
+
 end ZkWhir
