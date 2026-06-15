@@ -1289,4 +1289,36 @@ theorem event_le_of_detMatrix [Nonempty Fq] {n : ℕ} (E : Set (Challenges P Fq 
       simp only [Set.mem_setOf_eq] at hch ⊢
       rw [RingHom.map_det]; exact hch)
 
+/-- **Masked WHIR statistical HVZK, conditional on the `cond:cross2` rank matrix.** The main
+theorem, reduced to its irreducible algebraic core: the existence of an `n × n` matrix `M`
+over `MvPolynomial (Fin k₀) Fq` (the coupled-chains rank matrix in the `α` challenges) with
+(i) non-vanishing determinant `M.det ≠ 0` (the genuine research-level witness,
+`zk_leanVM.tex` line 529), (ii) per-entry total degree `≤ d` with `n·d ≤ 2^{k₀+7}`, and
+(iii) the `cond:cross2` rank event contained in the determinant's specialized zero-set.
+Everything else in the masked-WHIR zero-knowledge proof is machine-checked. -/
+theorem masked_whir_statistical_zk_of_detMatrix
+    [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hprime : (Module.finrank (Fp P) Fq).Prime)
+    (hpdvd : (P.p - 1) ∣ (Fintype.card Fq - 1))
+    (hcop : Nat.Coprime (2 ^ P.k₀) ((Fintype.card Fq - 1) / (P.p - 1)))
+    (hdk : Module.finrank (Fp P) Fq ≤ P.k₀)
+    (hslack : 1 + P.k₀ * (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1)) ≤
+        Module.finrank (Fp P) Fq * P.p)
+    {n : ℕ} (M : Matrix (Fin n) (Fin n) (MvPolynomial (Fin P.k₀) Fq)) (hne : M.det ≠ 0)
+    (d : ℕ) (hM : ∀ i j, (M i j).totalDegree ≤ d) (hnd : n * d ≤ 2 ^ (P.k₀ + 7))
+    (hsub : {ch : Challenges P Fq Dom | ∃ ψ : Cube P.m → Fq, ψ ≠ 0 ∧
+        ∀ s, dotFunc (fun c => Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s))
+          ∈ Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b))} ⊆
+        {ch : Challenges P Fq Dom | (M.map (MvPolynomial.eval ch.α)).det = 0})
+    (dataStar : DataAssign P) (hStar : Consistent P Fq S dataStar) :
+    IsSimulator P Fq Dom S
+      (honestTranscript P Fq Dom S dataStar) (εZK P Fq) :=
+  masked_whir_statistical_zk_of_crossSolve P Fq Dom S b h2 hmf hdom hbudget
+    hprime hpdvd hcop hdk hslack
+    (event_le_of_detMatrix P Fq Dom _ M hne d hM hnd hsub) dataStar hStar
+
 end ZkWhir
