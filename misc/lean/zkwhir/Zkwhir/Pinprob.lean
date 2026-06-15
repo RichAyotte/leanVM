@@ -713,4 +713,67 @@ theorem goodSetAbsorption_of_condCross2_event [FiniteDimensional (Fp P) Fq]
   goodSetAbsorption_of_crossSolve_bound P Fq Dom S h2 hmf hdom hbudget ε₁ εSPREAD εrow εCross
     hA hSPREAD hrow ((crossSolve_failure_le P Fq Dom b).trans hcross2) hsum
 
+/-- **`GoodSetAbsorption` from the shared good set** (Phase F, no double-counting): the good
+set is the intersection of node genericity, row independence, `R_out`-SPREAD, and
+cross-coupling. On it, `MaskViewSection` holds (`maskViewSection_of_rowSurj` via
+`NodeHyp` + `rowsLI`) and `Pinning` holds (`pinning_of_blockFoldSolve` via SPREAD +
+`rowsLI`→`RowSurj` + `NodeHyp`+`CrossSolve`→`BlockFoldSolve`) — *reusing the same `NodeHyp`
+and `rowWeights` conditions rather than re-charging their measures*. So the complement
+measure is the sum of the four failure measures **each counted once**:
+`P[¬NodeHyp] + P[¬rowWeights LI] + P[¬R_out-SPREAD] + P[¬CrossSolve] ≤ εZK`. This is the
+correct (non-double-counting) `εZK` budget — node ↔ node term, rows ↔ two-point term, SPREAD
+↔ spread term, cross ↔ `cond:cross2` term. -/
+theorem goodSetAbsorption_of_shared [FiniteDimensional (Fp P) Fq]
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (ε₁ εSPREAD εrow εCross : ℝ≥0∞)
+    (hA : (challengePMF P Fq Dom).toOuterMeasure {ch | ¬ NodeHyp P Fq Dom ch} ≤ ε₁)
+    (hSPREAD : (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+        (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)} ≤ εSPREAD)
+    (hrow : (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)} ≤ εrow)
+    (hcross : (challengePMF P Fq Dom).toOuterMeasure
+      {ch | ¬ CrossSolve P Fq Dom ch} ≤ εCross)
+    (hsum : ε₁ + εrow + εSPREAD + εCross ≤ εZK P Fq) :
+    GoodSetAbsorption P Fq Dom S := by
+  classical
+  refine goodSetAbsorption_of_predicates P Fq Dom S h2 hmf
+    {ch : Challenges P Fq Dom | NodeHyp P Fq Dom ch ∧
+      LinearIndependent Fq (rowWeights P Fq Dom ch) ∧
+      (Submodule.span (Fp P) (Set.range
+        (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤) ∧
+      CrossSolve P Fq Dom ch} ?_ ?_
+  · -- complement measure ≤ sum of the four (each once)
+    have hsub : {ch : Challenges P Fq Dom | NodeHyp P Fq Dom ch ∧
+        LinearIndependent Fq (rowWeights P Fq Dom ch) ∧
+        (Submodule.span (Fp P) (Set.range
+          (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤) ∧
+        CrossSolve P Fq Dom ch}ᶜ ⊆
+        (({ch | ¬ NodeHyp P Fq Dom ch} ∪
+          {ch | ¬ LinearIndependent Fq (rowWeights P Fq Dom ch)}) ∪
+          {ch : Challenges P Fq Dom | ¬ (Submodule.span (Fp P) (Set.range
+            (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} => eqPoly ch.α s.val)) = ⊤)}) ∪
+          {ch | ¬ CrossSolve P Fq Dom ch} := by
+      intro ch hch
+      simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_and_or] at hch
+      rcases hch with h | h | h | h
+      · exact Or.inl (Or.inl (Or.inl h))
+      · exact Or.inl (Or.inl (Or.inr h))
+      · exact Or.inl (Or.inr h)
+      · exact Or.inr h
+    refine (MeasureTheory.measure_mono hsub).trans ?_
+    refine le_trans (MeasureTheory.measure_union_le _ _) ?_
+    refine le_trans (add_le_add (MeasureTheory.measure_union_le _ _) le_rfl) ?_
+    refine le_trans
+      (add_le_add (add_le_add (MeasureTheory.measure_union_le _ _) le_rfl) le_rfl) ?_
+    exact le_trans (add_le_add (add_le_add (add_le_add hA hrow) hSPREAD) hcross) hsum
+  · intro ch hch
+    obtain ⟨hnode, hrowli, hsp, hcr⟩ := hch
+    exact ⟨maskViewSection_of_rowSurj P Fq Dom S ch hmf hdom hbudget hnode
+        (rowSurj_of_rowsLI P Fq Dom ch hrowli),
+      pinning_of_blockFoldSolve P Fq Dom S ch hmf hsp
+        (rowSurj_of_rowsLI P Fq Dom ch hrowli)
+        (blockFoldSolve_of_nodeHyp_crossSolve P Fq Dom ch hdom hbudget hnode hcr)⟩
+
 end ZkWhir
