@@ -8,6 +8,7 @@ Part of the `GoodSetAbsorption` formalization campaign.
 import Mathlib
 import Zkwhir.Pinning
 import Zkwhir.SlotProb
+import Zkwhir.Span
 
 set_option linter.style.header false
 set_option linter.unusedSectionVars false
@@ -564,6 +565,35 @@ theorem crossSolve_failure_le [FiniteDimensional (Fp P) Fq]
             ∈ Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b))} :=
   MeasureTheory.measure_mono
     ((not_crossSolve_subset P Fq Dom).trans (not_confineFoldSurj_subset P Fq Dom b))
+
+/-- **Bridge to `eqSpan` (`lem:span`).** The code's tail-SPREAD span — over the
+subtype `{s // s₀ = true}` of the head-erased products `∏_{i≠0}(sᵢ ? αᵢ : 1−αᵢ)` —
+coincides with `eqSpan ch.α (univ.erase 0)` (the `def:spread` fold-multiplier family
+over all assignments `s : Fin k₀ → Bool`). The `s₀ = true` constraint is irrelevant
+since the product omits coordinate `0`, and every assignment is realized by some
+subtype element (`update s 0 true`). This lets the sharp `eqSpan_eq_top` criterion
+replace the lossy union-over-duals bound. -/
+theorem tail_spread_span_eq (ch : Challenges P Fq Dom) :
+    Submodule.span (Fp P) (Set.range
+        (fun s : {s : Cube P.k₀ // s ⟨0, P.k₀_pos⟩ = true} =>
+          ∏ i ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+            (if s.val i then ch.α i else 1 - ch.α i))) =
+      eqSpan (K := Fp P) ch.α (Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀)) := by
+  unfold eqSpan
+  rw [Set.image_univ]
+  congr 1
+  ext x
+  simp only [Set.mem_range]
+  constructor
+  · rintro ⟨s, rfl⟩
+    exact ⟨s.val, rfl⟩
+  · rintro ⟨s, rfl⟩
+    refine ⟨⟨Function.update s (⟨0, P.k₀_pos⟩ : Fin P.k₀) true, by simp⟩, ?_⟩
+    show (∏ i ∈ Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀),
+        (if Function.update s (⟨0, P.k₀_pos⟩ : Fin P.k₀) true i then ch.α i else 1 - ch.α i)) = _
+    apply Finset.prod_congr rfl
+    intro i hi
+    simp only [Function.update_of_ne (Finset.ne_of_mem_erase hi)]
 
 /-- **Tail-SPREAD failure union bound** (the tail-SPREAD measure skeleton): the probability
 that the head-erased tail family misses `⊤` is at most the sum, over nonzero `Fp`-functionals
