@@ -1033,4 +1033,80 @@ theorem goodSetAbsorption_of_shared [FiniteDimensional (Fp P) Fq]
         (rowSurj_of_rowsLI P Fq Dom ch hrowli)
         (blockFoldSolve_of_nodeHyp_crossSolve P Fq Dom ch hdom hbudget hnode hcr)⟩
 
+/-- **`εrow ≤ d·p/q`** (the hsum crux): under the production-parameter slack condition
+`1 + k₀(2k₀+1+3·2^{k₀−1}) ≤ d·p`, the row-dependence bound is at most `d·p/q`. This is the
+only nontrivial inequality of the `εZK` hsum: the unused twist+slice slack carries a
+coefficient `d` on `p/q` (`twist` contributes `p/q`, `slice` contributes `(d−1)p/q`), which
+dominates `εrow`'s `2^{k₀}`-grade looseness when `p` is large (true for KoalaBear:
+`1450 ≤ 5p`). -/
+theorem rowsLI_bound_le_dp
+    (hslack : 1 + P.k₀ * (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1)) ≤
+        Module.finrank (Fp P) Fq * P.p) :
+    (1 : ℝ≥0∞) / (Fintype.card Fq : ℝ≥0∞) +
+        (P.k₀ : ℝ≥0∞) * (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1) : ℕ) / (Fintype.card Fq : ℝ≥0∞) ≤
+      ((Module.finrank (Fp P) Fq * P.p : ℕ) : ℝ≥0∞) / (Fintype.card Fq : ℝ≥0∞) := by
+  rw [ENNReal.div_add_div_same]
+  gcongr
+  exact_mod_cast hslack
+
+set_option maxHeartbeats 1000000 in
+/-- **The `εZK` hsum** (Phase F arithmetic): the four sharp component bounds — node
+(`nodeHyp_failure_le` = `εZK` node term), row (`rowsLI_failure_le_closed`), sharp SPREAD
+(`Rout_spread_failure_le_sharp` = `εZK` spread term), and cross (`= εZK` cross term) — sum
+below `εZK`. The node, spread, cross bounds match `εZK`'s terms exactly; `εrow` is absorbed
+by the unused twist+slice slack (`≥ d·p/q`, via `rowsLI_bound_le_dp`); the `εZK` two-point
+term is pure slack. -/
+theorem crossSolve_sharp_hsum
+    (hslack : 1 + P.k₀ * (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1)) ≤
+        Module.finrank (Fp P) Fq * P.p)
+    (hd1 : 1 ≤ Module.finrank (Fp P) Fq) :
+    (((2 + P.s₁ : ℕ) : ℝ≥0∞) * P.p / Fintype.card Fq +
+          (((2 + P.s₁).choose 2 : ℕ) : ℝ≥0∞) *
+            ((Module.finrank (Fp P) Fq * 2 ^ P.k₀ : ℕ) : ℝ≥0∞) / Fintype.card Fq)
+        + (1 / (fieldCard Fq : ℝ≥0∞) +
+            (P.k₀ : ℝ≥0∞) * (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1) : ℕ) / (fieldCard Fq : ℝ≥0∞))
+        + (1 / (Fintype.card Fq : ℝ≥0∞) +
+            (((P.k₀ - 1).choose (P.k₀ - Module.finrank (Fp P) Fq + 1) : ℕ) : ℝ≥0∞) *
+              ((P.p : ℝ≥0∞) ^ (P.k₀ - Module.finrank (Fp P) Fq + 1) /
+                (Fintype.card Fq : ℝ≥0∞) ^ (P.k₀ - Module.finrank (Fp P) Fq + 1)))
+        + ((2 ^ (P.k₀ + 7) : ℕ) : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞)
+      ≤ εZK P Fq := by
+  simp only [fieldCard]
+  have hdp : ∀ (a c : ℝ≥0∞) (n : ℕ), (a / c) ^ n = a ^ n / c ^ n :=
+    fun a c n => by rw [div_eq_mul_inv, mul_pow, div_eq_mul_inv, ENNReal.inv_pow]
+  have hrow := rowsLI_bound_le_dp P Fq hslack
+  have hnat : Module.finrank (Fp P) Fq * P.p =
+      P.p + (Module.finrank (Fp P) Fq - 1) * P.p := by
+    rw [Nat.sub_one_mul, Nat.add_sub_cancel' (Nat.le_mul_of_pos_left P.p (by omega))]
+  have hsplit : ((Module.finrank (Fp P) Fq * P.p : ℕ) : ℝ≥0∞) / (Fintype.card Fq : ℝ≥0∞)
+      = (P.p : ℝ≥0∞) / (Fintype.card Fq : ℝ≥0∞)
+        + ((Module.finrank (Fp P) Fq - 1 : ℕ) : ℝ≥0∞) * (P.p : ℝ≥0∞) /
+            (Fintype.card Fq : ℝ≥0∞) := by
+    rw [ENNReal.div_add_div_same]; congr 1; exact_mod_cast hnat
+  -- replace my `p^e/q^e` spread by `(p/q)^e` to match εZK's spread term
+  rw [← hdp]
+  refine le_trans (b :=
+      ((((2 + P.s₁ : ℕ) : ℝ≥0∞) * P.p / Fintype.card Fq +
+          (((2 + P.s₁).choose 2 : ℕ) : ℝ≥0∞) *
+            ((Module.finrank (Fp P) Fq * 2 ^ P.k₀ : ℕ) : ℝ≥0∞) / Fintype.card Fq)
+        + ((Module.finrank (Fp P) Fq * P.p : ℕ) : ℝ≥0∞) / Fintype.card Fq
+        + (1 / (Fintype.card Fq : ℝ≥0∞) +
+            (((P.k₀ - 1).choose (P.k₀ - Module.finrank (Fp P) Fq + 1) : ℕ) : ℝ≥0∞) *
+              ((P.p : ℝ≥0∞) / Fintype.card Fq) ^ (P.k₀ - Module.finrank (Fp P) Fq + 1))
+        + ((2 ^ (P.k₀ + 7) : ℕ) : ℝ≥0∞) / (Fintype.card Fq : ℝ≥0∞))) ?_ ?_
+  · -- bound `εrow ≤ d·p/q`; node/spread/cross are unchanged
+    gcongr
+  · -- node/spread/cross match `εZK` exactly; `d·p/q` aligns with twist+slice; rest is slack
+    simp only [εZK, fieldCard, extDeg]
+    rw [hsplit]
+    refine le_trans (le_self_add (b :=
+        ((4 * 2 ^ P.k₀ + 2 * P.k₀ : ℕ) : ℝ≥0∞) / Fintype.card Fq
+        + 2 * (((P.k₀ - 1).choose (P.k₀ - Module.finrank (Fp P) Fq + 1) : ℕ) : ℝ≥0∞) *
+            ((P.p : ℝ≥0∞) ^ (Module.finrank (Fp P) Fq - 2) / Fintype.card Fq) ^
+              (P.k₀ - Module.finrank (Fp P) Fq + 1)
+        + ((4 * P.k₀ : ℕ) : ℝ≥0∞) / Fintype.card Fq
+        + ((2 ^ (P.k₀ + 2) : ℕ) : ℝ≥0∞) / Fintype.card Fq)) (le_of_eq ?_)
+    push_cast
+    ring
+
 end ZkWhir
