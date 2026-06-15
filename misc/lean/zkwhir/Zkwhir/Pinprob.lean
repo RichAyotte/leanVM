@@ -1172,6 +1172,66 @@ theorem masked_whir_statistical_zk_of_crossSolve
       hprime hpdvd hcop hdk hslack hcross2)
     dataStar hStar
 
+/-- The challenge tuple as a (left-nested) product type, for the `Fintype`/uniform structure.
+The left-nesting matches the associativity produced by iterating `ENNReal.tsum_prod`. -/
+def challengesEquiv :
+    Challenges P Fq Dom ≃
+      (((((Fin 2 → Fq) × Fq) × (Fin P.k₀ → Fq)) × (Fin P.s₁ → Fq)) ×
+        (Fin P.t₀ → {x // x ∈ Dom})) where
+  toFun c := ((((c.z, c.γ), c.α), c.zf), c.qs)
+  invFun p := ⟨p.1.1.1.1, p.1.1.1.2, p.1.1.2, p.1.2, p.2⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+noncomputable instance : Fintype (Challenges P Fq Dom) :=
+  Fintype.ofEquiv _ (challengesEquiv P Fq Dom).symm
+
+instance : Nonempty (Challenges P Fq Dom) :=
+  ⟨⟨0, 0, 0, 0, fun _ => Classical.arbitrary _⟩⟩
+
+/-- **`challengePMF` is the uniform distribution on the challenge tuple** (the challenges are
+independent uniform draws over a product of finite types). Proof: expand the bind chain, factor
+the per-coordinate uniform constants out (`ENNReal.tsum_mul_left`), collapse the nested sums
+into one over the product (`ENNReal.tsum_prod`), pick the unique nonzero term
+(`tsum_eq_single`), and reconcile `#Challenges` with the product cardinality. This is the
+foundation for *joint* Schwartz–Zippel over the full challenge space `(z, γ, α, zf, qs)` — the
+correct measure tool for the `cond:cross2` event, which depends on all coordinates via
+`confineGen` (in contrast to the `α`-only `challenge_α_event_le`). -/
+theorem challengePMF_eq_uniform :
+    challengePMF P Fq Dom = PMF.uniformOfFintype (Challenges P Fq Dom) := by
+  classical
+  ext c
+  simp only [challengePMF, PMF.bind_apply, PMF.pure_apply, ENNReal.tsum_mul_left,
+    PMF.uniformOfFintype_apply]
+  rw [← ENNReal.tsum_prod, ← ENNReal.tsum_prod, ← ENNReal.tsum_prod, ← ENNReal.tsum_prod,
+    tsum_eq_single (challengesEquiv P Fq Dom c)
+      (fun b hb => if_neg (fun h => hb (by subst h; rfl)))]
+  simp only [challengesEquiv, Equiv.coe_fn_mk]
+  rw [Fintype.card_congr (challengesEquiv P Fq Dom), Fintype.card_prod, Fintype.card_prod,
+    Fintype.card_prod, Fintype.card_prod]
+  push_cast
+  rw [ENNReal.mul_inv (Or.inr (ENNReal.natCast_ne_top _))
+        (Or.inr (by exact_mod_cast Fintype.card_ne_zero)),
+    ENNReal.mul_inv (Or.inr (ENNReal.natCast_ne_top _))
+        (Or.inr (by exact_mod_cast Fintype.card_ne_zero)),
+    ENNReal.mul_inv (Or.inr (ENNReal.natCast_ne_top _))
+        (Or.inr (by exact_mod_cast Fintype.card_ne_zero)),
+    ENNReal.mul_inv (Or.inr (ENNReal.natCast_ne_top _))
+        (Or.inr (by exact_mod_cast Fintype.card_ne_zero))]
+  ring
+
+/-- **Joint challenge event bound via cardinality** (the correct tool for the `cond:cross2`
+measure): since `challengePMF` is uniform on the (finite) challenge tuple, any event whose
+finite subsets have at most `k` elements has probability at most `k / #Challenges`. Combined
+with *joint* Schwartz–Zippel on the `cond:cross2` rank determinant — a polynomial in *all* the
+challenge coordinates — this is the correct path to `hcross2`, superseding the `α`-only
+`event_le_of_detPoly`. -/
+theorem challenge_event_le_card (E : Set (Challenges P Fq Dom)) (k : ℕ)
+    (hk : ∀ s : Finset (Challenges P Fq Dom), (∀ x ∈ s, x ∈ E) → s.card ≤ k) :
+    (challengePMF P Fq Dom).toOuterMeasure E ≤ k / Fintype.card (Challenges P Fq Dom) := by
+  rw [challengePMF_eq_uniform]
+  exact uniform_toOuterMeasure_le E k hk
+
 /-- **Schwartz–Zippel reduction of the `cond:cross2` measure** (wiring Mathlib's
 `MvPolynomial.schwartz_zippel_totalDegree` into the campaign). Any challenge event contained
 in the zero-set of a *nonzero* polynomial `detPoly` of total degree `≤ 2^{k₀+7}` in the `α`
