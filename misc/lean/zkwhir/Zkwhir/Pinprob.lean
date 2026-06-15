@@ -1109,4 +1109,37 @@ theorem crossSolve_sharp_hsum
     push_cast
     ring
 
+/-- **`GoodSetAbsorption` from the sharp bounds — the campaign reduced to one measure**
+(Phase F capstone). Plugging the four *sharp* component bounds (node `= εZK` node term,
+row, SPREAD `= εZK` spread term, cross `= εZK` cross term) and the verified hsum
+(`crossSolve_sharp_hsum`) into the shared-good-set reduction (`goodSetAbsorption_of_shared`),
+`GoodSetAbsorption` holds whenever the single **`cond:cross2` event** has probability at
+most `2^{k₀+7}/q`. All other content — the `lem:span` SPREAD bound, the node/row/cross
+reductions, the `Pinning`/`MaskViewSection` linear algebra, and the `εZK` arithmetic — is
+machine-checked. The sole remaining obligation of the entire masked-WHIR zero-knowledge
+proof is the Schwartz–Zippel rank bound `hcross2`. -/
+theorem goodSetAbsorption_of_crossSolve_sharp [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hprime : (Module.finrank (Fp P) Fq).Prime)
+    (hpdvd : (P.p - 1) ∣ (Fintype.card Fq - 1))
+    (hcop : Nat.Coprime (2 ^ P.k₀) ((Fintype.card Fq - 1) / (P.p - 1)))
+    (hdk : Module.finrank (Fp P) Fq ≤ P.k₀)
+    (hslack : 1 + P.k₀ * (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1)) ≤
+        Module.finrank (Fp P) Fq * P.p)
+    (hcross2 : (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ∃ ψ : Cube P.m → Fq, ψ ≠ 0 ∧
+        ∀ s, dotFunc (fun c => Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s))
+          ∈ Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b))} ≤
+        ((2 ^ (P.k₀ + 7) : ℕ) : ℝ≥0∞) / (fieldCard Fq : ℝ≥0∞)) :
+    GoodSetAbsorption P Fq Dom S :=
+  goodSetAbsorption_of_shared P Fq Dom S h2 hmf hdom hbudget _ _ _ _
+    (nodeHyp_failure_le P Fq Dom hprime hpdvd hcop)
+    (Rout_spread_failure_le_sharp P Fq Dom hprime hdk)
+    (rowsLI_failure_le_closed P Fq Dom h2)
+    ((crossSolve_failure_le P Fq Dom b).trans hcross2)
+    (crossSolve_sharp_hsum P Fq hslack hprime.pos)
+
 end ZkWhir
