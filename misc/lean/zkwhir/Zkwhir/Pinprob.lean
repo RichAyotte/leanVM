@@ -595,6 +595,27 @@ theorem tail_spread_span_eq (ch : Challenges P Fq Dom) :
     intro i hi
     simp only [Function.update_of_ne (Finset.ne_of_mem_erase hi)]
 
+open scoped Classical in
+/-- **Sharp tail-SPREAD failure criterion** (`lem:span` contrapositive): if the tail
+fold-multiplier family fails to span (`¬ eqSpan = ⊤`), then by `eqSpan_eq_top` fewer
+than `d − 1` of the `k₀ − 1` tail coordinates lie outside `Fp`. This is the event
+whose probability `B (p/q)^e` (binomial tail over the `≥ k₀ − d + 1` coordinates that
+must therefore lie *inside* `Fp`) gives the sharp `εSPREAD`, replacing the lossy
+union-over-duals bound. -/
+theorem tail_spread_fail_outside (hprime : (Module.finrank (Fp P) Fq).Prime)
+    (ch : Challenges P Fq Dom)
+    (hfail : ¬ (eqSpan (K := Fp P) ch.α
+        (Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀)) = ⊤)) :
+    ((Finset.univ.erase (⟨0, P.k₀_pos⟩ : Fin P.k₀)).filter
+        (fun i => ch.α i ∉ Set.range (algebraMap (Fp P) Fq))).card <
+      Module.finrank (Fp P) Fq - 1 := by
+  by_contra h
+  push_neg at h
+  apply hfail
+  apply eqSpan_eq_top hprime ch.α
+  rw [Finset.filter_congr_decidable] at h ⊢
+  exact h
+
 /-- **Tail-SPREAD failure union bound** (the tail-SPREAD measure skeleton): the probability
 that the head-erased tail family misses `⊤` is at most the sum, over nonzero `Fp`-functionals
 `φ`, of `P[φ` vanishes on every tail product`]`. By `exists_dual_of_not_tail_spread`, every
