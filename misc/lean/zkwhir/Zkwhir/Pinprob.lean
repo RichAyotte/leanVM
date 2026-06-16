@@ -1333,6 +1333,22 @@ theorem matching_identity {F V : Type*} [Field F] [AddCommGroup V] [Module F V]
   rw [← hS]
   module
 
+/-- **Step-2 matching at the pairing level** (`lem:fullslice` Step 2, scalar form): the
+`matching_identity` specialized to `V = Fq`, with `ρ₂` the actual `L₂`-node value satisfying the
+consecutive step `ρ₂ = ρ₁ + λ₁·τ₁` (`evalT_mixed_rho_step`) and `η` the terminal pairing
+(`η = ρ₂ + λ₂·τ₂`, from `eta_pairing_telescope`). Given the matching equations, the two-level node
+combination `S_{L₁}ρ₁ + S_{L₂}ρ₂ + R_{L₁}τ₁ + R_{L₂}τ₂` equals `Θ·η`. This is the form the campaign
+consumes: `ρ₁, ρ₂, τ₁, τ₂, η` instantiate to the `evalT`-based node pairings, `S, R` to the
+`Π`-included `nodeForm` coefficients. -/
+theorem matching_identity_scalar (rho1 rho2 tau1 tau2 eta lam1 lam2 SL1 SL2 RL1 RL2 Θ : Fq)
+    (hstep : rho2 = rho1 + lam1 * tau1) (hη : eta = rho2 + lam2 * tau2)
+    (hS : SL1 + SL2 = Θ) (hR2 : RL2 = Θ * lam2) (hR1 : RL1 = lam1 * (Θ - SL2)) :
+    SL1 * rho1 + SL2 * rho2 + RL1 * tau1 + RL2 * tau2 = Θ * eta := by
+  subst hstep hη
+  have := matching_identity (F := Fq) (V := Fq) rho1 tau1 tau2 lam1 lam2 SL1 SL2 RL1 RL2 Θ
+    hS hR2 hR1
+  simpa only [smul_eq_mul] using this
+
 /-- **Realization engine** (`lem:fullslice` Step 2, existence): a square matrix with nonzero
 determinant realizes any target vector under `mulVec` (it is invertible, so surjective). The
 existence half behind the per-level moment solve. -/
