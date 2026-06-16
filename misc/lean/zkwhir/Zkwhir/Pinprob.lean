@@ -1455,6 +1455,22 @@ theorem channel_moment_node_form (ch : Challenges P Fq Dom) (h2 : (2 : Fq) ≠ 0
       ← blockMomentNodeForm P Fq Dom ch (assemble P 0 (-κ.1)) 1 ℓ w pts]
   exact channel_moment_of_viewKer P Fq Dom S ch h2 hmf κ ℓ w pts
 
+/-- **Two-level regrouped channel identity** (`lem:fullslice` Step 2, the matching frame): adding
+the `channel_moment_node_form` identities at the two levels `L₁, L₂` (each with its own moment
+data `(w, pts)`) and regrouping by block gives
+`(∑_ℓ nodeForm⁰_ℓ) + γ·(∑_ℓ nodeForm¹_ℓ) + γ²·(∑_ℓ ∑_t w·crossTerm) = 0`. The per-block sums
+`∑_ℓ nodeForm^j_ℓ` are exactly what the matching equations set equal to `⟨θⱼηⱼ, V⟩`; with that
+choice, the regrouped identity becomes Step 3's `γ²·(T-combination) = −F_θ(δ_out)`. -/
+theorem channel_moment_two_level (ch : Challenges P Fq Dom) (h2 : (2 : Fq) ≠ 0)
+    (hmf : MaskFree P Fq S) (κ : viewKer P Fq Dom S ch) (L1 L2 : Fin P.k₀)
+    (w1 pts1 w2 pts2 : Fin 3 → Fq) :
+    (nodeForm P Fq Dom S ch κ 0 L1 w1 pts1 + nodeForm P Fq Dom S ch κ 0 L2 w2 pts2)
+      + ch.γ * (nodeForm P Fq Dom S ch κ 1 L1 w1 pts1 + nodeForm P Fq Dom S ch κ 1 L2 w2 pts2)
+      + ch.γ ^ 2 * ((∑ t, w1 t * crossTerm P Fq Dom S (assemble P 0 (-κ.1)) ch L1 (pts1 t))
+          + (∑ t, w2 t * crossTerm P Fq Dom S (assemble P 0 (-κ.1)) ch L2 (pts2 t))) = 0 := by
+  linear_combination channel_moment_node_form P Fq Dom S ch h2 hmf κ L1 w1 pts1
+    + channel_moment_node_form P Fq Dom S ch h2 hmf κ L2 w2 pts2
+
 /-- **`êq(α, s)` as a multilinear polynomial in the `α` coordinates** (the building block of the
 `cond:cross2` rank-matrix entries `tr(ψ_c · êq(α, s))`). -/
 noncomputable def eqMvPoly {R : Type*} [CommRing R] {j : ℕ} (b : Cube j) :
