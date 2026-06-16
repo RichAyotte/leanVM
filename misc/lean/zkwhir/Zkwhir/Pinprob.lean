@@ -1501,6 +1501,52 @@ theorem channel_moment_two_level (ch : Challenges P Fq Dom) (h2 : (2 : Fq) ≠ 0
   linear_combination channel_moment_node_form P Fq Dom S ch h2 hmf κ L1 w1 pts1
     + channel_moment_node_form P Fq Dom S ch h2 hmf κ L2 w2 pts2
 
+/-- **The matching application** (`lem:fullslice` Step 2, represented identity per block): when the
+two-level `nodeForm` coefficients `(S_{Lᵢ}, R_{Lᵢ})` of block `j` satisfy the matching equations
+(`hS, hR2, hR1`), the sum `nodeForm^j_{L₁} + nodeForm^j_{L₂}` equals `Θ·⟨η_j, V⟩` — the terminal
+node pairing scaled by `Θ`. This instantiates `matching_identity_scalar` with the campaign
+`evalT`-pairings, whose two structural hypotheses are exactly `evalT_mixed_rho_step` (the
+consecutive `ρ`-step) and `eta_pairing_step` (the terminal `η`-step). The `hnf` hypotheses record
+the `nodeForm = S·ρ + R·τ` decomposition (a `ring` fact once `S, R` are the `Π`-included
+coefficients). This is the representation Step 3 feeds into the factorization. -/
+theorem nodeForm_sum_matched (ch : Challenges P Fq Dom) (κ : viewKer P Fq Dom S ch) (j : Fin 2)
+    (L1 L2 : Fin P.k₀) (hsucc : (L1 : ℕ) + 1 = (L2 : ℕ)) (htop : (L2 : ℕ) + 1 = P.k₀)
+    (w1 pts1 w2 pts2 : Fin 3 → Fq) (SL1 SL2 RL1 RL2 Θ : Fq)
+    (hnf1 : nodeForm P Fq Dom S ch κ j L1 w1 pts1
+        = SL1 * (evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch L1 0 (powSeq (ch.z j) P.k₀))
+              (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+            + powSeq (ch.z j) P.k₀ L1 *
+              (evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch L1 1 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+                - evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch L1 0 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)))
+          + RL1 * (evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch L1 1 (powSeq (ch.z j) P.k₀))
+                (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+              - evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch L1 0 (powSeq (ch.z j) P.k₀))
+                (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)))
+    (hnf2 : nodeForm P Fq Dom S ch κ j L2 w2 pts2
+        = SL2 * (evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch L2 0 (powSeq (ch.z j) P.k₀))
+              (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+            + powSeq (ch.z j) P.k₀ L2 *
+              (evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch L2 1 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+                - evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch L2 0 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)))
+          + RL2 * (evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch L2 1 (powSeq (ch.z j) P.k₀))
+                (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+              - evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch L2 0 (powSeq (ch.z j) P.k₀))
+                (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)))
+    (hS : SL1 + SL2 = Θ) (hR2 : RL2 = Θ * lamData P Fq Dom ch (ch.z j) L2)
+    (hR1 : RL1 = lamData P Fq Dom ch (ch.z j) L1 * (Θ - SL2)) :
+    nodeForm P Fq Dom S ch κ j L1 w1 pts1 + nodeForm P Fq Dom S ch κ j L2 w2 pts2
+      = Θ * (∑ s, eqPoly (ch.α) s *
+          mle (fun c => liftT P Fq (assemble P 0 (-κ.1)) (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) := by
+  rw [hnf1, hnf2]
+  linear_combination matching_identity_scalar (Fq := Fq)
+    (hstep := evalT_mixed_rho_step P Fq Dom ch (assemble P 0 (-κ.1)) j L1 L2 hsucc)
+    (hη := eta_pairing_step P Fq Dom ch (assemble P 0 (-κ.1)) j L2 htop)
+    (hS := hS) (hR2 := hR2) (hR1 := hR1)
+
 /-- **`êq(α, s)` as a multilinear polynomial in the `α` coordinates** (the building block of the
 `cond:cross2` rank-matrix entries `tr(ψ_c · êq(α, s))`). -/
 noncomputable def eqMvPoly {R : Type*} [CommRing R] {j : ℕ} (b : Cube j) :
