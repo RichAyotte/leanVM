@@ -467,6 +467,32 @@ theorem evalT_mixed_node_rho (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k�
   rw [evalT_mixedPoint_node_decomp, evalT_mixedPoint_node_decomp]
   ring
 
+/-- **Scalar `ρ`-telescope** (`lem:fullslice` Step 2, the matching telescope structure): combining
+the `ρ`-bridge with the `τ`-bridge, the node part `ρ^j_ℓ` decomposes as `ω + ∑_{i<ℓ} λ_i·τ^j_i`,
+where every `τ^j_i` is written as the slot-difference `E₁_i − E₀_i`. This is exactly the partial
+telescope `ρ_ℓ = ω + ∑_{i<ℓ} λ_i τ_i` that `matching_identity` consumes (paired with the node
+values `V`), establishing the relation `ρ_{ℓ+1} = ρ_ℓ + λ_ℓ τ_ℓ` at the scalar/pairing level. -/
+theorem evalT_mixed_rho_telescope (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀) :
+    evalT P Fq δ (mixedPoint P Fq Dom ch ℓ 0 (powSeq (ch.z j) P.k₀))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+      + powSeq (ch.z j) P.k₀ ℓ *
+          (evalT P Fq δ (mixedPoint P Fq Dom ch ℓ 1 (powSeq (ch.z j) P.k₀))
+              (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+            - evalT P Fq δ (mixedPoint P Fq Dom ch ℓ 0 (powSeq (ch.z j) P.k₀))
+              (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))
+      = (∑ s, eqPoly (powSeq (ch.z j) P.k₀) s *
+            mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))
+        + ∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+            lamData P Fq Dom ch (ch.z j) i *
+              (evalT P Fq δ (mixedPoint P Fq Dom ch i 1 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+                - evalT P Fq δ (mixedPoint P Fq Dom ch i 0 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) := by
+  rw [evalT_mixed_node_rho]
+  congr 1
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [evalT_mixed_slot_diff]
+
 /-! ## The terminal node and its telescoping (`lem:fullslice` Step 2, η-exit)
 
 The terminal node `η = ρ_{k₀+1}` is the full-`α` Lagrange weight `êq(α, ·)`: each
