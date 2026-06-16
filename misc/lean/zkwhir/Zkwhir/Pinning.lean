@@ -493,6 +493,44 @@ theorem evalT_mixed_rho_telescope (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin 
   refine Finset.sum_congr rfl fun i _ => ?_
   rw [evalT_mixed_slot_diff]
 
+/-- **Consecutive-level `ρ`-step** (`lem:fullslice` Step 2, `matching_identity`'s `hρL2`): for
+successor levels `L₂ = L₁ + 1`, the scalar node parts satisfy `ρ_{L₂} = ρ_{L₁} + λ_{L₁}·τ_{L₁}`
+(the only new term in the telescope is `i = L₁`). This is exactly the partial-telescope relation
+`matching_identity` requires between the two top levels, now at the pairing level. -/
+theorem evalT_mixed_rho_step (δ : Cell P → Fp P) (j : Fin 2) (L1 L2 : Fin P.k₀)
+    (hsucc : (L1 : ℕ) + 1 = (L2 : ℕ)) :
+    (evalT P Fq δ (mixedPoint P Fq Dom ch L2 0 (powSeq (ch.z j) P.k₀))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+      + powSeq (ch.z j) P.k₀ L2 *
+          (evalT P Fq δ (mixedPoint P Fq Dom ch L2 1 (powSeq (ch.z j) P.k₀))
+              (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+            - evalT P Fq δ (mixedPoint P Fq Dom ch L2 0 (powSeq (ch.z j) P.k₀))
+              (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)))
+      = (evalT P Fq δ (mixedPoint P Fq Dom ch L1 0 (powSeq (ch.z j) P.k₀))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+        + powSeq (ch.z j) P.k₀ L1 *
+            (evalT P Fq δ (mixedPoint P Fq Dom ch L1 1 (powSeq (ch.z j) P.k₀))
+                (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+              - evalT P Fq δ (mixedPoint P Fq Dom ch L1 0 (powSeq (ch.z j) P.k₀))
+                (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)))
+      + lamData P Fq Dom ch (ch.z j) L1 *
+          (evalT P Fq δ (mixedPoint P Fq Dom ch L1 1 (powSeq (ch.z j) P.k₀))
+              (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+            - evalT P Fq δ (mixedPoint P Fq Dom ch L1 0 (powSeq (ch.z j) P.k₀))
+              (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) := by
+  rw [evalT_mixed_rho_telescope, evalT_mixed_rho_telescope]
+  have hins : Finset.univ.filter (fun i : Fin P.k₀ => i < L2)
+      = insert L1 (Finset.univ.filter (fun i : Fin P.k₀ => i < L1)) := by
+    ext i
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
+      Fin.lt_def, Fin.ext_iff]
+    omega
+  have hni : L1 ∉ Finset.univ.filter (fun i : Fin P.k₀ => i < L1) := by
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    exact lt_irrefl L1
+  rw [hins, Finset.sum_insert hni]
+  ring
+
 /-! ## The terminal node and its telescoping (`lem:fullslice` Step 2, η-exit)
 
 The terminal node `η = ρ_{k₀+1}` is the full-`α` Lagrange weight `êq(α, ·)`: each
