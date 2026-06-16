@@ -1997,6 +1997,51 @@ theorem totalDegree_rename_alphaIncl_le (p : MvPolynomial (Fin P.k₀) Fq) :
     (MvPolynomial.rename (alphaIncl P) p).totalDegree ≤ p.totalDegree :=
   MvPolynomial.totalDegree_rename_le _ _
 
+/-- **The `zf`-block inclusion** `Fin s₁ ↪ JointIdx`: the fourth summand, carrying the
+out-of-domain points `zf` on `f̂₁`. The `f̂₁`-answer value rows of `M` (the `confineGen` `zf`
+branch) are built over this block. -/
+def zfIncl : Fin P.s₁ → JointIdx P := fun k => Sum.inr (Sum.inr (Sum.inr k))
+
+/-- `jointPoint ch` restricted to the `zf`-block is exactly `ch.zf`. -/
+theorem jointPoint_comp_zfIncl (ch : Challenges P Fq Dom) :
+    jointPoint P Fq Dom ch ∘ zfIncl P = ch.zf := by
+  funext k; rfl
+
+/-- Evaluating a `zf`-renamed polynomial at `jointPoint` is `zf`-evaluation (the `zf`-block eval
+half of the joint-matrix bridge, analogous to `eval_jointPoint_rename_alphaIncl`). -/
+theorem eval_jointPoint_rename_zfIncl (ch : Challenges P Fq Dom)
+    (p : MvPolynomial (Fin P.s₁) Fq) :
+    MvPolynomial.eval (jointPoint P Fq Dom ch) (MvPolynomial.rename (zfIncl P) p)
+      = MvPolynomial.eval ch.zf p := by
+  rw [MvPolynomial.eval_rename, jointPoint_comp_zfIncl]
+
+/-- Renaming the `zf`-block into `JointIdx` does not increase total degree. -/
+theorem totalDegree_rename_zfIncl_le (p : MvPolynomial (Fin P.s₁) Fq) :
+    (MvPolynomial.rename (zfIncl P) p).totalDegree ≤ p.totalDegree :=
+  MvPolynomial.totalDegree_rename_le _ _
+
+/-- **The `γ`-block inclusion** `Unit ↪ JointIdx`: the second summand, carrying the batching
+challenge `γ`. The cross channel enters `M` with the `γ`/`γ²` weights of `crossForm`. -/
+def gammaIncl : Unit → JointIdx P := fun _ => Sum.inr (Sum.inl ())
+
+/-- `jointPoint ch` at the `γ`-block is `ch.γ`. -/
+theorem jointPoint_gammaIncl (ch : Challenges P Fq Dom) (u : Unit) :
+    jointPoint P Fq Dom ch (gammaIncl P u) = ch.γ := rfl
+
+/-- Evaluating a `γ`-renamed polynomial at `jointPoint` is evaluation at the constant tuple
+`fun _ => ch.γ` (the `γ`-block eval half of the joint-matrix bridge). -/
+theorem eval_jointPoint_rename_gammaIncl (ch : Challenges P Fq Dom)
+    (p : MvPolynomial Unit Fq) :
+    MvPolynomial.eval (jointPoint P Fq Dom ch) (MvPolynomial.rename (gammaIncl P) p)
+      = MvPolynomial.eval (fun _ => ch.γ) p := by
+  rw [MvPolynomial.eval_rename]
+  rfl
+
+/-- Renaming the `γ`-block into `JointIdx` does not increase total degree. -/
+theorem totalDegree_rename_gammaIncl_le (p : MvPolynomial Unit Fq) :
+    (MvPolynomial.rename (gammaIncl P) p).totalDegree ≤ p.totalDegree :=
+  MvPolynomial.totalDegree_rename_le _ _
+
 /-- `Challenges ≃ (Fq-coords) × (qs-part)`, isolating the `Fq`-valued challenges from the
 `qs ∈ Dom` part (which factors out of the Schwartz–Zippel count). -/
 def jointEquiv :
