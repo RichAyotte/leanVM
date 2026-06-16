@@ -1561,6 +1561,32 @@ theorem challenge_alpha_marginal_le (E : Set (Challenges P Fq Dom)) (c : ℝ≥0
   obtain ⟨z, γ, zf, qs⟩ := a
   exact hc z γ zf qs
 
+/-- **Condition (ii) coordinate-equality bound** (`lem:fullslice` (ii), measure): the event
+`α_ℓ = z_j^{2^ℓ}` has probability at most `1/q`. Conditioning on all challenges except `α`
+(`challenge_alpha_marginal_le`), the per-slice event fixes the single coordinate `α_ℓ` to the
+constant `z_j^{2^ℓ}`, a measure-`1/q` event under the uniform `α` (`uniform_pi_coord_le` with a
+singleton). Union over the four `(ℓ, j) ∈ {k₀−1, k₀} × {1, 2}` instances gives the `4/q` budget
+of `lem:fullslice` condition (ii). -/
+theorem challenge_alpha_eq_powSeq_le (ℓ : Fin P.k₀) (j : Fin 2) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ch.α ℓ = powSeq (ch.z j) P.k₀ ℓ} ≤
+      (1 : ℝ≥0∞) / (Fintype.card Fq : ℝ≥0∞) := by
+  classical
+  refine challenge_alpha_marginal_le P Fq Dom _ _ (fun z γ zf qs => ?_)
+  have hset : {α : Fin P.k₀ → Fq |
+        (⟨z, γ, α, zf, qs⟩ : Challenges P Fq Dom) ∈
+          {ch : Challenges P Fq Dom | ch.α ℓ = powSeq (ch.z j) P.k₀ ℓ}}
+      = {α : Fin P.k₀ → Fq | α ℓ ∈ ({powSeq (z j) P.k₀ ℓ} : Set Fq)} := by
+    ext α; simp
+  rw [hset]
+  refine (uniform_pi_coord_le ℓ ({powSeq (z j) P.k₀ ℓ} : Set Fq) 1 ?_).trans
+    (le_of_eq (by norm_num))
+  intro s hs
+  refine (Finset.card_le_card (fun x hx => Finset.mem_singleton.mpr ?_)).trans
+    (by simp : ({powSeq (z j) P.k₀ ℓ} : Finset Fq).card ≤ 1)
+  have hx0 := hs x hx
+  rwa [Set.mem_singleton_iff] at hx0
+
 /-- **Schwartz–Zippel reduction of the `cond:cross2` measure** (wiring Mathlib's
 `MvPolynomial.schwartz_zippel_totalDegree` into the campaign). Any challenge event contained
 in the zero-set of a *nonzero* polynomial `detPoly` of total degree `≤ 2^{k₀+7}` in the `α`
