@@ -1587,6 +1587,54 @@ theorem crossMinor_specialized_ne_zero (z1 z2 lam1 δ1 γ α1 Ac w0s w0s'' es es
     hγ (nu11_ne_zero lam1 (2 * z1 - 1) δ1 hlam hz1 hδ)
     (one_add_gFun_ne_zero Fq h2 z2 hz2 hz20 hz21) hα0 hα1 hAc hbracket
 
+/-- **A `2×2` MvPolynomial minor is nonzero from a single nonzero evaluation** (the P4
+polynomial↦scalar bridge): the `2×2` determinant `a*d − c*b` of multivariate polynomials is
+nonzero *as a polynomial* whenever there is one point `p` at which the scalar determinant
+`(eval p a)·(eval p d) − (eval p c)·(eval p b)` is nonzero. A polynomial that vanishes
+identically vanishes at every point, so a single nonzero evaluation certifies non-vanishing.
+This is the linear-algebra step turning the scalar witness minor
+(`crossMinor_specialized_ne_zero`) into the polynomial-level `hdet` (P4) consumed by
+`masked_whir_statistical_zk_of_crossWitness2`. -/
+theorem mvpoly_det2_ne_zero {σ : Type*} (a b c d : MvPolynomial σ Fq) (p : σ → Fq)
+    (h : MvPolynomial.eval p a * MvPolynomial.eval p d
+        - MvPolynomial.eval p c * MvPolynomial.eval p b ≠ 0) :
+    a * d - c * b ≠ 0 := by
+  intro h0
+  apply h
+  have he := congrArg (MvPolynomial.eval p) h0
+  rwa [map_sub, map_mul, map_mul, map_zero] at he
+
+/-- **P4 (`hdet`) from a specialized witness point** (the `cond:cross2` minor, polynomial form):
+the `2×2` minor polynomial `pFu·pTu'' − pTu·pFu''` over any index type is nonzero as a polynomial
+as soon as there is one evaluation point `p` at which the four polynomials take the explicit
+closed-form values of the `tex:543` minor — `pFu ↦ γ²·ν₁₁·(1+g(z₂))·ŵ₀(s)`,
+`pTu ↦ α₁(1−α₁)·e_s·A`, and the primed pair at the second class — under the standing genericity
+(`γ ≠ 0`, `2z₁ ≠ 1`, `α₁ ≠ z₁` via `lam1 ≠ 0`, `δ₁ ≠ 0`, `2z₂ ≠ 1`, `z₂ ∉ {0,1}`,
+`α₁(1−α₁) ≠ 0`, `A ≠ 0`, and the nonzero combinatorial bracket). Composing `mvpoly_det2_ne_zero`
+with the scalar `crossMinor_specialized_ne_zero`, this discharges the entire analytic content of
+P4: it reduces the `hdet` hypothesis of `masked_whir_statistical_zk_of_crossWitness2` to
+*constructing* the four polynomials and *exhibiting one generic point* matching the closed
+forms (e.g. the staircase specialization `α_i := z₁^{2^{i-1}}`). -/
+theorem crossWitness2_det_ne_zero_of_point {σ : Type*}
+    (pFu pTu pFu'' pTu'' : MvPolynomial σ Fq) (p : σ → Fq)
+    (z1 z2 lam1 δ1 γ α1 Ac w0s w0s'' es es'' : Fq)
+    (h2 : (2 : Fq) ≠ 0) (hγ : γ ≠ 0) (hz1 : 2 * z1 - 1 ≠ 0) (hlam : lam1 ≠ 0) (hδ : δ1 ≠ 0)
+    (hz2 : 2 * z2 - 1 ≠ 0) (hz20 : z2 ≠ 0) (hz21 : z2 ≠ 1)
+    (hα0 : α1 ≠ 0) (hα1 : (1 : Fq) - α1 ≠ 0) (hAc : Ac ≠ 0)
+    (hbracket : w0s * es'' - w0s'' * es ≠ 0)
+    (hFu : MvPolynomial.eval p pFu
+        = γ ^ 2 * (lam1 / ((2 * z1 - 1) * δ1)) * (1 + gFun Fq z2) * w0s)
+    (hTu : MvPolynomial.eval p pTu = α1 * (1 - α1) * es * Ac)
+    (hFu'' : MvPolynomial.eval p pFu''
+        = γ ^ 2 * (lam1 / ((2 * z1 - 1) * δ1)) * (1 + gFun Fq z2) * w0s'')
+    (hTu'' : MvPolynomial.eval p pTu'' = α1 * (1 - α1) * es'' * Ac) :
+    pFu * pTu'' - pTu * pFu'' ≠ 0 := by
+  refine mvpoly_det2_ne_zero Fq pFu pFu'' pTu pTu'' p ?_
+  rw [hFu, hTu'', hTu, hFu'']
+  intro h0
+  exact crossMinor_specialized_ne_zero Fq z1 z2 lam1 δ1 γ α1 Ac w0s w0s'' es es''
+    h2 hγ hz1 hlam hδ hz2 hz20 hz21 hα0 hα1 hAc hbracket (by linear_combination h0)
+
 /-- **Per-level `S¹`-determination** (`lem:fullslice` Step 2, the threading function `f_ℓ`): under
 the rank-3 genericity `C' ≠ 0` (the `s²`-coefficient of `rank3_relation`), the block-2 output
 `s² = (1−ζ₂)m₀+(2ζ₂−1)m₁` of any moment image is an explicit **affine function of the other three
