@@ -1470,6 +1470,21 @@ theorem matching_identity {F V : Type*} [Field F] [AddCommGroup V] [Module F V]
   rw [← hS]
   module
 
+/-- **Threading solvability core** (`lem:fullslice` Step 2, the free-parameter solve): once the
+`R`-values are prescribed and the free parameter `t = S⁰_{L₂}` chosen, the block-0 matching
+equations hold by construction (`S⁰_{L₁} := Θ₀ − t`), and `S¹_{L₁}, S¹_{L₂}` are **affine in `t`**
+(via `level_s2_determined`): `S¹_{Lᵢ} = a_{Lᵢ}·t + b_{Lᵢ}`. The *only* remaining constraint, the
+block-1 sum `S¹_{L₁} + S¹_{L₂} = Θ₁`, is then one affine equation in `t`, solvable exactly when its
+leading coefficient `a_{L₁} + a_{L₂}` (condition (iii)) is nonzero — and the solution
+`t = (Θ₁ − (b_{L₁}+b_{L₂}))/(a_{L₁}+a_{L₂})` is **linear in Θ**, the uniform-in-θ representation.
+This is the literal "solvable when the leading coefficient ≠ 0" of `lem:fullslice` Step 2. -/
+theorem threading_affine_solve {F : Type*} [Field F] (aL1 bL1 aL2 bL2 Θ : F)
+    (hlead : aL1 + aL2 ≠ 0) :
+    ∃ t : F, (aL1 * t + bL1) + (aL2 * t + bL2) = Θ := by
+  refine ⟨(Θ - (bL1 + bL2)) / (aL1 + aL2), ?_⟩
+  field_simp
+  ring
+
 /-- **Step-2 matching at the pairing level** (`lem:fullslice` Step 2, scalar form): the
 `matching_identity` specialized to `V = Fq`, with `ρ₂` the actual `L₂`-node value satisfying the
 consecutive step `ρ₂ = ρ₁ + λ₁·τ₁` (`evalT_mixed_rho_step`) and `η` the terminal pairing
