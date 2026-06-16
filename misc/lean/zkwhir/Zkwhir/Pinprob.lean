@@ -1312,6 +1312,50 @@ theorem matching_identity {F V : Type*} [Field F] [AddCommGroup V] [Module F V]
   rw [← hS]
   module
 
+/-- **Realization engine** (`lem:fullslice` Step 2, existence): a square matrix with nonzero
+determinant realizes any target vector under `mulVec` (it is invertible, so surjective). The
+existence half behind the per-level moment solve. -/
+theorem exists_mulVec_of_det_ne_zero {F : Type*} [Field F] {n : ℕ}
+    (M : Matrix (Fin n) (Fin n) F) (hdet : M.det ≠ 0) (t : Fin n → F) :
+    ∃ m, M.mulVec m = t :=
+  ⟨M⁻¹.mulVec t, by
+    rw [Matrix.mulVec_mulVec, Matrix.mul_nonsing_inv _ hdet.isUnit, Matrix.one_mulVec]⟩
+
+/-- **Per-level moment realization** (`lem:fullslice` Step 2, the existence half of solvability):
+under the rank-3 genericity (the `(S¹,R¹,R²)` moment-coefficient matrix has nonzero determinant —
+condition (iii), shown not identically zero by `momentSystem_minor_det`), any target node values
+`(s¹, r¹, r²)` are realized by moments `(m₀, m₁, m₂)` via the tex (577)–(578) formulas. Combined
+with `matching_identity` (the representation) and `exists_moment_coeffs` (moments↔coefficients),
+this furnishes the moments the uniform-in-θ solve requires. -/
+theorem exists_level_moments {F : Type*} [Field F] (p1 p2 z1 z2 s1 r1 r2 : F)
+    (hdet : Matrix.det !![p1 * (1 - z1), p1 * (2 * z1 - 1), (0 : F);
+        p1 * (-z1 * (1 - z1)), p1 * (1 - 2 * z1 ^ 2), p1 * (2 * z1 - 1);
+        p2 * (-z2 * (1 - z2)), p2 * (1 - 2 * z2 ^ 2), p2 * (2 * z2 - 1)] ≠ 0) :
+    ∃ m0 m1 m2 : F,
+      p1 * ((1 - z1) * m0 + (2 * z1 - 1) * m1) = s1 ∧
+      p1 * (-z1 * (1 - z1) * m0 + (1 - 2 * z1 ^ 2) * m1 + (2 * z1 - 1) * m2) = r1 ∧
+      p2 * (-z2 * (1 - z2) * m0 + (1 - 2 * z2 ^ 2) * m1 + (2 * z2 - 1) * m2) = r2 := by
+  set M := !![p1 * (1 - z1), p1 * (2 * z1 - 1), (0 : F);
+        p1 * (-z1 * (1 - z1)), p1 * (1 - 2 * z1 ^ 2), p1 * (2 * z1 - 1);
+        p2 * (-z2 * (1 - z2)), p2 * (1 - 2 * z2 ^ 2), p2 * (2 * z2 - 1)] with hM
+  obtain ⟨m, hm⟩ := exists_mulVec_of_det_ne_zero M hdet ![s1, r1, r2]
+  refine ⟨m 0, m 1, m 2, ?_, ?_, ?_⟩
+  · have h0 := congrFun hm 0
+    simp only [hM, Matrix.mulVec, dotProduct, Fin.sum_univ_three, Matrix.cons_val_zero,
+      Matrix.cons_val_one, Matrix.head_cons, Matrix.cons_val_two, Matrix.tail_cons,
+      Matrix.cons_val, Matrix.of_apply] at h0
+    linear_combination h0
+  · have h1 := congrFun hm 1
+    simp only [hM, Matrix.mulVec, dotProduct, Fin.sum_univ_three, Matrix.cons_val_zero,
+      Matrix.cons_val_one, Matrix.head_cons, Matrix.cons_val_two, Matrix.tail_cons,
+      Matrix.cons_val, Matrix.of_apply] at h1
+    linear_combination h1
+  · have h2 := congrFun hm 2
+    simp only [hM, Matrix.mulVec, dotProduct, Fin.sum_univ_three, Matrix.cons_val_zero,
+      Matrix.cons_val_one, Matrix.head_cons, Matrix.cons_val_two, Matrix.tail_cons,
+      Matrix.cons_val, Matrix.of_apply] at h2
+    linear_combination h2
+
 /-- **Per-block μ-combined channel sum in `S·ρ + R·τ` node form** (`lem:fullslice` Step 2,
 fusion): for block `j`, the moment-weighted channel sum (the LHS of `prefixFactor_evalT_moment`)
 equals `Π^j · (S^j·ρ^j + R^j·τ^j)`, where `Π^j = ∏_{i<ℓ} eqf(α_i, z_j^{2^{i-1}})`, the moments are
