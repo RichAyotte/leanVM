@@ -596,6 +596,47 @@ theorem eta_pairing_telescope (δ : Cell P → Fp P) (j : Fin 2) :
   refine Finset.sum_congr rfl fun s _ => ?_
   ring
 
+/-- **η-step at the top level** (`lem:fullslice` Step 2, `matching_identity`'s `hη`): when `L₂` is
+the top level (`L₂ + 1 = k₀`), the terminal pairing satisfies `⟨η, V⟩ = ρ_{L₂} + λ_{L₂}·τ_{L₂}` —
+the η is one step past the top node. Combining `eta_pairing_telescope` (full sum) with the
+top-level `evalT_mixed_rho_telescope`, the only extra term is `i = L₂`. This furnishes the
+terminal hypothesis `matching_identity_scalar` requires, completing the telescope wiring. -/
+theorem eta_pairing_step (δ : Cell P → Fp P) (j : Fin 2) (L2 : Fin P.k₀)
+    (htop : (L2 : ℕ) + 1 = P.k₀) :
+    (∑ s, eqPoly (ch.α) s * mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))
+      = (evalT P Fq δ (mixedPoint P Fq Dom ch L2 0 (powSeq (ch.z j) P.k₀))
+            (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+          + powSeq (ch.z j) P.k₀ L2 *
+              (evalT P Fq δ (mixedPoint P Fq Dom ch L2 1 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+                - evalT P Fq δ (mixedPoint P Fq Dom ch L2 0 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)))
+        + lamData P Fq Dom ch (ch.z j) L2 *
+            (evalT P Fq δ (mixedPoint P Fq Dom ch L2 1 (powSeq (ch.z j) P.k₀))
+                (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+              - evalT P Fq δ (mixedPoint P Fq Dom ch L2 0 (powSeq (ch.z j) P.k₀))
+                (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) := by
+  rw [eta_pairing_telescope, evalT_mixed_rho_telescope, add_assoc]
+  congr 1
+  have hconv : ∀ i : Fin P.k₀, (∑ s, ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+        (lamData P Fq Dom ch (ch.z j)) i) s *
+        mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))
+      = evalT P Fq δ (mixedPoint P Fq Dom ch i 1 (powSeq (ch.z j) P.k₀))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+        - evalT P Fq δ (mixedPoint P Fq Dom ch i 0 (powSeq (ch.z j) P.k₀))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) := fun i => (evalT_mixed_slot_diff P Fq Dom ch δ j i).symm
+  simp only [hconv]
+  have hins : Finset.univ.filter (fun i : Fin P.k₀ => (i : ℕ) < P.k₀)
+      = insert L2 (Finset.univ.filter (fun i : Fin P.k₀ => i < L2)) := by
+    ext i
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
+      Fin.lt_def, Fin.ext_iff]
+    omega
+  have hni : L2 ∉ Finset.univ.filter (fun i : Fin P.k₀ => i < L2) := by
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]; exact lt_irrefl L2
+  rw [hins, Finset.sum_insert hni]
+  ring
+
 /-- The staircase row at an arbitrary point `β` (used for the Frobenius
 conjugates `β = α^{[r]}` in `cond:twist`). -/
 theorem aRow_czData_eq_vrow (z : Fq) (β : Fin P.k₀ → Fq) (i : Fin P.k₀) :
