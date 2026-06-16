@@ -2423,6 +2423,23 @@ theorem event_le_of_detMatrix [Nonempty Fq] {n : ℕ} (E : Set (Challenges P Fq 
       simp only [Set.mem_setOf_eq] at hch ⊢
       rw [RingHom.map_det]; exact hch)
 
+/-- **P2 rank→determinant step** (`cond:cross2`, the singularity half of the joint-matrix
+interface): if every challenge in the event `E` yields a *nonzero* kernel vector of the evaluated
+matrix `M.map (eval (jointPoint ch))`, then `E` is contained in that determinant's zero-set — the
+exact `hsub` hypothesis of `masked_whir_statistical_zk_of_jointDetMatrix`. This is the clean
+linear-algebra reduction of P2: a square matrix over a field is singular **iff** it has a
+nontrivial kernel (`Matrix.exists_mulVec_eq_zero_iff`). It isolates the remaining content of P2 to
+**C2** — turning the event's bad `ψ` into a kernel vector of `M(ch)` (the value-row rank matrix). -/
+theorem jointDet_hsub_of_kernel {n : ℕ}
+    (M : Matrix (Fin n) (Fin n) (MvPolynomial (JointIdx P) Fq)) (E : Set (Challenges P Fq Dom))
+    (hker : ∀ ch ∈ E, ∃ v : Fin n → Fq, v ≠ 0 ∧
+      (M.map (MvPolynomial.eval (jointPoint P Fq Dom ch))).mulVec v = 0) :
+    E ⊆ {ch : Challenges P Fq Dom |
+        (M.map (MvPolynomial.eval (jointPoint P Fq Dom ch))).det = 0} := by
+  intro ch hch
+  simp only [Set.mem_setOf_eq]
+  exact Matrix.exists_mulVec_eq_zero_iff.mp (hker ch hch)
+
 /-- **Masked WHIR statistical HVZK, conditional on the `cond:cross2` rank matrix.** The main
 theorem, reduced to its irreducible algebraic core: the existence of an `n × n` matrix `M`
 over `MvPolynomial (Fin k₀) Fq` (the coupled-chains rank matrix in the `α` challenges) with
