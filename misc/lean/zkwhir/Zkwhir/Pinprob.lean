@@ -1261,6 +1261,21 @@ theorem momentSystem_minor_det {R : Type*} [CommRing R] (p1 p2 z2 : R) :
     Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_fin_const, Matrix.cons_val]
   ring
 
+/-- **The `(S, R)` node-coefficient extraction** (`lem:fullslice` Step 2c, algebraic core): the
+moment-combination bracket produced by `prefixFactor_evalT_moment` (the `E₀, E₁` coefficients
+in the moments `m₀, m₁, m₂`), once the affine slot structure `E₀ = ρ − ζ·τ`,
+`E₁ = ρ + (1 − ζ)·τ` of `evalT_mixedPoint_node_decomp` is substituted, collapses *exactly* to
+`S·ρ + R·τ` with the paper's coefficients `S = (1−ζ)m₀ + (2ζ−1)m₁` and
+`R = −ζ(1−ζ)m₀ + (1−2ζ²)m₁ + (2ζ−1)m₂` (tex `lem:fullslice` (577)–(578)). This is the bridge
+from the channel-moment identity to the two-level moment system whose rank-3 nondegeneracy is
+`momentSystem_minor_det`. Pure `ring` identity, generic in the node coordinates. -/
+theorem momentCombo_node_coeffs {R : Type*} [CommRing R] (rho tau zeta m0 m1 m2 : R) :
+    (rho - zeta * tau) * ((1 - zeta) * m0 + (3 * zeta - 2) * m1 - (2 * zeta - 1) * m2)
+        + (rho + (1 - zeta) * tau) * ((1 - zeta) * m1 + (2 * zeta - 1) * m2)
+      = ((1 - zeta) * m0 + (2 * zeta - 1) * m1) * rho
+        + (-zeta * (1 - zeta) * m0 + (1 - 2 * zeta ^ 2) * m1 + (2 * zeta - 1) * m2) * tau := by
+  ring
+
 /-- **`êq(α, s)` as a multilinear polynomial in the `α` coordinates** (the building block of the
 `cond:cross2` rank-matrix entries `tr(ψ_c · êq(α, s))`). -/
 noncomputable def eqMvPoly {R : Type*} [CommRing R] {j : ℕ} (b : Cube j) :
