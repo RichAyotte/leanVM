@@ -1432,6 +1432,41 @@ theorem rank3_relation {R : Type*} [CommRing R] (z1 z2 m0 m1 m2 : R) :
           * ((1 - z2) * m0 + (2 * z2 - 1) * m1) := by
   ring
 
+/-- **The `cond:cross2` witness `2×2` minor, factored** (`lem:fullslice`/`cond:cross2`, the
+value-row Schwartz–Zippel witness, `zk_leanVM.tex` line 543 display). At the specialization
+`α_i := z₁^{2^{i-1}}` (`i ≥ 2`) the two relevant forms collapse to closed shapes — the cross form
+`F₍₁,₀₎(1,(s,c)) = γ²·ν₁₁·(1+g(z₂))·ŵ₀(s,c)` (round-1 cross weights `[Xʳ](X(1−X))` against the
+explicit Cramer coefficient `ν₁₁`) and the input-weight form `T_ŵ(1,(s,c)) = α₁(1−α₁)·e_s·A_c`
+(class multiplier `α₁·e_s` times the position sum `A_c`). On the two mask cells `u = (s*,c*)`,
+`u'' = (s'',c*)` (same position, distinct classes) the `2×2` minor `F(u)·T(u'') − F(u'')·T(u)`
+factors as a single product, separating the universally-nonzero analytic prefactor from the
+combinatorial bracket. Pure `ring`, generic in the coordinates. -/
+theorem crossMinor_factor {R : Type*} [CommRing R]
+    (γ ν11 g α1 Ac w0s w0s'' es es'' : R) :
+    (γ ^ 2 * ν11 * (1 + g) * w0s) * (α1 * (1 - α1) * es'' * Ac)
+        - (γ ^ 2 * ν11 * (1 + g) * w0s'') * (α1 * (1 - α1) * es * Ac)
+      = γ ^ 2 * ν11 * (1 + g) * (α1 * (1 - α1)) * Ac * (w0s * es'' - w0s'' * es) := by
+  ring
+
+/-- **The witness minor is nonzero** (`cond:cross2` conclusion, the P4 algebraic core): every
+factor of the `crossMinor_factor` product is nonzero — the analytic prefactor
+`γ²·ν₁₁·(1+g)·α₁(1−α₁)·A_{c*}` (`γ ≠ 0` from the standing conditions; `ν₁₁ = (α₁−z₁)/((2z₁−1)d₁)`
+and `1+g(z₂)` nonzero by their closed forms; `α₁(1−α₁) ≠ 0` by condition (ii) at level `1`;
+`A_{c*} = ŵ₀(s*,c*) ≠ 0` at `ζ := s*`) and the combinatorial bracket
+`ŵ₀(s*,c*)·e_{s''} − ŵ₀(s'',c*)·e_{s*}` (nonzero at `ζ := s''`, where it evaluates to
+`ŵ₀(s*,c*) ≠ 0`, via `lem:binpow`). Hence the `2×2` minor is nonzero — exactly the `hminor`
+hypothesis `crossForm_ne_zero_of_minor`/`cond_cross2_conclusion` consume. -/
+theorem crossMinor_ne_zero {R : Type*} [Field R]
+    (γ ν11 g α1 Ac w0s w0s'' es es'' : R)
+    (hγ : γ ≠ 0) (hν : ν11 ≠ 0) (hg : (1 : R) + g ≠ 0)
+    (hα0 : α1 ≠ 0) (hα1 : (1 : R) - α1 ≠ 0) (hAc : Ac ≠ 0)
+    (hbracket : w0s * es'' - w0s'' * es ≠ 0) :
+    (γ ^ 2 * ν11 * (1 + g) * w0s) * (α1 * (1 - α1) * es'' * Ac)
+        - (γ ^ 2 * ν11 * (1 + g) * w0s'') * (α1 * (1 - α1) * es * Ac) ≠ 0 := by
+  rw [crossMinor_factor]
+  exact mul_ne_zero (mul_ne_zero (mul_ne_zero (mul_ne_zero (mul_ne_zero
+    (pow_ne_zero 2 hγ) hν) hg) (mul_ne_zero hα0 hα1)) hAc) hbracket
+
 /-- **Per-level `S¹`-determination** (`lem:fullslice` Step 2, the threading function `f_ℓ`): under
 the rank-3 genericity `C' ≠ 0` (the `s²`-coefficient of `rank3_relation`), the block-2 output
 `s² = (1−ζ₂)m₀+(2ζ₂−1)m₁` of any moment image is an explicit **affine function of the other three
