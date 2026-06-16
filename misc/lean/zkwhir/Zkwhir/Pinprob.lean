@@ -1841,6 +1841,128 @@ theorem challenge_event_le_card (E : Set (Challenges P Fq Dom)) (k : ℕ)
   rw [challengePMF_eq_uniform]
   exact uniform_toOuterMeasure_le E k hk
 
+/-- **Joint challenge index** (`cond:cross2` measure, P1): the `Fq`-valued challenge coordinates
+`(z, γ, α, zf)` as one index type. The `cond:cross2` rank determinant is a polynomial over these. -/
+abbrev JointIdx : Type := Fin 2 ⊕ Unit ⊕ Fin P.k₀ ⊕ Fin P.s₁
+
+/-- Pack the `Fq`-valued challenge coordinates `(z, γ, α, zf)` into one tuple. -/
+def jointPoint (ch : Challenges P Fq Dom) : JointIdx P → Fq
+  | Sum.inl j => ch.z j
+  | Sum.inr (Sum.inl _) => ch.γ
+  | Sum.inr (Sum.inr (Sum.inl i)) => ch.α i
+  | Sum.inr (Sum.inr (Sum.inr k)) => ch.zf k
+
+/-- `Challenges ≃ (Fq-coords) × (qs-part)`, isolating the `Fq`-valued challenges from the
+`qs ∈ Dom` part (which factors out of the Schwartz–Zippel count). -/
+def jointEquiv :
+    Challenges P Fq Dom ≃ (JointIdx P → Fq) × (Fin P.t₀ → {x // x ∈ Dom}) where
+  toFun ch := (jointPoint P Fq Dom ch, ch.qs)
+  invFun p := ⟨fun j => p.1 (Sum.inl j), p.1 (Sum.inr (Sum.inl ())),
+    fun i => p.1 (Sum.inr (Sum.inr (Sum.inl i))),
+    fun k => p.1 (Sum.inr (Sum.inr (Sum.inr k))), p.2⟩
+  left_inv ch := by cases ch; rfl
+  right_inv p := by
+    obtain ⟨f, qs⟩ := p; simp only [jointPoint]; ext x
+    · rcases x with j | u | i | k <;> rfl
+    · rfl
+
+open scoped Classical in
+/-- **Joint-challenge Schwartz–Zippel measure bound** (`cond:cross2` measure, P1 — the
+correct-shape replacement for the `α`-only `event_le_of_detPoly`): any challenge event contained
+in the zero-set of a *nonzero* polynomial `detPoly` over the joint `Fq`-coordinates
+`(z, γ, α, zf)` has probability at most `totalDegree(detPoly)/q`. Unlike the `α`-only version,
+this correctly handles the `cond:cross2` event's dependence on `z/zf/qs` (via `confineGen`): the
+SZ count is over the *full* `Fq`-challenge space (`schwartz_zippel_totalDegree` transported via
+`rename` through `JointIdx ≃ Fin N`), and the `qs ∈ Dom` factor cancels exactly in
+`#{event}/#Challenges`. With `totalDegree ≤ 2^{k₀+7}` this yields the cond:cross2 bound. Reduces
+`hcross2` to constructing the rank determinant over `jointPoint`, bounding its degree, and a
+non-vanishing witness. -/
+theorem event_le_of_jointDetPoly [Nonempty Fq] (E : Set (Challenges P Fq Dom))
+    (detPoly : MvPolynomial (JointIdx P) Fq) (hne : detPoly ≠ 0)
+    (hsub : E ⊆ {ch : Challenges P Fq Dom |
+      MvPolynomial.eval (jointPoint P Fq Dom ch) detPoly = 0}) :
+    (challengePMF P Fq Dom).toOuterMeasure E ≤
+      (detPoly.totalDegree : ℝ≥0∞) / (Fintype.card Fq : ℝ≥0∞) := by
+  classical
+  have hqpos : 0 < Fintype.card Fq := Fintype.card_pos
+  set N : ℕ := Fintype.card (JointIdx P) with hN
+  have hNpos : 0 < N := Fintype.card_pos
+  set e : JointIdx P ≃ Fin N := Fintype.equivFin (JointIdx P) with he
+  set p' : MvPolynomial (Fin N) Fq := MvPolynomial.rename e detPoly with hp'
+  have hp'ne : p' ≠ 0 := fun h0 =>
+    hne (MvPolynomial.rename_injective (e : JointIdx P → Fin N) e.injective
+      (by rw [← hp', h0, map_zero]))
+  have hevalrel : ∀ f : JointIdx P → Fq,
+      MvPolynomial.eval (f ∘ e.symm) p' = MvPolynomial.eval f detPoly := by
+    intro f
+    rw [hp', MvPolynomial.eval_rename, show (f ∘ e.symm) ∘ (e : JointIdx P → Fin N) = f from by
+      funext x; simp]
+  have hZeq : (Finset.univ.filter
+        (fun f : JointIdx P → Fq => MvPolynomial.eval f detPoly = 0)).card
+      = (Finset.univ.filter (fun g : Fin N → Fq => MvPolynomial.eval g p' = 0)).card := by
+    refine Finset.card_bij (fun f _ => f ∘ e.symm) ?_ ?_ ?_
+    · intro f hf
+      rw [Finset.mem_filter] at hf ⊢
+      exact ⟨Finset.mem_univ _, by rw [hevalrel]; exact hf.2⟩
+    · intro f1 _ f2 _ h12
+      funext x; have := congrFun h12 (e x); simpa using this
+    · intro g hg
+      refine ⟨g ∘ e, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, ?_⟩
+      · rw [← hevalrel, show (g ∘ (e : JointIdx P → Fin N)) ∘ e.symm = g from by funext x; simp]
+        rw [Finset.mem_filter] at hg; exact hg.2
+      · funext x; simp
+  have hSZcard : (Finset.univ.filter
+      (fun g : Fin N → Fq => MvPolynomial.eval g p' = 0)).card
+      ≤ detPoly.totalDegree * (Fintype.card Fq) ^ (N - 1) := by
+    have hSZ := MvPolynomial.schwartz_zippel_totalDegree hp'ne (Finset.univ : Finset Fq)
+    rw [Finset.card_univ, Fintype.piFinset_univ,
+      div_le_div_iff₀ (by positivity) (by positivity)] at hSZ
+    have hnat : (Finset.univ.filter
+          (fun g : Fin N → Fq => MvPolynomial.eval g p' = 0)).card * Fintype.card Fq
+        ≤ p'.totalDegree * Fintype.card Fq ^ N := by exact_mod_cast hSZ
+    have hk : Fintype.card Fq ^ N = Fintype.card Fq ^ (N - 1) * Fintype.card Fq := by
+      rw [← pow_succ, Nat.sub_add_cancel hNpos]
+    rw [hk, ← mul_assoc] at hnat
+    exact le_trans (Nat.le_of_mul_le_mul_right hnat hqpos)
+      (by gcongr; exact MvPolynomial.totalDegree_rename_le _ _)
+  refine (challenge_event_le_card P Fq Dom E
+    (detPoly.totalDegree * (Fintype.card Fq) ^ (N - 1) *
+      (Fintype.card (Fin P.t₀ → {x // x ∈ Dom}))) (fun s hs => ?_)).trans (le_of_eq ?_)
+  · have hinj : Function.Injective (jointEquiv P Fq Dom) := (jointEquiv P Fq Dom).injective
+    rw [← Finset.card_image_of_injective s hinj]
+    have hsubset : (s.image (jointEquiv P Fq Dom)) ⊆
+        (Finset.univ.filter (fun f : JointIdx P → Fq => MvPolynomial.eval f detPoly = 0)) ×ˢ
+          (Finset.univ : Finset (Fin P.t₀ → {x // x ∈ Dom})) := by
+      intro p hp
+      obtain ⟨ch, hch, rfl⟩ := Finset.mem_image.mp hp
+      exact Finset.mem_product.mpr
+        ⟨Finset.mem_filter.mpr ⟨Finset.mem_univ _, hsub (hs ch hch)⟩, Finset.mem_univ _⟩
+    refine (Finset.card_le_card hsubset).trans ?_
+    rw [Finset.card_product, Finset.card_univ]
+    gcongr
+    exact hZeq.le.trans hSZcard
+  · rw [Fintype.card_congr (jointEquiv P Fq Dom), Fintype.card_prod,
+      show Fintype.card (JointIdx P → Fq) = Fintype.card Fq ^ N from Fintype.card_fun,
+      show Fintype.card Fq ^ N = Fintype.card Fq ^ (N - 1) * Fintype.card Fq from by
+        rw [← pow_succ, Nat.sub_add_cancel hNpos]]
+    have hMne : ((Fintype.card Fq : ℝ≥0∞) ^ (N - 1) *
+        (Fintype.card (Fin P.t₀ → {x // x ∈ Dom}) : ℝ≥0∞)) ≠ 0 :=
+      mul_ne_zero (pow_ne_zero _ (by exact_mod_cast hqpos.ne'))
+        (by exact_mod_cast (Fintype.card_pos (α := Fin P.t₀ → {x // x ∈ Dom})).ne')
+    have hMtop : ((Fintype.card Fq : ℝ≥0∞) ^ (N - 1) *
+        (Fintype.card (Fin P.t₀ → {x // x ∈ Dom}) : ℝ≥0∞)) ≠ ⊤ :=
+      ENNReal.mul_ne_top (ENNReal.pow_ne_top (ENNReal.natCast_ne_top _))
+        (ENNReal.natCast_ne_top _)
+    rw [show ((detPoly.totalDegree * Fintype.card Fq ^ (N - 1) *
+          Fintype.card (Fin P.t₀ → {x // x ∈ Dom}) : ℕ) : ℝ≥0∞)
+        = (detPoly.totalDegree : ℝ≥0∞) * ((Fintype.card Fq : ℝ≥0∞) ^ (N - 1) *
+          (Fintype.card (Fin P.t₀ → {x // x ∈ Dom}) : ℝ≥0∞)) from by push_cast; ring,
+      show ((Fintype.card Fq ^ (N - 1) * Fintype.card Fq *
+          Fintype.card (Fin P.t₀ → {x // x ∈ Dom}) : ℕ) : ℝ≥0∞)
+        = (Fintype.card Fq : ℝ≥0∞) * ((Fintype.card Fq : ℝ≥0∞) ^ (N - 1) *
+          (Fintype.card (Fin P.t₀ → {x // x ∈ Dom}) : ℝ≥0∞)) from by push_cast; ring,
+      ENNReal.mul_div_mul_right _ _ hMne hMtop]
+
 /-- The challenge tuple as `Others × α`, isolating the `α` coordinate (others are `z, γ, zf, qs`).
 Used to condition the `cond:cross2` measure on the non-`α` challenges. -/
 def alphaEquiv :
