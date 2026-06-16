@@ -2546,4 +2546,67 @@ theorem masked_whir_statistical_zk_of_jointDetKernel
     hprime hpdvd hcop hdk hslack M hne d hM hnd
     (jointDet_hsub_of_kernel P Fq Dom M _ hker) dataStar hStar
 
+open Matrix in
+/-- **Masked WHIR HVZK from a `2×2` cross witness** (the cond:cross2 minor route — collapsing the
+joint rank matrix to the explicit `2×2` witness of `zk_leanVM.tex` line 543). It suffices to give
+four polynomials `pFu, pTu, pFu'', pTu''` over `JointIdx` — the cross form `F₍₁,₀₎` and the
+input-weight form `T_ŵ` evaluated at two mask cells `u, u''` — with: (P4) their `2×2` determinant
+`pFu·pTu'' − pTu·pFu'' ≠ 0` (supplied by `crossMinor_specialized_ne_zero`); (P3) each of total
+degree `≤ 2^{k₀+6}` (so `2·d ≤ 2^{k₀+7}`); and (C2) on the cond:cross2 event a nonzero direction
+`θ` with `θ₀·F + θ₁·T = 0` at *both* cells — the `lem:fullslice` consequence that the bad `ψ`
+forces the two cell-forms `Fq`-dependent. This collapses the `n×n` construction to `n = 2`: the
+genuine remaining work is exactly these four polynomials, their degrees, and the dependence (C2). -/
+theorem masked_whir_statistical_zk_of_crossWitness2
+    [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hprime : (Module.finrank (Fp P) Fq).Prime)
+    (hpdvd : (P.p - 1) ∣ (Fintype.card Fq - 1))
+    (hcop : Nat.Coprime (2 ^ P.k₀) ((Fintype.card Fq - 1) / (P.p - 1)))
+    (hdk : Module.finrank (Fp P) Fq ≤ P.k₀)
+    (hslack : 1 + P.k₀ * (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1)) ≤
+        Module.finrank (Fp P) Fq * P.p)
+    (pFu pTu pFu'' pTu'' : MvPolynomial (JointIdx P) Fq)
+    (hdet : pFu * pTu'' - pTu * pFu'' ≠ 0)
+    (hdF : pFu.totalDegree ≤ 2 ^ (P.k₀ + 6)) (hdT : pTu.totalDegree ≤ 2 ^ (P.k₀ + 6))
+    (hdF' : pFu''.totalDegree ≤ 2 ^ (P.k₀ + 6)) (hdT' : pTu''.totalDegree ≤ 2 ^ (P.k₀ + 6))
+    (hker : ∀ ch ∈ {ch : Challenges P Fq Dom | ∃ ψ : Cube P.m → Fq, ψ ≠ 0 ∧
+        ∀ s, dotFunc (fun c => Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s))
+          ∈ Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b))},
+        ∃ θ : Fin 2 → Fq, θ ≠ 0 ∧
+          θ 0 * MvPolynomial.eval (jointPoint P Fq Dom ch) pFu
+            + θ 1 * MvPolynomial.eval (jointPoint P Fq Dom ch) pTu = 0 ∧
+          θ 0 * MvPolynomial.eval (jointPoint P Fq Dom ch) pFu''
+            + θ 1 * MvPolynomial.eval (jointPoint P Fq Dom ch) pTu'' = 0)
+    (dataStar : DataAssign P) (hStar : Consistent P Fq S dataStar) :
+    IsSimulator P Fq Dom S
+      (honestTranscript P Fq Dom S dataStar) (εZK P Fq) := by
+  refine masked_whir_statistical_zk_of_jointDetKernel P Fq Dom S b h2 hmf hdom hbudget
+    hprime hpdvd hcop hdk hslack (!![pFu, pTu; pFu'', pTu'']) ?_ (2 ^ (P.k₀ + 6)) ?_ ?_ ?_
+    dataStar hStar
+  · rw [Matrix.det_fin_two]
+    simpa using hdet
+  · intro i j
+    fin_cases i <;> fin_cases j
+    · simpa using hdF
+    · simpa using hdT
+    · simpa using hdF'
+    · simpa using hdT'
+  · exact le_of_eq (by rw [show P.k₀ + 7 = P.k₀ + 6 + 1 from rfl, pow_succ]; ring)
+  · intro ch hch
+    obtain ⟨θ, hθ, e0, e1⟩ := hker ch hch
+    refine ⟨θ, hθ, ?_⟩
+    funext i
+    fin_cases i
+    · simp only [Matrix.mulVec, dotProduct, Fin.sum_univ_two, Matrix.map_apply, Matrix.of_apply,
+        Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.head_cons, Pi.zero_apply, Fin.isValue,
+        Fin.mk_zero, Fin.mk_one]
+      linear_combination e0
+    · simp only [Matrix.mulVec, dotProduct, Fin.sum_univ_two, Matrix.map_apply, Matrix.of_apply,
+        Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.head_cons, Pi.zero_apply, Fin.isValue,
+        Fin.mk_zero, Fin.mk_one]
+      linear_combination e1
+
 end ZkWhir
