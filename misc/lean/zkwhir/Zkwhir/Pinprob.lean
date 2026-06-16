@@ -1587,6 +1587,22 @@ theorem challenge_alpha_eq_powSeq_le (ℓ : Fin P.k₀) (j : Fin 2) :
   have hx0 := hs x hx
   rwa [Set.mem_singleton_iff] at hx0
 
+/-- **Condition (ii) measure, assembled** (`lem:fullslice` (ii)): over any finite set `T` of
+`(ℓ, j)` instances, the event "`α_ℓ = z_j^{2^ℓ}` for some `(ℓ, j) ∈ T`" has probability at most
+`|T|/q` (union bound over the per-instance `challenge_alpha_eq_powSeq_le`). For the two top levels
+and two blocks (`|T| = 4`) this is the `4/q` budget the lemma allots to condition (ii). -/
+theorem challenge_alpha_eq_powSeq_union_le (T : Finset (Fin P.k₀ × Fin 2)) :
+    (challengePMF P Fq Dom).toOuterMeasure
+      {ch : Challenges P Fq Dom | ∃ p ∈ T, ch.α p.1 = powSeq (ch.z p.2) P.k₀ p.1} ≤
+      (T.card : ℝ≥0∞) / (Fintype.card Fq : ℝ≥0∞) := by
+  have hsub : {ch : Challenges P Fq Dom | ∃ p ∈ T, ch.α p.1 = powSeq (ch.z p.2) P.k₀ p.1}
+      = ⋃ p ∈ T, {ch : Challenges P Fq Dom | ch.α p.1 = powSeq (ch.z p.2) P.k₀ p.1} := by
+    ext ch; simp
+  rw [hsub]
+  refine (MeasureTheory.measure_biUnion_finset_le T _).trans ?_
+  refine (Finset.sum_le_sum (fun p _ => challenge_alpha_eq_powSeq_le P Fq Dom p.1 p.2)).trans ?_
+  rw [Finset.sum_const, nsmul_eq_mul, mul_one_div]
+
 /-- **Schwartz–Zippel reduction of the `cond:cross2` measure** (wiring Mathlib's
 `MvPolynomial.schwartz_zippel_totalDegree` into the campaign). Any challenge event contained
 in the zero-set of a *nonzero* polynomial `detPoly` of total degree `≤ 2^{k₀+7}` in the `α`
