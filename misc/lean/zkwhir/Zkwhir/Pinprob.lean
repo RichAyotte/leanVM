@@ -1548,6 +1548,27 @@ theorem bracket_cellPoly_ne_zero {j : ℕ} (sStar sPP : Cube j) (hne : sStar ≠
         • cellPoly (R := Fq) b) ≠ 0 := by
   exact cellPoly_combo_ne_zero (bracketTable_ne_zero Fq sStar sPP hne w wPP hw)
 
+/-- **The `cond:cross2` witness minor at the paper's explicit factors** (tex:543, the assembled
+form): instantiating `crossMinor_ne_zero` with `ν₁₁` in its closed form `λ₁/((2z₁−1)·δ₁)`
+(`nu11_ne_zero`) and the coupling `g = gFun z₂` (`one_add_gFun_ne_zero`), the analytic
+hypotheses `hν`, `hg` are discharged by the standing genericity, leaving exactly the
+SZ-conditional bracket `w0s·es'' − w0s''·es ≠ 0` (supplied off a measure-`< 2^j/q` set by
+`bracket_cellPoly_ne_zero`). So under `α₁ ≠ z₁` (`hlam`), `2z_j ≠ 1`, `z₂ ∉ {0,1}`, `δ₁ ≠ 0`,
+`γ ≠ 0`, `α₁(1−α₁) ≠ 0`, `A_{c*} ≠ 0`, and a nonzero bracket, the tex:543 minor is nonzero — the
+exact `hminor` the cross-form non-degeneracy consumes, now with all analytic factors in closed
+form. -/
+theorem crossMinor_specialized_ne_zero (z1 z2 lam1 δ1 γ α1 Ac w0s w0s'' es es'' : Fq)
+    (h2 : (2 : Fq) ≠ 0) (hγ : γ ≠ 0) (hz1 : 2 * z1 - 1 ≠ 0) (hlam : lam1 ≠ 0) (hδ : δ1 ≠ 0)
+    (hz2 : 2 * z2 - 1 ≠ 0) (hz20 : z2 ≠ 0) (hz21 : z2 ≠ 1)
+    (hα0 : α1 ≠ 0) (hα1 : (1 : Fq) - α1 ≠ 0) (hAc : Ac ≠ 0)
+    (hbracket : w0s * es'' - w0s'' * es ≠ 0) :
+    (γ ^ 2 * (lam1 / ((2 * z1 - 1) * δ1)) * (1 + gFun Fq z2) * w0s) * (α1 * (1 - α1) * es'' * Ac)
+        - (γ ^ 2 * (lam1 / ((2 * z1 - 1) * δ1)) * (1 + gFun Fq z2) * w0s'')
+          * (α1 * (1 - α1) * es * Ac) ≠ 0 :=
+  crossMinor_ne_zero γ (lam1 / ((2 * z1 - 1) * δ1)) (gFun Fq z2) α1 Ac w0s w0s'' es es''
+    hγ (nu11_ne_zero lam1 (2 * z1 - 1) δ1 hlam hz1 hδ)
+    (one_add_gFun_ne_zero Fq h2 z2 hz2 hz20 hz21) hα0 hα1 hAc hbracket
+
 /-- **Per-level `S¹`-determination** (`lem:fullslice` Step 2, the threading function `f_ℓ`): under
 the rank-3 genericity `C' ≠ 0` (the `s²`-coefficient of `rank3_relation`), the block-2 output
 `s² = (1−ζ₂)m₀+(2ζ₂−1)m₁` of any moment image is an explicit **affine function of the other three
