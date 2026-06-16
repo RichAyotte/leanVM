@@ -1518,6 +1518,36 @@ theorem crossBracket_ne_zero {j : ℕ} (sStar sPP : Cube j) (hne : sStar ≠ sPP
   simp only [Pi.zero_apply, mul_one, mul_zero, sub_zero] at hval
   exact hw hval
 
+/-- **The witness bracket's multilinear-extension table is nonzero** (tex:543, the `lem:binpow`
+table input). The bracket `ŵ₀(s*,c*)·e_{s''} − ŵ₀(s'',c*)·e_{s*}` is the `mle` of the table
+`b ↦ ŵ₀(s*,c*)·[b = s''] − ŵ₀(s'',c*)·[b = s*]` over the moment classes; this table is nonzero
+because at `b = s''` it equals `ŵ₀(s*,c*) ≠ 0` (the `[b = s*]` term drops, `s* ≠ s''`). This is the
+`T ≠ 0` form `cellPoly_combo_ne_zero` consumes directly (vs. the continuous-point form
+`crossBracket_ne_zero`). -/
+theorem bracketTable_ne_zero {j : ℕ} (sStar sPP : Cube j) (hne : sStar ≠ sPP)
+    (w wPP : Fq) (hw : w ≠ 0) :
+    (fun b : Cube j => w * (if b = sPP then (1 : Fq) else 0)
+        - wPP * (if b = sStar then 1 else 0)) ≠ 0 := by
+  intro h
+  have hval := congrFun h sPP
+  rw [Pi.zero_apply, if_pos rfl, if_neg (fun heq : sPP = sStar => hne heq.symm)] at hval
+  simp only [mul_one, mul_zero, sub_zero] at hval
+  exact hw hval
+
+/-- **The witness bracket is a nonzero univariate under the binary-power substitution** (tex:543,
+`lem:binpow`, the Schwartz–Zippel-ready form). Combining `bracketTable_ne_zero` with
+`cellPoly_combo_ne_zero`, the cell-polynomial combination of the bracket table is a nonzero
+polynomial; by `mle_powSeq_eq_aeval` it is exactly the binary-power substitution
+`z ↦ mle bracketTable (powSeq z)`. So the bracket, restricted to the staircase `ζ_i := z^{2^{i-1}}`,
+is a nonzero univariate of degree `< 2^j` (`cellPoly_combo_natDegree_lt`), vanishing at `< 2^j`
+points — the SZ input making the witness minor's combinatorial factor nonzero off a small set, and
+the last step from `crossBracket_ne_zero` to the scalar `hbracket` of `crossMinor_ne_zero`. -/
+theorem bracket_cellPoly_ne_zero {j : ℕ} (sStar sPP : Cube j) (hne : sStar ≠ sPP)
+    (w wPP : Fq) (hw : w ≠ 0) :
+    (∑ b : Cube j, (w * (if b = sPP then (1 : Fq) else 0) - wPP * (if b = sStar then 1 else 0))
+        • cellPoly (R := Fq) b) ≠ 0 := by
+  exact cellPoly_combo_ne_zero (bracketTable_ne_zero Fq sStar sPP hne w wPP hw)
+
 /-- **Per-level `S¹`-determination** (`lem:fullslice` Step 2, the threading function `f_ℓ`): under
 the rank-3 genericity `C' ≠ 0` (the `s²`-coefficient of `rank3_relation`), the block-2 output
 `s² = (1−ζ₂)m₀+(2ζ₂−1)m₁` of any moment image is an explicit **affine function of the other three
