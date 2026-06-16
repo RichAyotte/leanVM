@@ -2123,6 +2123,42 @@ theorem masked_whir_statistical_zk_of_detPoly
     hprime hpdvd hcop hdk hslack
     (event_le_of_detPoly P Fq Dom _ detPoly hne hdeg hsub) dataStar hStar
 
+/-- **Masked WHIR statistical HVZK, reduced to the JOINT cond:cross2 determinant** (P5 skeleton —
+the *correct-shape* analog of `masked_whir_statistical_zk_of_detPoly`): the main theorem holds
+once there is a nonzero polynomial `detPoly` over the joint `Fq`-challenge coordinates
+`(z, γ, α, zf)` (`jointPoint`), of total degree `≤ 2^{k₀+7}`, whose zero-set contains the
+cond:cross2 rank event. Unlike the `α`-only `_of_detPoly` (whose `hsub` is likely unsatisfiable
+because the event depends on `z/zf/qs`), this is the honest reduction: the measure side is fully
+discharged by `event_le_of_jointDetPoly`. The remaining content is exactly **constructing the
+joint rank determinant `detPoly` (P2), bounding its degree (P3), and the non-vanishing witness
+(P4)** — the coupled-chains argument of `zk_leanVM.tex` line 529. -/
+theorem masked_whir_statistical_zk_of_jointDetPoly
+    [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hprime : (Module.finrank (Fp P) Fq).Prime)
+    (hpdvd : (P.p - 1) ∣ (Fintype.card Fq - 1))
+    (hcop : Nat.Coprime (2 ^ P.k₀) ((Fintype.card Fq - 1) / (P.p - 1)))
+    (hdk : Module.finrank (Fp P) Fq ≤ P.k₀)
+    (hslack : 1 + P.k₀ * (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1)) ≤
+        Module.finrank (Fp P) Fq * P.p)
+    (detPoly : MvPolynomial (JointIdx P) Fq) (hne : detPoly ≠ 0)
+    (hdeg : detPoly.totalDegree ≤ 2 ^ (P.k₀ + 7))
+    (hsub : {ch : Challenges P Fq Dom | ∃ ψ : Cube P.m → Fq, ψ ≠ 0 ∧
+        ∀ s, dotFunc (fun c => Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s))
+          ∈ Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b))} ⊆
+        {ch : Challenges P Fq Dom |
+          MvPolynomial.eval (jointPoint P Fq Dom ch) detPoly = 0})
+    (dataStar : DataAssign P) (hStar : Consistent P Fq S dataStar) :
+    IsSimulator P Fq Dom S
+      (honestTranscript P Fq Dom S dataStar) (εZK P Fq) :=
+  masked_whir_statistical_zk_of_crossSolve P Fq Dom S b h2 hmf hdom hbudget
+    hprime hpdvd hcop hdk hslack
+    ((event_le_of_jointDetPoly P Fq Dom _ detPoly hne hsub).trans
+      (by simp only [fieldCard]; gcongr)) dataStar hStar
+
 /-- **Total-degree bound for the determinant of an `MvPolynomial` matrix** (reusable): if
 every entry of an `n × n` matrix over `MvPolynomial σ R` has total degree `≤ d`, the
 determinant has total degree `≤ n · d`. (Each of the `n!` signed terms is a product of `n`
