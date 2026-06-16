@@ -1547,6 +1547,25 @@ theorem nodeForm_sum_matched (ch : Challenges P Fq Dom) (κ : viewKer P Fq Dom S
     (hη := eta_pairing_step P Fq Dom ch (assemble P 0 (-κ.1)) j L2 htop)
     (hS := hS) (hR2 := hR2) (hR1 := hR1)
 
+/-- **Cross-level represented identity** (`lem:fullslice` Step 3, entry point): substituting the
+two per-block representations (`hrep0, hrep1` from `nodeForm_sum_matched`) into the regrouped
+two-level channel identity (`channel_moment_two_level`) yields
+`Θ₀·⟨η₀,V⟩ + γ·Θ₁·⟨η₁,V⟩ + γ²·(T-combination) = 0`. Since `⟨θ₁η₁⊕θ₂η₂, V⟩ = −F_θ(δ_out)`, this is
+exactly Step 3's `γ²·(T-combination) = −F_θ(δ_out)` — the represented identity that, with the
+`crossTerm_combine_factor` factorization, gives `F_θ = γ²·E'(π)·G_θ`. -/
+theorem cross_represented (ch : Challenges P Fq Dom) (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S)
+    (κ : viewKer P Fq Dom S ch) (L1 L2 : Fin P.k₀) (w1 pts1 w2 pts2 : Fin 3 → Fq)
+    (V0 V1 Θ0 Θ1 : Fq)
+    (hrep0 : nodeForm P Fq Dom S ch κ 0 L1 w1 pts1 + nodeForm P Fq Dom S ch κ 0 L2 w2 pts2
+        = Θ0 * V0)
+    (hrep1 : nodeForm P Fq Dom S ch κ 1 L1 w1 pts1 + nodeForm P Fq Dom S ch κ 1 L2 w2 pts2
+        = Θ1 * V1) :
+    Θ0 * V0 + ch.γ * (Θ1 * V1)
+      + ch.γ ^ 2 * ((∑ t, w1 t * crossTerm P Fq Dom S (assemble P 0 (-κ.1)) ch L1 (pts1 t))
+          + (∑ t, w2 t * crossTerm P Fq Dom S (assemble P 0 (-κ.1)) ch L2 (pts2 t))) = 0 := by
+  rw [← hrep0, ← hrep1]
+  exact channel_moment_two_level P Fq Dom S ch h2 hmf κ L1 L2 w1 pts1 w2 pts2
+
 /-- **`êq(α, s)` as a multilinear polynomial in the `α` coordinates** (the building block of the
 `cond:cross2` rank-matrix entries `tr(ψ_c · êq(α, s))`). -/
 noncomputable def eqMvPoly {R : Type*} [CommRing R] {j : ℕ} (b : Cube j) :
