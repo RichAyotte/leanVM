@@ -1295,6 +1295,27 @@ theorem rank3_relation {R : Type*} [CommRing R] (z1 z2 m0 m1 m2 : R) :
           * ((1 - z2) * m0 + (2 * z2 - 1) * m1) := by
   ring
 
+/-- **Per-level `S¹`-determination** (`lem:fullslice` Step 2, the threading function `f_ℓ`): under
+the rank-3 genericity `C' ≠ 0` (the `s²`-coefficient of `rank3_relation`), the block-2 output
+`s² = (1−ζ₂)m₀+(2ζ₂−1)m₁` of any moment image is an explicit **affine function of the other three
+outputs** `(s¹, r¹, r²)`. This is the map the free-parameter solve composes across the two levels:
+prescribing `(r¹, r²)` and a free `s¹`, the partner `s²` is fixed, so the final matching equation
+is affine in the free parameter — solvable when its leading coefficient (condition (iii)) is
+nonzero. Solved from `rank3_relation` via `eq_div_iff`. -/
+theorem level_s2_determined {F : Type*} [Field F] (z1 z2 m0 m1 m2 : F)
+    (hC : (1 - z1) * ((2 * z2 - 1) * (1 - 2 * z1 ^ 2) - (2 * z1 - 1) * (1 - 2 * z2 ^ 2))
+        - (2 * z1 - 1) * (-(2 * z2 - 1) * (z1 * (1 - z1)) + (2 * z1 - 1) * (z2 * (1 - z2))) ≠ 0) :
+    (1 - z2) * m0 + (2 * z2 - 1) * m1
+      = ((z2 - z1) * ((2 * z2 - 1) * (-z1 * (1 - z1) * m0 + (1 - 2 * z1 ^ 2) * m1 + (2 * z1 - 1) * m2)
+              - (2 * z1 - 1) * (-z2 * (1 - z2) * m0 + (1 - 2 * z2 ^ 2) * m1 + (2 * z2 - 1) * m2))
+          - ((-(2 * z2 - 1) * (z1 * (1 - z1)) + (2 * z1 - 1) * (z2 * (1 - z2))) * (2 * z2 - 1)
+                - ((2 * z2 - 1) * (1 - 2 * z1 ^ 2) - (2 * z1 - 1) * (1 - 2 * z2 ^ 2)) * (1 - z2))
+              * ((1 - z1) * m0 + (2 * z1 - 1) * m1))
+        / ((1 - z1) * ((2 * z2 - 1) * (1 - 2 * z1 ^ 2) - (2 * z1 - 1) * (1 - 2 * z2 ^ 2))
+            - (2 * z1 - 1) * (-(2 * z2 - 1) * (z1 * (1 - z1)) + (2 * z1 - 1) * (z2 * (1 - z2)))) := by
+  rw [eq_div_iff hC]
+  linear_combination rank3_relation z1 z2 m0 m1 m2
+
 /-- **The Step-2 matching identity** (`lem:fullslice` Step 2, the uniform-in-θ representation;
 tex (582)–(584)): with the partial telescopes `ρ_{L₂} = ρ_{L₁} + λ_{L₁}·τ_{L₁}` and
 `η = ρ_{L₂} + λ_{L₂}·τ_{L₂}` (the top-two-level staircase structure of `eta_telescope`), the three
