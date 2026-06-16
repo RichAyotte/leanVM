@@ -807,6 +807,37 @@ theorem hspan_eq_eqSpan (ch : Challenges P Fq Dom) (m ℓ : Fin P.k₀) :
         (fun i => by simp)
         (fun i => if b i then ch.α i else 1 - ch.α i)]
 
+open scoped Classical in
+/-- **Condition (i) failure measure** (`lem:fullslice` (i), assembled): the probability that the
+`E'(π)` multiplier family of `crossTerm_trace_ne_zero`'s `hspan` fails to span `Fq` is at most
+`C(|J|, |J|−(d−2)) · (p/q)^{|J|−(d−2)}` with `J = {i : m ≤ i < ℓ}`. Composes the bridge
+`hspan_eq_eqSpan` with the generic `spread_failure_le_subset`. This is the condition-(i) term of
+`εCross`, supplying the `hspan` hypothesis of `crossTerm_trace_ne_zero` outside a small event. -/
+theorem cond_i_failure_le (hprime : (Module.finrank (Fp P) Fq).Prime) (m ℓ : Fin P.k₀) :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom | Submodule.span (Fp P) (Set.range
+          (fun π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool =>
+            ∏ j : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ},
+              if π j then ch.α j.val else 1 - ch.α j.val)) ≠ ⊤} ≤
+      (((Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ)).card.choose
+            ((Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ)).card
+              - (Module.finrank (Fp P) Fq - 2)) : ℕ) : ℝ≥0∞) *
+        ((P.p : ℝ≥0∞) ^ ((Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ)).card
+              - (Module.finrank (Fp P) Fq - 2)) /
+          (Fintype.card Fq : ℝ≥0∞) ^ ((Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ)).card
+              - (Module.finrank (Fp P) Fq - 2))) := by
+  have hset : {ch : Challenges P Fq Dom | Submodule.span (Fp P) (Set.range
+        (fun π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool =>
+          ∏ j : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ},
+            if π j then ch.α j.val else 1 - ch.α j.val)) ≠ ⊤}
+      = {ch : Challenges P Fq Dom |
+          eqSpan (K := Fp P) ch.α
+            (Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ)) ≠ ⊤} := by
+    ext ch
+    simp only [Set.mem_setOf_eq, hspan_eq_eqSpan P Fq Dom ch m ℓ]
+  rw [hset]
+  exact spread_failure_le_subset P Fq Dom hprime _
+
 /-- **Tail-SPREAD failure union bound** (the tail-SPREAD measure skeleton): the probability
 that the head-erased tail family misses `⊤` is at most the sum, over nonzero `Fp`-functionals
 `φ`, of `P[φ` vanishes on every tail product`]`. By `exists_dual_of_not_tail_spread`, every
