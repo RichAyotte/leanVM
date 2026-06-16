@@ -1295,6 +1295,46 @@ theorem rank3_relation {R : Type*} [CommRing R] (z1 z2 m0 m1 m2 : R) :
           * ((1 - z2) * m0 + (2 * z2 - 1) * m1) := by
   ring
 
+/-- **Per-block μ-combined channel sum in `S·ρ + R·τ` node form** (`lem:fullslice` Step 2,
+fusion): for block `j`, the moment-weighted channel sum (the LHS of `prefixFactor_evalT_moment`)
+equals `Π^j · (S^j·ρ^j + R^j·τ^j)`, where `Π^j = ∏_{i<ℓ} eqf(α_i, z_j^{2^{i-1}})`, the moments are
+`m₀=∑w, m₁=∑w·pts, m₂=∑w·pts²`, the coefficients `S^j, R^j` are the tex (577)–(578) forms, and the
+node coordinates are `ρ^j = E₀+ζ(E₁−E₀)`, `τ^j = E₁−E₀` — which `evalT_mixed_node_rho` /
+`evalT_mixed_slot_diff` identify with the canonical staircase functionals. Fuses
+`prefixFactor_evalT_moment` with `momentCombo_node_coeffs`; the entry point to the matching
+equations of Step 2's uniform-in-θ solve. -/
+theorem blockMomentNodeForm (ch : Challenges P Fq Dom) (δ : Cell P → Fp P) (j : Fin 2)
+    (ℓ : Fin P.k₀) (w pts : Fin 3 → Fq) :
+    (∑ t, w t * (prefixFactor P Fq Dom ch ℓ (pts t) (powSeq (ch.z j) P.k₀) *
+        evalT P Fq δ (mixedPoint P Fq Dom ch ℓ (pts t) (powSeq (ch.z j) P.k₀))
+          (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))) =
+      (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+          eqf Fq (ch.α i) (powSeq (ch.z j) P.k₀ i)) *
+        (((1 - powSeq (ch.z j) P.k₀ ℓ) * (∑ t, w t)
+              + (2 * powSeq (ch.z j) P.k₀ ℓ - 1) * (∑ t, w t * pts t))
+            * (evalT P Fq δ (mixedPoint P Fq Dom ch ℓ 0 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+                + powSeq (ch.z j) P.k₀ ℓ *
+                  (evalT P Fq δ (mixedPoint P Fq Dom ch ℓ 1 (powSeq (ch.z j) P.k₀))
+                      (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+                    - evalT P Fq δ (mixedPoint P Fq Dom ch ℓ 0 (powSeq (ch.z j) P.k₀))
+                      (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)))
+          + (-powSeq (ch.z j) P.k₀ ℓ * (1 - powSeq (ch.z j) P.k₀ ℓ) * (∑ t, w t)
+              + (1 - 2 * powSeq (ch.z j) P.k₀ ℓ ^ 2) * (∑ t, w t * pts t)
+              + (2 * powSeq (ch.z j) P.k₀ ℓ - 1) * (∑ t, w t * pts t ^ 2))
+            * (evalT P Fq δ (mixedPoint P Fq Dom ch ℓ 1 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+                - evalT P Fq δ (mixedPoint P Fq Dom ch ℓ 0 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))) := by
+  rw [prefixFactor_evalT_moment]
+  congr 1
+  set E0 := evalT P Fq δ (mixedPoint P Fq Dom ch ℓ 0 (powSeq (ch.z j) P.k₀))
+    (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+  set E1 := evalT P Fq δ (mixedPoint P Fq Dom ch ℓ 1 (powSeq (ch.z j) P.k₀))
+    (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+  linear_combination momentCombo_node_coeffs (E0 + powSeq (ch.z j) P.k₀ ℓ * (E1 - E0))
+    (E1 - E0) (powSeq (ch.z j) P.k₀ ℓ) (∑ t, w t) (∑ t, w t * pts t) (∑ t, w t * pts t ^ 2)
+
 /-- **`êq(α, s)` as a multilinear polynomial in the `α` coordinates** (the building block of the
 `cond:cross2` rank-matrix entries `tr(ψ_c · êq(α, s))`). -/
 noncomputable def eqMvPoly {R : Type*} [CommRing R] {j : ℕ} (b : Cube j) :
