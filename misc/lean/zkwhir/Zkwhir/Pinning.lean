@@ -425,6 +425,23 @@ theorem evalT_mixedPoint_node_decomp (δ : Cell P → Fp P) (j : Fin 2)
     · rw [Finset.mul_sum]
       exact Finset.sum_congr rfl fun s _ => by ring
 
+/-- **The slot-difference is the canonical `τ` node functional** (`lem:fullslice` Step 2, the
+`τ`-bridge): subtracting the two affine endpoints `E₁ := evalT(mixed ℓ 1)` and
+`E₀ := evalT(mixed ℓ 0)` of `evalT_mixedPoint_node_decomp` cancels the `y`-independent node part
+`ρ^j_ℓ` and leaves exactly the staircase node `τ^j_ℓ = ∑_s ptensor(stairVec … ℓ)_s · mle`.
+This gives the abstract `τ := E₁ − E₀` of the moment combination (`momentCombo_node_coeffs`) its
+concrete staircase meaning — the object on which Step 3's `E'(π)`-prefix factorization acts. -/
+theorem evalT_mixed_slot_diff (δ : Cell P → Fp P) (j : Fin 2) (ℓ : Fin P.k₀) :
+    evalT P Fq δ (mixedPoint P Fq Dom ch ℓ 1 (powSeq (ch.z j) P.k₀))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+      - evalT P Fq δ (mixedPoint P Fq Dom ch ℓ 0 (powSeq (ch.z j) P.k₀))
+        (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+      = ∑ s, ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+            (lamData P Fq Dom ch (ch.z j)) ℓ) s *
+          mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m) := by
+  rw [evalT_mixedPoint_node_decomp, evalT_mixedPoint_node_decomp]
+  ring
+
 /-! ## The terminal node and its telescoping (`lem:fullslice` Step 2, η-exit)
 
 The terminal node `η = ρ_{k₀+1}` is the full-`α` Lagrange weight `êq(α, ·)`: each
