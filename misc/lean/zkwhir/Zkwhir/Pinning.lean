@@ -571,6 +571,31 @@ theorem eta_telescope (z : Fq) :
   rw [hif] at h
   rw [hα, h, hcz]
 
+/-- **η-pairing telescope** (`lem:fullslice` Step 2, `matching_identity`'s `hη`): pairing the
+η-exit relation `eta_telescope` (`êq(α,·) = ω + ∑_i λ_i·τ_i`) with the node values `V` gives the
+scalar identity `⟨η, V⟩ = ω_scalar + ∑_i λ_i·τ_scalar_i` (full sum over all levels). Combined with
+the consecutive `ρ`-step `evalT_mixed_rho_step` at the top level, this furnishes
+`η_scalar = ρ_{top} + λ_{top}·τ_{top}` — the terminal hypothesis `matching_identity` requires. -/
+theorem eta_pairing_telescope (δ : Cell P → Fp P) (j : Fin 2) :
+    (∑ s, eqPoly (ch.α) s * mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))
+      = (∑ s, eqPoly (powSeq (ch.z j) P.k₀) s *
+            mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m))
+        + ∑ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => (i : ℕ) < P.k₀),
+            lamData P Fq Dom ch (ch.z j) i *
+              (∑ s, ptensor (stairVec (czData P Fq (ch.z j)) (fun _ => drow)
+                  (lamData P Fq Dom ch (ch.z j)) i) s *
+                mle (fun c => liftT P Fq δ (s, c)) (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)) := by
+  conv_lhs => rw [eta_telescope P Fq Dom ch (ch.z j)]
+  simp only [Pi.add_apply, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, add_mul,
+    Finset.sum_mul]
+  rw [Finset.sum_add_distrib]
+  congr 1
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [Finset.mul_sum]
+  refine Finset.sum_congr rfl fun s _ => ?_
+  ring
+
 /-- The staircase row at an arbitrary point `β` (used for the Frobenius
 conjugates `β = α^{[r]}` in `cond:twist`). -/
 theorem aRow_czData_eq_vrow (z : Fq) (β : Fin P.k₀ → Fq) (i : Fin P.k₀) :
