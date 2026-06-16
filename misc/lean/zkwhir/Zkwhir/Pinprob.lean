@@ -1247,6 +1247,20 @@ theorem eq_zero_of_trace_mul_span {K L : Type*} [Field K] [Field L] [Algebra K L
   rw [Algebra.traceForm_apply, mul_comm]
   exact hφ w
 
+/-- **`lem:fullslice` Step 4, cell-family conclusion**: given the Step-3 factorization in trace
+form — `tr(E'(π) · (γ²·G_θ(a,b,c))) = 0` for every `π` and every cell `(a,b,c)` (from
+`tr∘F_θ = 0` and `F_θ[(1,π,a,b,c)] = γ²·E'(π)·G_θ(a,b,c)`) — with the `E'(π)` multipliers spanning
+`Fq` over `Fp` (`lem:span`, condition (i)), trace nondegeneracy (`eq_zero_of_trace_mul_span`)
+forces `γ²·G_θ(a,b,c) = 0` for **every** cell. Hence `F_θ` vanishes identically on the non-block
+mask cells — contradicting `cond:cross2`. This is the final logical step of `lem:fullslice`. -/
+theorem step4_gamma2G_zero {K L : Type*} [Field K] [Field L] [Algebra K L]
+    [FiniteDimensional K L] [Algebra.IsSeparable K L] {ιπ ιabc : Type*}
+    (E : ιπ → L) (G : ιabc → L) (mult : L)
+    (hspan : Submodule.span K (Set.range E) = ⊤)
+    (htr : ∀ (abc : ιabc) (π : ιπ), Algebra.trace K L (E π * (mult * G abc)) = 0) :
+    ∀ abc : ιabc, mult * G abc = 0 := fun abc =>
+  eq_zero_of_trace_mul_span hspan (by rintro s ⟨π, rfl⟩; exact htr abc π)
+
 /-- **Rank-3 witness for the two-level moment system** (`lem:fullslice` Step 2): at the
 specialization `ζ₁ = 0`, the `3 × 3` minor of the moment-coefficient map on `(S¹, R¹, R²)`
 has determinant `Π₁²·Π₂·ζ₂(1−ζ₂)`. So the map `(m₀,m₁,m₂) ↦ (S¹,R¹,S²,R²)` has rank `3`
