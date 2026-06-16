@@ -1417,6 +1417,44 @@ theorem blockMomentNodeForm (ch : Challenges P Fq Dom) (δ : Cell P → Fp P) (j
   linear_combination momentCombo_node_coeffs (E0 + powSeq (ch.z j) P.k₀ ℓ * (E1 - E0))
     (E1 - E0) (powSeq (ch.z j) P.k₀ ℓ) (∑ t, w t) (∑ t, w t * pts t) (∑ t, w t * pts t ^ 2)
 
+/-- **Per-block node form** (`lem:fullslice` Step 2): the `S^j·ρ^j + R^j·τ^j` summand of block `j`
+at level `ℓ` (the RHS of `blockMomentNodeForm`, without the `Π^j` prefix folded in). Abbreviation
+for the channel identity in node form. -/
+noncomputable def nodeForm (ch : Challenges P Fq Dom) (κ : viewKer P Fq Dom S ch) (j : Fin 2)
+    (ℓ : Fin P.k₀) (w pts : Fin 3 → Fq) : Fq :=
+  (∏ i ∈ Finset.univ.filter (fun i : Fin P.k₀ => i < ℓ),
+      eqf Fq (ch.α i) (powSeq (ch.z j) P.k₀ i)) *
+    (((1 - powSeq (ch.z j) P.k₀ ℓ) * (∑ t, w t)
+          + (2 * powSeq (ch.z j) P.k₀ ℓ - 1) * (∑ t, w t * pts t))
+        * (evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch ℓ 0 (powSeq (ch.z j) P.k₀))
+              (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+            + powSeq (ch.z j) P.k₀ ℓ *
+              (evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch ℓ 1 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+                - evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch ℓ 0 (powSeq (ch.z j) P.k₀))
+                  (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)))
+      + (-powSeq (ch.z j) P.k₀ ℓ * (1 - powSeq (ch.z j) P.k₀ ℓ) * (∑ t, w t)
+          + (1 - 2 * powSeq (ch.z j) P.k₀ ℓ ^ 2) * (∑ t, w t * pts t)
+          + (2 * powSeq (ch.z j) P.k₀ ℓ - 1) * (∑ t, w t * pts t ^ 2))
+        * (evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch ℓ 1 (powSeq (ch.z j) P.k₀))
+              (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)
+            - evalT P Fq (assemble P 0 (-κ.1)) (mixedPoint P Fq Dom ch ℓ 0 (powSeq (ch.z j) P.k₀))
+              (powSeq (ch.z j ^ 2 ^ P.k₀) P.m)))
+
+/-- **Single-level channel identity in node form** (`lem:fullslice` Step 2, the per-level input to
+matching): combining `channel_moment_of_viewKer` (the vanishing μ-combined channel identity) with
+`blockMomentNodeForm` for both blocks, the level-`ℓ` identity reads
+`nodeForm⁰ + γ·nodeForm¹ + γ²·∑ w·crossTerm = 0`. The matching equations of Step 2 are read off
+this by choosing the moments per level so that `∑_ℓ nodeFormʲ` matches `⟨θⱼηⱼ, V⟩`. -/
+theorem channel_moment_node_form (ch : Challenges P Fq Dom) (h2 : (2 : Fq) ≠ 0)
+    (hmf : MaskFree P Fq S) (κ : viewKer P Fq Dom S ch) (ℓ : Fin P.k₀) (w pts : Fin 3 → Fq) :
+    nodeForm P Fq Dom S ch κ 0 ℓ w pts + ch.γ * nodeForm P Fq Dom S ch κ 1 ℓ w pts
+      + ch.γ ^ 2 * (∑ t, w t * crossTerm P Fq Dom S (assemble P 0 (-κ.1)) ch ℓ (pts t)) = 0 := by
+  unfold nodeForm
+  rw [← blockMomentNodeForm P Fq Dom ch (assemble P 0 (-κ.1)) 0 ℓ w pts,
+      ← blockMomentNodeForm P Fq Dom ch (assemble P 0 (-κ.1)) 1 ℓ w pts]
+  exact channel_moment_of_viewKer P Fq Dom S ch h2 hmf κ ℓ w pts
+
 /-- **`êq(α, s)` as a multilinear polynomial in the `α` coordinates** (the building block of the
 `cond:cross2` rank-matrix entries `tr(ψ_c · êq(α, s))`). -/
 noncomputable def eqMvPoly {R : Type*} [CommRing R] {j : ℕ} (b : Cube j) :
