@@ -1295,6 +1295,23 @@ theorem rank3_relation {R : Type*} [CommRing R] (z1 z2 m0 m1 m2 : R) :
           * ((1 - z2) * m0 + (2 * z2 - 1) * m1) := by
   ring
 
+/-- **The Step-2 matching identity** (`lem:fullslice` Step 2, the uniform-in-θ representation;
+tex (582)–(584)): with the partial telescopes `ρ_{L₂} = ρ_{L₁} + λ_{L₁}·τ_{L₁}` and
+`η = ρ_{L₂} + λ_{L₂}·τ_{L₂}` (the top-two-level staircase structure of `eta_telescope`), the three
+matching equations `S_{L₁}+S_{L₂}=Θ`, `R_{L₂}=Θ·λ_{L₂}`, `R_{L₁}=λ_{L₁}(Θ−S_{L₂})` make the
+two-level node combination `∑ S_ℓ·ρ_ℓ + R_ℓ·τ_ℓ` equal `Θ·η`. The equations at levels below `L₁`
+hold automatically (they share the factor `S_{L₁}+S_{L₂}=Θ`), so this is the whole solve: the
+representation is **linear in Θ**, hence uniform over every direction `θ`. Generic module
+identity; `module` after substituting the equations. -/
+theorem matching_identity {F V : Type*} [Field F] [AddCommGroup V] [Module F V]
+    (rhoL1 tauL1 tauL2 : V) (lamL1 lamL2 SL1 SL2 RL1 RL2 Θ : F)
+    (hS : SL1 + SL2 = Θ) (hR2 : RL2 = Θ * lamL2) (hR1 : RL1 = lamL1 * (Θ - SL2)) :
+    SL1 • rhoL1 + SL2 • (rhoL1 + lamL1 • tauL1) + RL1 • tauL1 + RL2 • tauL2
+      = Θ • (rhoL1 + lamL1 • tauL1 + lamL2 • tauL2) := by
+  subst hR1 hR2
+  rw [← hS]
+  module
+
 /-- **Per-block μ-combined channel sum in `S·ρ + R·τ` node form** (`lem:fullslice` Step 2,
 fusion): for block `j`, the moment-weighted channel sum (the LHS of `prefixFactor_evalT_moment`)
 equals `Π^j · (S^j·ρ^j + R^j·τ^j)`, where `Π^j = ∏_{i<ℓ} eqf(α_i, z_j^{2^{i-1}})`, the moments are
