@@ -2511,4 +2511,39 @@ theorem masked_whir_statistical_zk_of_jointDetMatrix
       rw [RingHom.map_det]; exact hch)
     dataStar hStar
 
+/-- **Masked WHIR statistical HVZK, reduced to the JOINT rank matrix in KERNEL form** (the
+sharpest reduction of the entire proof). Same as `masked_whir_statistical_zk_of_jointDetMatrix`
+but with P2 stated in its natural **kernel form** (`hker`): for every challenge in the cond:cross2
+event, the evaluated matrix `M.map (eval (jointPoint ch))` has a *nonzero* kernel vector. This is
+the form C2 actually produces — the event's bad `ψ`, run through the value-row structure, *is* a
+kernel vector — and it is converted to the det-zero `hsub` by `jointDet_hsub_of_kernel`
+(`Matrix.exists_mulVec_eq_zero_iff`). The entire masked-WHIR ZK proof is now reduced to exactly:
+**(P4)** `M.det ≠ 0`, **(P3)** the degree bound `n·d ≤ 2^{k₀+7}`, and **(C2)** the kernel
+property — construct the value-row rank matrix `M` and exhibit the bad `ψ` as its kernel vector. -/
+theorem masked_whir_statistical_zk_of_jointDetKernel
+    [Nonempty Fq] [FiniteDimensional (Fp P) Fq]
+    [Algebra.IsSeparable (Fp P) Fq] [FiniteDimensional (Fp P) (Cube P.m → Fq)]
+    {ιβ : Type*} [Fintype ιβ] (b : Module.Basis ιβ (Fp P) Fq)
+    (h2 : (2 : Fq) ≠ 0) (hmf : MaskFree P Fq S) (hdom : (0 : Fp P) ∉ Dom)
+    (hbudget : P.t₀ + Module.finrank (Fp P) Fq * (2 + P.s₁) ≤ 2 ^ P.a)
+    (hprime : (Module.finrank (Fp P) Fq).Prime)
+    (hpdvd : (P.p - 1) ∣ (Fintype.card Fq - 1))
+    (hcop : Nat.Coprime (2 ^ P.k₀) ((Fintype.card Fq - 1) / (P.p - 1)))
+    (hdk : Module.finrank (Fp P) Fq ≤ P.k₀)
+    (hslack : 1 + P.k₀ * (2 * P.k₀ + 1 + 3 * 2 ^ (P.k₀ - 1)) ≤
+        Module.finrank (Fp P) Fq * P.p)
+    {n : ℕ} (M : Matrix (Fin n) (Fin n) (MvPolynomial (JointIdx P) Fq)) (hne : M.det ≠ 0)
+    (d : ℕ) (hM : ∀ i j, (M i j).totalDegree ≤ d) (hnd : n * d ≤ 2 ^ (P.k₀ + 7))
+    (hker : ∀ ch ∈ {ch : Challenges P Fq Dom | ∃ ψ : Cube P.m → Fq, ψ ≠ 0 ∧
+        ∀ s, dotFunc (fun c => Algebra.trace (Fp P) Fq (ψ c * eqPoly ch.α s))
+          ∈ Submodule.span (Fp P) (Set.range (confineGen P Fq Dom ch b))},
+        ∃ v : Fin n → Fq, v ≠ 0 ∧
+          (M.map (MvPolynomial.eval (jointPoint P Fq Dom ch))).mulVec v = 0)
+    (dataStar : DataAssign P) (hStar : Consistent P Fq S dataStar) :
+    IsSimulator P Fq Dom S
+      (honestTranscript P Fq Dom S dataStar) (εZK P Fq) :=
+  masked_whir_statistical_zk_of_jointDetMatrix P Fq Dom S b h2 hmf hdom hbudget
+    hprime hpdvd hcop hdk hslack M hne d hM hnd
+    (jointDet_hsub_of_kernel P Fq Dom M _ hker) dataStar hStar
+
 end ZkWhir
