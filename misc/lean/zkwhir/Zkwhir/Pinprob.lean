@@ -1247,6 +1247,20 @@ theorem eq_zero_of_trace_mul_span {K L : Type*} [Field K] [Field L] [Algebra K L
   rw [Algebra.traceForm_apply, mul_comm]
   exact hφ w
 
+/-- **Rank-3 witness for the two-level moment system** (`lem:fullslice` Step 2): at the
+specialization `ζ₁ = 0`, the `3 × 3` minor of the moment-coefficient map on `(S¹, R¹, R²)`
+has determinant `Π₁²·Π₂·ζ₂(1−ζ₂)`. So the map `(m₀,m₁,m₂) ↦ (S¹,R¹,S²,R²)` has rank `3`
+away from the hypersurface `Π₁ = 0 ∨ Π₂ = 0 ∨ ζ₂ ∈ {0,1}` — the explicit non-degeneracy
+that the uniform-in-θ representation of Step 2 relies on. -/
+theorem momentSystem_minor_det {R : Type*} [CommRing R] (p1 p2 z2 : R) :
+    Matrix.det !![p1, -p1, (0 : R); 0, p1, -p1;
+        -z2 * (1 - z2) * p2, (1 - 2 * z2 ^ 2) * p2, (2 * z2 - 1) * p2]
+      = p1 ^ 2 * p2 * (z2 * (1 - z2)) := by
+  rw [Matrix.det_fin_three]
+  simp only [Matrix.of_apply, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.head_cons,
+    Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_fin_const, Matrix.cons_val]
+  ring
+
 /-- **`êq(α, s)` as a multilinear polynomial in the `α` coordinates** (the building block of the
 `cond:cross2` rank-matrix entries `tr(ψ_c · êq(α, s))`). -/
 noncomputable def eqMvPoly {R : Type*} [CommRing R] {j : ℕ} (b : Cube j) :
