@@ -771,6 +771,42 @@ theorem spread_failure_le_subset (hprime : (Module.finrank (Fp P) Fq).Prime)
           rwa [(Finset.mem_powersetCard.mp hK).2] at h
     _ = _ := by rw [Finset.sum_const, Finset.card_powersetCard, nsmul_eq_mul]
 
+open scoped Classical in
+/-- **Condition (i) span ↔ `eqSpan` bridge** (`lem:fullslice` (i)): the subtype-indexed
+`E'(π)` multiplier family of `crossTerm_trace_ne_zero`'s `hspan` (products over
+`{i // m ≤ i < ℓ} → Bool`) spans the same submodule as `eqSpan` over the coordinate `Finset`
+`{i : m ≤ i < ℓ}`. Reindexing the subtype product to the filtered `Finset` (`Finset.prod_subtype`)
+and matching the `π`/`b` Boolean domains (each `J`-product depends only on the restriction). With
+`spread_failure_le_subset`, this turns `crossTerm_trace_ne_zero`'s `hspan` hypothesis into the
+measurable condition-(i) SPREAD event. -/
+theorem hspan_eq_eqSpan (ch : Challenges P Fq Dom) (m ℓ : Fin P.k₀) :
+    Submodule.span (Fp P) (Set.range
+        (fun π : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ} → Bool =>
+          ∏ j : {i : Fin P.k₀ // m ≤ i ∧ i < ℓ},
+            if π j then ch.α j.val else 1 - ch.α j.val))
+      = eqSpan (K := Fp P) ch.α (Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ)) := by
+  unfold eqSpan
+  rw [Set.image_univ]
+  congr 1
+  ext x
+  simp only [Set.mem_range]
+  constructor
+  · rintro ⟨π, rfl⟩
+    refine ⟨fun i => if h : m ≤ i ∧ i < ℓ then π ⟨i, h⟩ else false, ?_⟩
+    rw [Finset.prod_subtype (p := fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ)
+        (Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ))
+        (fun i => by simp)
+        (fun i => if (if h : m ≤ i ∧ i < ℓ then π ⟨i, h⟩ else false) then ch.α i else 1 - ch.α i)]
+    apply Finset.prod_congr rfl
+    intro j _
+    rw [dif_pos j.2, Subtype.coe_eta]
+  · rintro ⟨b, rfl⟩
+    refine ⟨fun j => b j.val, ?_⟩
+    rw [Finset.prod_subtype (p := fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ)
+        (Finset.univ.filter (fun i : Fin P.k₀ => m ≤ i ∧ i < ℓ))
+        (fun i => by simp)
+        (fun i => if b i then ch.α i else 1 - ch.α i)]
+
 /-- **Tail-SPREAD failure union bound** (the tail-SPREAD measure skeleton): the probability
 that the head-erased tail family misses `⊤` is at most the sum, over nonzero `Fp`-functionals
 `φ`, of `P[φ` vanishes on every tail product`]`. By `exists_dual_of_not_tail_spread`, every
