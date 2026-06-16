@@ -14,6 +14,25 @@ pub trait Air: Send + Sync + 'static {
 
     fn degree_air(&self) -> usize;
 
+    /// Maximum degree of the constraint composition along a fold line
+    /// `C(lo + z*diff)` — the number of fresh eval points the sumcheck prover
+    /// needs per pair. Defaults to `degree_air()`; override it lower when the
+    /// declared degree over-states the true one, and the prover skips the
+    /// redundant top eval pass. The wire format is unaffected (messages stay
+    /// sized by `degree_air`; the omitted top coefficient is exactly zero).
+    fn degree_z(&self) -> usize {
+        self.degree_air()
+    }
+
+    /// Whether carrying the per-pair constraint-value table across sumcheck
+    /// rounds pays for itself for this AIR. It trades one full eval per pair for
+    /// a table lookup plus a challenge-time extrapolation — a win when
+    /// constraint eval is expensive. Both strategies are bit-identical; this
+    /// only selects the faster one.
+    fn constraint_table_profitable(&self) -> bool {
+        true
+    }
+
     fn n_columns(&self) -> usize;
 
     fn n_constraints(&self) -> usize;
@@ -24,6 +43,13 @@ pub trait Air: Send + Sync + 'static {
     fn n_shift_columns(&self) -> usize;
 
     fn eval<AB: AirBuilder>(&self, builder: &mut AB, extra_data: &Self::ExtraData);
+
+    /// Emit only the bus constraints (the constraint table's seed-round z=0/z=1
+    /// nodes, where all genuine gates vanish on valid rows). Defaults to the
+    /// full `eval` (bit-identical, just slower), so non-overriding AIRs stay correct.
+    fn eval_bus_only<AB: AirBuilder>(&self, builder: &mut AB, extra_data: &Self::ExtraData) {
+        self.eval(builder, extra_data);
+    }
 }
 
 pub trait AirBuilder: Sized {

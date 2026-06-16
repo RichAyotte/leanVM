@@ -427,6 +427,13 @@ impl<const BUS: bool> Air for Poseidon8Precompile<BUS> {
         // gates are at most degree 2; the round gates dominate at degree 7.
         8
     }
+    fn degree_z(&self) -> usize {
+        // True fold-line degree: every gate is degree ≤ 7 (the x^7 S-box gates
+        // dominate; state/x are linear in committed columns), so the z=8 eval
+        // the declared `degree_air()` would request is redundant. `degree_air()`
+        // stays 8 so the wire format is unchanged.
+        7
+    }
     fn n_shift_columns(&self) -> usize {
         0
     }

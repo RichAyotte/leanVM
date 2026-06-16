@@ -41,6 +41,41 @@ pub trait OuterSumcheckSession<EF: ExtensionField<PF<EF>>>: Debug {
     fn final_column_evals(&self) -> Vec<EF>;
 }
 
+// ---------------------------------------------------------------------------
+// Constraint-table optimization (prover-only, bit-identical round polynomials)
+//
+// Each sumcheck round evaluates the constraint composition `C` at every
+// surviving `(lo, hi)` pair. Rather than recompute `C` from the columns every
+// round, we carry a table `T_i[x] = C(r_0..r_{i-1}, x)` of its value at each
+// pair on the current folded storage. A later round then reads its z=0
+// accumulator straight from `T_i` (a lookup, no constraint eval) and only
+// freshly evaluates the off-row nodes z = 2..=d_z; at challenge time the table
+// is advanced to `T_{i+1}` by Lagrange-extrapolating those node values.
+//
+// Gated per-AIR by `Air::constraint_table_profitable` (worth it when constraint
+// eval is expensive, e.g. Poseidon; skipped for the cheap execution table). Any
+// non-conforming round falls back to the fresh-eval path, and a dev-only
+// dual-compute assert checks the two agree.
+// ---------------------------------------------------------------------------
+
+/// The carried table `T_i`. Packed through phase 1, unpacked at the same
+/// boundary as the columns. The padding tail is not materialized: an index
+/// at/after the active boundary reads `constraints_eval_at_padding`.
+#[derive(Debug)]
+enum ConstraintTable<EF: ExtensionField<PF<EF>>> {
+    Packed(Vec<EFPacking<EF>>),
+    Unpacked(Vec<EF>),
+}
+
+/// This round's fresh per-pair node evaluations, used at challenge time to
+/// extrapolate `T_{i+1}`. Seed round: nodes z = 0..=d_z. Table rounds:
+/// z = 2..=d_z (z=0 and z=1 come from `T_i[i0]`, `T_i[i1]`).
+#[derive(Debug)]
+enum NodeEvalCache<EF: ExtensionField<PF<EF>>> {
+    Packed(Vec<Vec<EFPacking<EF>>>),
+    Unpacked(Vec<Vec<EF>>),
+}
+
 #[derive(Debug)]
 pub struct AirSumcheckSession<'a, EF: ExtensionField<PF<EF>>, A: Air>
 where
@@ -58,6 +93,11 @@ where
     initial_n_vars: usize,
     constraints_eval_at_padding: EF,
     rounds_done: usize,
+    /// Kill-switch for the constraint table: flipped off permanently on any
+    /// non-conforming shape, falling back to the (bit-identical) fresh-eval path.
+    table_enabled: bool,
+    constraint_table: Option<ConstraintTable<EF>>,
+    node_evals: Option<NodeEvalCache<EF>>,
 }
 
 impl<'a, EF: ExtensionField<PF<EF>>, A: Air> AirSumcheckSession<'a, EF, A>
@@ -108,6 +148,7 @@ where
             _ => unreachable!(),
         };
 
+        let table_enabled = computation.constraint_table_profitable();
         Self {
             multilinears,
             eq_factor,
@@ -119,6 +160,9 @@ where
             initial_n_vars,
             constraints_eval_at_padding,
             rounds_done: 0,
+            table_enabled,
+            constraint_table: None,
+            node_evals: None,
         }
     }
 }
@@ -221,7 +265,8 @@ where
     }
 
     fn compute_bare_round_poly(&mut self) -> DensePolynomial<EF> {
-        let split_eq = SplitEq::new(&self.permuted_alphas(self.initial_n_vars - self.rounds_done - 1));
+        let split_eq = info_span!("split_eq_new")
+            .in_scope(|| SplitEq::new(&self.permuted_alphas(self.initial_n_vars - self.rounds_done - 1)));
         let active_count_pairs = self.active_count_pairs();
         let storage_shift = if self.in_phase_1() {
             packing_log_width::<EF>()
@@ -237,14 +282,136 @@ where
             EF::ZERO
         };
 
-        let p_evals_raw = compute_raw_poly(
-            &self.multilinears.by_ref(),
-            &self.computation,
-            &self.extra_data,
-            &split_eq,
-            self.folding_bit_packed(),
-            active_count_pairs,
-        );
+        // The seed round caches all node vectors; table rounds get the z=0
+        // accumulator from `T_i` (no constraint eval) and cache only the fresh
+        // z = 2..d_z vectors. Any non-conforming shape falls back to the
+        // fresh-eval path (bit-identical) and disables the table for the session.
+        let fold_bit = self.folding_bit_packed();
+        #[derive(PartialEq)]
+        enum RoundMode {
+            SeedPacked,
+            TablePacked,
+            TableUnpacked,
+            Fallback,
+        }
+        let mode = if !self.table_enabled {
+            RoundMode::Fallback
+        } else {
+            match (&self.multilinears.by_ref(), &self.constraint_table) {
+                (MleGroupRef::BasePacked(_), None) if self.rounds_done == 0 && self.in_phase_1() => {
+                    RoundMode::SeedPacked
+                }
+                (MleGroupRef::ExtensionPacked(_), Some(ConstraintTable::Packed(_))) => RoundMode::TablePacked,
+                (MleGroupRef::Extension(_), Some(ConstraintTable::Unpacked(_))) => RoundMode::TableUnpacked,
+                _ => RoundMode::Fallback,
+            }
+        };
+        if mode == RoundMode::Fallback {
+            // Non-conforming shape: disable the table permanently for this session
+            // (a no-op if it was already disabled, since `constraint_table` is then None).
+            self.table_enabled = false;
+            self.constraint_table = None;
+        }
+        let (p_evals_raw, new_cache): (Vec<EF>, Option<NodeEvalCache<EF>>) = match mode {
+            RoundMode::SeedPacked => {
+                let MleGroupRef::BasePacked(cols) = self.multilinears.by_ref() else {
+                    unreachable!()
+                };
+                // Bus-only evals for the on-row nodes (z=0, z=1). The default
+                // `eval_bus_only` falls back to the full eval (bit-identical).
+                let eval_bus_01 = |a: &A, point: &[PFPacking<EF>], xd: &A::ExtraData| -> EFPacking<EF> {
+                    let n_cols = a.n_columns();
+                    let mut folder = ConstraintFolderPacked::new(&point[..n_cols], &point[n_cols..], xd);
+                    a.eval_bus_only(&mut folder, xd);
+                    folder.accumulator
+                };
+                let (accs, cache) = cached_round_pass::<EF, A, PFPacking<EF>, EFPacking<EF>, _, _, _>(
+                    &cols,
+                    |j| split_eq.get_packed(j),
+                    &self.computation,
+                    &self.extra_data,
+                    fold_bit,
+                    active_count_pairs,
+                    A::eval_packed_base,
+                    eval_bus_01,
+                    None,
+                );
+                let accs = accs.into_iter().map(unpack_sum_packed::<EF>).collect();
+                (accs, Some(NodeEvalCache::Packed(cache)))
+            }
+            RoundMode::TablePacked => {
+                let MleGroupRef::ExtensionPacked(cols) = self.multilinears.by_ref() else {
+                    unreachable!()
+                };
+                let Some(ConstraintTable::Packed(table)) = &self.constraint_table else {
+                    unreachable!()
+                };
+                let (accs, cache) = cached_round_pass::<EF, A, EFPacking<EF>, EFPacking<EF>, _, _, _>(
+                    &cols,
+                    |j| split_eq.get_packed(j),
+                    &self.computation,
+                    &self.extra_data,
+                    fold_bit,
+                    active_count_pairs,
+                    A::eval_packed_extension,
+                    A::eval_packed_extension,
+                    Some(table),
+                );
+                let accs = accs.into_iter().map(unpack_sum_packed::<EF>).collect();
+                (accs, Some(NodeEvalCache::Packed(cache)))
+            }
+            RoundMode::TableUnpacked => {
+                let MleGroupRef::Extension(cols) = self.multilinears.by_ref() else {
+                    unreachable!()
+                };
+                let Some(ConstraintTable::Unpacked(table)) = &self.constraint_table else {
+                    unreachable!()
+                };
+                let (accs, cache) = cached_round_pass::<EF, A, EF, EF, _, _, _>(
+                    &cols,
+                    |j| split_eq.get_unpacked(j),
+                    &self.computation,
+                    &self.extra_data,
+                    fold_bit,
+                    active_count_pairs,
+                    A::eval_extension,
+                    A::eval_extension,
+                    Some(table),
+                );
+                (accs, Some(NodeEvalCache::Unpacked(cache)))
+            }
+            RoundMode::Fallback => {
+                let fresh = compute_raw_poly(
+                    &self.multilinears.by_ref(),
+                    &self.computation,
+                    &self.extra_data,
+                    &split_eq,
+                    fold_bit,
+                    active_count_pairs,
+                );
+                (fresh, None)
+            }
+        };
+
+        // In dev builds, check the table path reproduces the fresh-eval accumulators exactly.
+        #[cfg(debug_assertions)]
+        if new_cache.is_some() {
+            let fresh = compute_raw_poly(
+                &self.multilinears.by_ref(),
+                &self.computation,
+                &self.extra_data,
+                &split_eq,
+                fold_bit,
+                active_count_pairs,
+            );
+            debug_assert_eq!(
+                p_evals_raw, fresh,
+                "constraint-table dual-compute mismatch (round={})",
+                self.rounds_done
+            );
+        }
+        self.node_evals = new_cache;
+
         let mut p_evals: Vec<EF> = p_evals_raw
             .into_iter()
             .map(|v| (v + padding_contribution) * self.missing_mul_factor)
@@ -272,15 +439,59 @@ where
         let was_in_phase_1 = self.in_phase_1();
         let fold_bit = self.folding_bit_packed();
 
+        // Advance the table: extrapolate `T_{i+1}[j] = C_pair_j(challenge)` from
+        // the cached node vectors (+ `T_i` lookups in table rounds) before the fold.
+        if self.table_enabled {
+            let new_pairs = self.active_count_pairs();
+            let nodes: Vec<EF> = (0..=self.computation.degree_z()).map(EF::from_usize).collect();
+            let weights = lagrange_basis_evals(&nodes, &[challenge]).pop().unwrap();
+            let next = match (self.constraint_table.take(), self.node_evals.take()) {
+                (None, Some(NodeEvalCache::Packed(cache))) => Some(ConstraintTable::Packed(extrapolate_table_packed(
+                    None, &cache, &weights, fold_bit, new_pairs,
+                ))),
+                (Some(ConstraintTable::Packed(table)), Some(NodeEvalCache::Packed(cache))) => {
+                    Some(ConstraintTable::Packed(extrapolate_table_packed(
+                        Some(&table),
+                        &cache,
+                        &weights,
+                        fold_bit,
+                        new_pairs,
+                    )))
+                }
+                (Some(ConstraintTable::Unpacked(table)), Some(NodeEvalCache::Unpacked(cache))) => {
+                    Some(ConstraintTable::Unpacked(extrapolate_table_unpacked(
+                        &table,
+                        &cache,
+                        &weights,
+                        fold_bit,
+                        new_pairs,
+                        self.constraints_eval_at_padding,
+                    )))
+                }
+                _ => None,
+            };
+            match next {
+                Some(t) => self.constraint_table = Some(t),
+                None => {
+                    self.table_enabled = false;
+                    self.constraint_table = None;
+                }
+            }
+        }
+
         self.multilinears = self.multilinears.by_ref().fold_at_bit(challenge, fold_bit).into();
 
         self.current_unpadded_len = self.current_unpadded_len.div_ceil(2);
         self.rounds_done += 1;
         self.eq_factor.pop();
 
-        // Phase 1 → phase 2: unpack
+        // Phase 1 → phase 2: unpack columns and the constraint table together.
         if was_in_phase_1 && !self.in_phase_1() {
             self.multilinears = self.multilinears.by_ref().unpack().as_owned_or_clone().into();
+            if let Some(ConstraintTable::Packed(t)) = &self.constraint_table {
+                let unpacked: Vec<EF> = EFPacking::<EF>::to_ext_iter(t.iter().copied()).collect();
+                self.constraint_table = Some(ConstraintTable::Unpacked(unpacked));
+            }
         }
     }
 
@@ -319,8 +530,6 @@ where
     A: Air + 'static,
     A::ExtraData: AlphaPowers<EF>,
 {
-    let unpack_sum_packed = |s: EFPacking<EF>| -> EF { EFPacking::<EF>::to_ext_iter([s]).sum::<EF>() };
-
     match multilinears {
         MleGroupRef::BasePacked(cols) => compute_raw_poly_impl::<EF, A, PFPacking<EF>, EFPacking<EF>, _, _>(
             cols,
@@ -330,7 +539,7 @@ where
             fold_bit,
             active_count_pairs,
             A::eval_packed_base,
-            unpack_sum_packed,
+            unpack_sum_packed::<EF>,
         ),
         MleGroupRef::ExtensionPacked(cols) => compute_raw_poly_impl::<EF, A, EFPacking<EF>, EFPacking<EF>, _, _>(
             cols,
@@ -340,7 +549,7 @@ where
             fold_bit,
             active_count_pairs,
             A::eval_packed_extension,
-            unpack_sum_packed,
+            unpack_sum_packed::<EF>,
         ),
         MleGroupRef::Base(cols) => compute_raw_poly_impl::<EF, A, PF<EF>, EF, _, _>(
             cols,
@@ -385,7 +594,9 @@ where
     GetEq: Fn(usize) -> EFT + Sync + Send,
     UnpackSum: Fn(EFT) -> EF + Sync + Send,
 {
-    let degree = computation.degree();
+    // Fresh-eval count per pair: sized by the true constraint degree `degree_z`
+    // (the bare-poly interpolation and wire format stay sized by `degree_air`).
+    let degree = computation.degree_z();
     let n_cols = cols.len();
     let stride = 1usize << fold_bit;
     let lo_mask = stride - 1;
@@ -431,6 +642,195 @@ where
     acc.into_iter().map(unpack_sum).collect()
 }
 
+#[inline(always)]
+fn unpack_sum_packed<EF: ExtensionField<PF<EF>>>(s: EFPacking<EF>) -> EF {
+    EFPacking::<EF>::to_ext_iter([s]).sum::<EF>()
+}
+
+/// One round pass that also feeds the constraint table. Two modes:
+/// - `table = None` (seed round): fresh evals at z = 0..=d_z, all cached; the
+///   message accumulator takes z=0 into `acc[0]` and z=2.. into `acc[1..]`.
+/// - `table = Some(T_i)`: `acc[0]` comes from `T_i` (no constraint eval), fresh
+///   evals at z = 2..=d_z only, cached for the challenge-time extrapolation.
+///
+/// Returns `(message accumulators, cached node vectors indexed by new_j)`.
+#[allow(clippy::too_many_arguments)]
+fn cached_round_pass<EF, A, IF, EFT, GetEq, EvalFn, EvalFn01>(
+    cols: &[&[IF]],
+    get_split_eq: GetEq,
+    computation: &A,
+    extra_data: &A::ExtraData,
+    fold_bit: usize,
+    active_count_pairs: usize,
+    eval_fn: EvalFn,
+    eval_fn_01: EvalFn01,
+    table: Option<&[EFT]>,
+) -> (Vec<EFT>, Vec<Vec<EFT>>)
+where
+    EF: ExtensionField<PF<EF>>,
+    A: Air + 'static,
+    A::ExtraData: AlphaPowers<EF>,
+    IF: Copy + Send + Sync + Sub<Output = IF> + AddAssign + PrimeCharacteristicRing,
+    EFT: Copy + Send + Sync + Add<Output = EFT> + AddAssign + Mul<Output = EFT> + PrimeCharacteristicRing,
+    GetEq: Fn(usize) -> EFT + Sync + Send,
+    EvalFn: Fn(&A, &[IF], &A::ExtraData) -> EFT + Sync + Send,
+    EvalFn01: Fn(&A, &[IF], &A::ExtraData) -> EFT + Sync + Send,
+{
+    let degree = computation.degree_z();
+    let n_cols = cols.len();
+    let stride = 1usize << fold_bit;
+    let lo_mask = stride - 1;
+    let is_seed = table.is_none();
+    let n_cached = if is_seed { degree + 1 } else { degree - 1 };
+
+    let cache: Vec<Vec<EFT>> = (0..n_cached)
+        .map(|_| unsafe { uninitialized_vec::<EFT>(active_count_pairs) })
+        .collect();
+
+    let acc = parallel::map_reduce_with_state(
+        active_count_pairs,
+        || (Vec::<IF>::with_capacity(n_cols), Vec::<IF>::with_capacity(n_cols)),
+        || vec![EFT::ZERO; degree],
+        |(point, diff), acc, new_j| {
+            let i_hi = new_j >> fold_bit;
+            let i_lo = new_j & lo_mask;
+            let i0 = (i_hi << (fold_bit + 1)) | i_lo;
+            let i1 = i0 | stride;
+            let partial_eq = get_split_eq(new_j);
+            point.clear();
+            diff.clear();
+            for c in cols {
+                let lo = c[i0];
+                let hi = c[i1];
+                point.push(lo);
+                diff.push(hi - lo);
+            }
+            // SAFETY: each `new_j` is visited exactly once across all tasks;
+            // every cache slot is written exactly once before being read.
+            let write_cache = |vec_idx: usize, v: EFT| unsafe {
+                let ptr = cache[vec_idx].as_ptr() as *mut EFT;
+                *ptr.add(new_j) = v;
+            };
+            match table {
+                None => {
+                    // Seed: z=0 and z=1 are on-row (bus-only fast path applies);
+                    // z = 2.. are off-row points needing the full eval.
+                    let v0 = eval_fn_01(computation, point, extra_data);
+                    write_cache(0, v0);
+                    acc[0] += v0 * partial_eq;
+                    for k in 0..n_cols {
+                        point[k] += diff[k];
+                    }
+                    let v1 = eval_fn_01(computation, point, extra_data);
+                    write_cache(1, v1);
+                    for (zi, acc_z) in acc[1..].iter_mut().enumerate() {
+                        for k in 0..n_cols {
+                            point[k] += diff[k];
+                        }
+                        let v = eval_fn(computation, point, extra_data);
+                        write_cache(2 + zi, v);
+                        *acc_z += v * partial_eq;
+                    }
+                }
+                Some(t) => {
+                    // Table: z = 0 from T_i (i0 is always inside the active prefix).
+                    acc[0] += t[i0] * partial_eq;
+                    for k in 0..n_cols {
+                        point[k] += diff[k];
+                    }
+                    for (zi, acc_z) in acc[1..].iter_mut().enumerate() {
+                        for k in 0..n_cols {
+                            point[k] += diff[k];
+                        }
+                        let v = eval_fn(computation, point, extra_data);
+                        write_cache(zi, v);
+                        *acc_z += v * partial_eq;
+                    }
+                }
+            }
+        },
+        |mut a, b| {
+            for i in 0..degree {
+                a[i] += b[i];
+            }
+            a
+        },
+    );
+
+    (acc, cache)
+}
+
+/// `T_{i+1}[new_j] = w_0·T_i[i0] + w_1·T_i[i1] + Σ_z w_z·v_z[new_j]`. Packed
+/// phase: chunk alignment keeps `i0`, `i1` inside the active prefix.
+fn extrapolate_table_packed<EF: ExtensionField<PF<EF>>>(
+    table: Option<&[EFPacking<EF>]>,
+    cache: &[Vec<EFPacking<EF>>],
+    weights: &[EF],
+    fold_bit: usize,
+    new_pairs: usize,
+) -> Vec<EFPacking<EF>> {
+    let w_packed: Vec<EFPacking<EF>> = weights.iter().map(|&w| EFPacking::<EF>::from(w)).collect();
+    let stride = 1usize << fold_bit;
+    let lo_mask = stride - 1;
+    let mut out = unsafe { uninitialized_vec::<EFPacking<EF>>(new_pairs) };
+    const CHUNK_P: usize = 1 << 10;
+    parallel::par_chunks_mut(&mut out, CHUNK_P, |chunk_idx, chunk| {
+        for (off, slot) in chunk.iter_mut().enumerate() {
+            let new_j = chunk_idx * CHUNK_P + off;
+            let mut v = match table {
+                Some(t) => {
+                    let i_hi = new_j >> fold_bit;
+                    let i_lo = new_j & lo_mask;
+                    let i0 = (i_hi << (fold_bit + 1)) | i_lo;
+                    let i1 = i0 | stride;
+                    debug_assert!(i1 < t.len(), "packed table update read past the active prefix");
+                    w_packed[0] * t[i0] + w_packed[1] * t[i1]
+                }
+                None => w_packed[0] * cache[0][new_j] + w_packed[1] * cache[1][new_j],
+            };
+            let fresh_off = if table.is_some() { 0 } else { 2 };
+            for (zi, w) in w_packed[2..].iter().enumerate() {
+                v += *w * cache[fresh_off + zi][new_j];
+            }
+            *slot = v;
+        }
+    });
+    out
+}
+
+/// Unpacked-phase variant; a straddle pair may read `T_i[i1]` past the active
+/// boundary, where the value is the round-invariant padding constant.
+fn extrapolate_table_unpacked<EF: ExtensionField<PF<EF>>>(
+    table: &[EF],
+    cache: &[Vec<EF>],
+    weights: &[EF],
+    fold_bit: usize,
+    new_pairs: usize,
+    pad_value: EF,
+) -> Vec<EF> {
+    let stride = 1usize << fold_bit;
+    let lo_mask = stride - 1;
+    let mut out = unsafe { uninitialized_vec::<EF>(new_pairs) };
+    const CHUNK_U: usize = 1 << 12;
+    parallel::par_chunks_mut(&mut out, CHUNK_U, |chunk_idx, chunk| {
+        for (off, slot) in chunk.iter_mut().enumerate() {
+            let new_j = chunk_idx * CHUNK_U + off;
+            let i_hi = new_j >> fold_bit;
+            let i_lo = new_j & lo_mask;
+            let i0 = (i_hi << (fold_bit + 1)) | i_lo;
+            let i1 = i0 | stride;
+            let t0 = table[i0];
+            let t1 = if i1 < table.len() { table[i1] } else { pad_value };
+            let mut v = weights[0] * t0 + weights[1] * t1;
+            for (zi, w) in weights[2..].iter().enumerate() {
+                v += *w * cache[zi][new_j];
+            }
+            *slot = v;
+        }
+    });
+    out
+}
+
 #[instrument(skip_all)]
 pub fn prove_batched_air_sumcheck<'a, EF: ExtensionField<PF<EF>>>(
     prover_state: &mut impl FSProver<EF>,
@@ -443,6 +843,7 @@ pub fn prove_batched_air_sumcheck<'a, EF: ExtensionField<PF<EF>>>(
     let mut k: Vec<EF> = vec![EF::ONE; sessions.len()];
 
     for round in 0..n_rounds {
+        let round_span = info_span!("air_round", round).entered();
         let mut combined_coeffs = EF::zero_vec(max_full_degree + 1);
         let mut bare_polys: Vec<Option<DensePolynomial<EF>>> = vec![None; sessions.len()];
 
@@ -451,7 +852,7 @@ pub fn prove_batched_air_sumcheck<'a, EF: ExtensionField<PF<EF>>>(
             if round < join_round {
                 combined_coeffs[1] += k[idx] * session.sum();
             } else {
-                let bare_poly = session.compute_bare_round_poly();
+                let bare_poly = info_span!("air_poly", session = idx).in_scope(|| session.compute_bare_round_poly());
                 let full_coeffs = expand_bare_to_full(&bare_poly.coeffs, session.eq_alpha());
                 for (i, &c) in full_coeffs.iter().enumerate() {
                     combined_coeffs[i] += k[idx] * c;
@@ -469,9 +870,10 @@ pub fn prove_batched_air_sumcheck<'a, EF: ExtensionField<PF<EF>>>(
             if round < join_round {
                 k[idx] *= challenge;
             } else if let Some(bare_poly) = &bare_polys[idx] {
-                session.process_challenge(challenge, bare_poly);
+                info_span!("air_fold", session = idx).in_scope(|| session.process_challenge(challenge, bare_poly));
             }
         }
+        drop(round_span);
     }
 
     MultilinearPoint(challenges)

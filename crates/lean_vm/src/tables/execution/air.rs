@@ -45,6 +45,11 @@ impl<const BUS: bool> Air for ExecutionTable<BUS> {
     fn degree_air(&self) -> usize {
         5
     }
+    // The constraint table regresses the cheap 14-constraint execution eval
+    // (its bookkeeping doesn't amortize), so keep the fresh-eval path here.
+    fn constraint_table_profitable(&self) -> bool {
+        false
+    }
     fn n_shift_columns(&self) -> usize {
         2
     }
