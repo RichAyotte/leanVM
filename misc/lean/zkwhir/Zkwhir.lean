@@ -17,3 +17,4 @@ import Zkwhir.Linearized
 import Zkwhir.Twist
 import Zkwhir.Pinning
 import Zkwhir.Pinprob
+import Zkwhir.CrossWitnessDet
