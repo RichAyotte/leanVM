@@ -1467,6 +1467,38 @@ theorem crossMinor_ne_zero {R : Type*} [Field R]
   exact mul_ne_zero (mul_ne_zero (mul_ne_zero (mul_ne_zero (mul_ne_zero
     (pow_ne_zero 2 hγ) hν) hg) (mul_ne_zero hα0 hα1)) hAc) hbracket
 
+/-- **`ν₁₁` in reduced closed form** (`lem:coupled` (ii), tex:543): the coupled-chains coefficient
+`ν₁₁ = λ₁·C₂/(C₂B₁ − B₂C₁)` of `coupled_repr_block1`, once the chain denominator factors as the
+diagonal difference `C₂B₁ − B₂C₁ = C₁·C₂·δ₁` (its closed form per `coupled_repr_block1`'s doc),
+collapses to `λ₁/(C₁·δ₁)`. The `C₂` factor cancels. With the tex:543 specialization
+`C₁ = 2z₁−1`, `λ₁ = α₁−z₁`, `δ₁ = d₁` this is the paper's `ν₁₁ = (α₁−z₁)/((2z₁−1)·d₁)`. -/
+theorem nu11_reduced {F : Type*} [Field F] (lam1 C1 C2 δ1 : F) (hC2 : C2 ≠ 0) :
+    lam1 * C2 / (C1 * C2 * δ1) = lam1 / (C1 * δ1) := by
+  rw [show lam1 * C2 = C2 * lam1 by ring, show C1 * C2 * δ1 = C2 * (C1 * δ1) by ring,
+    mul_div_mul_left _ _ hC2]
+
+/-- **`ν₁₁` is nonzero** (`lem:coupled` (ii), the `hν` ingredient of `crossMinor_ne_zero`): in the
+reduced closed form `λ₁/(C₁·δ₁)`, with `λ₁ = α₁−z₁ ≠ 0` (condition (ii) at level `1`),
+`C₁ = 2z₁−1 ≠ 0` (the staircase pivot), and `δ₁ = d₁ ≠ 0` (the chain diagonal difference,
+`α₁ ∉ Fp` via `lem:linearized`), the Cramer coefficient does not vanish. -/
+theorem nu11_ne_zero {F : Type*} [Field F] (lam1 C1 δ1 : F)
+    (hlam : lam1 ≠ 0) (hC1 : C1 ≠ 0) (hδ : δ1 ≠ 0) :
+    lam1 / (C1 * δ1) ≠ 0 :=
+  div_ne_zero hlam (mul_ne_zero hC1 hδ)
+
+/-- **The `cond:cross2` analytic prefactor is nonzero** (tex:543, the `hν`/`hg` ingredients of
+`crossMinor_ne_zero` assembled): the witness-minor prefactor `ν₁₁·(1+g(z₂))`, with `ν₁₁` in its
+reduced closed form `(α₁−z₁)/((2z₁−1)·d₁)` (`nu11_ne_zero`) and `1+g(z₂) = 2z₂(1−z₂)/(2z₂−1)`
+(`one_add_gFun`, nonzero off `{0,1}` by `one_add_gFun_ne_zero`), is nonzero precisely under the
+standing genericity `α₁ ≠ z₁`, `2z_j ≠ 1`, `z₂ ∉ {0,1}`, `d₁ ≠ 0`. This discharges the analytic
+half of the witness minor; the combinatorial bracket is the remaining `lem:binpow` factor. -/
+theorem crossPrefactor_ne_zero (z1 z2 lam1 δ1 : Fq) (h2 : (2 : Fq) ≠ 0)
+    (hz1 : 2 * z1 - 1 ≠ 0) (hlam : lam1 ≠ 0) (hδ : δ1 ≠ 0)
+    (hz2 : 2 * z2 - 1 ≠ 0) (hz20 : z2 ≠ 0) (hz21 : z2 ≠ 1) :
+    lam1 / ((2 * z1 - 1) * δ1) * (1 + gFun Fq z2) ≠ 0 :=
+  mul_ne_zero (nu11_ne_zero lam1 (2 * z1 - 1) δ1 hlam hz1 hδ)
+    (one_add_gFun_ne_zero Fq h2 z2 hz2 hz20 hz21)
+
 /-- **Per-level `S¹`-determination** (`lem:fullslice` Step 2, the threading function `f_ℓ`): under
 the rank-3 genericity `C' ≠ 0` (the `s²`-coefficient of `rank3_relation`), the block-2 output
 `s² = (1−ζ₂)m₀+(2ζ₂−1)m₁` of any moment image is an explicit **affine function of the other three
