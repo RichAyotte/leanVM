@@ -1548,6 +1548,24 @@ theorem bracket_cellPoly_ne_zero {j : ℕ} (sStar sPP : Cube j) (hne : sStar ≠
         • cellPoly (R := Fq) b) ≠ 0 := by
   exact cellPoly_combo_ne_zero (bracketTable_ne_zero Fq sStar sPP hne w wPP hw)
 
+/-- **The single-class Lagrange weight along the staircase is the cell polynomial** (the z/zf-block
+degree tool): `êq(powSeq w, c) = (cellPoly c).aeval w`, i.e. the binary-power substitution of the
+Lagrange weight `êq(·, c)` is the univariate cell polynomial. Specializing `mle_powSeq_eq_aeval`
+at the Kronecker table `δ_c` (where `mle δ_c x = êq(x, c)`). Consequence: any entry of `M` whose
+challenge-dependence enters through `êq(powSeq(z_j), c)` is a univariate in `z_j` of degree
+`< 2^j` (`cellPoly_natDegree_lt`) — the `2^{k₀}`-in-each-`z_j` degree source for the value-row
+system (with `j = k₀`). -/
+theorem eqPoly_powSeq_eq_aeval_cellPoly {j : ℕ} (c : Cube j) (w : Fq) :
+    eqPoly (powSeq w j) c = Polynomial.aeval w (cellPoly (R := Fq) c) := by
+  have h := mle_powSeq_eq_aeval (fun b : Cube j => if b = c then (1 : Fq) else 0) w
+  have hmle : mle (fun b : Cube j => if b = c then (1 : Fq) else 0) (powSeq w j)
+      = eqPoly (powSeq w j) c := by
+    unfold mle; simp [mul_ite, Finset.sum_ite_eq']
+  have hsum : (∑ b : Cube j, (if b = c then (1 : Fq) else 0) • cellPoly (R := Fq) b)
+      = cellPoly c := by
+    simp [ite_smul, Finset.sum_ite_eq']
+  rw [← hmle, h, hsum]
+
 /-- **The `cond:cross2` witness minor at the paper's explicit factors** (tex:543, the assembled
 form): instantiating `crossMinor_ne_zero` with `ν₁₁` in its closed form `λ₁/((2z₁−1)·δ₁)`
 (`nu11_ne_zero`) and the coupling `g = gFun z₂` (`one_add_gFun_ne_zero`), the analytic
