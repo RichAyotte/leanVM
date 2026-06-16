@@ -1276,6 +1276,25 @@ theorem momentCombo_node_coeffs {R : Type*} [CommRing R] (rho tau zeta m0 m1 m2 
         + (-zeta * (1 - zeta) * m0 + (1 - 2 * zeta ^ 2) * m1 + (2 * zeta - 1) * m2) * tau := by
   ring
 
+/-- **The rank-3 relation, concretely** (`lem:fullslice` Step 2, the "Solving" mechanism): with
+the normalized (per-block prefix `Π^j` divided out) moment outputs `s^j = (1−ζ_j)m₀+(2ζ_j−1)m₁`
+and `r^j = −ζ_j(1−ζ_j)m₀+(1−2ζ_j²)m₁+(2ζ_j−1)m₂`, the cross-block combination
+`(2ζ₂−1)r¹ − (2ζ₁−1)r²` has `m₂` **eliminated**, and `(ζ₂−ζ₁)` times it equals an explicit
+`ζ`-only combination `A'·s¹ + C'·s²` (Cramer over the `2×2` minor of determinant `ζ₂−ζ₁`). This
+is the algebraic content of "the level-`k₀` rank-3 relation fixes one combination of
+`(S¹,S²)`": once the `R`-values are prescribed, this single relation determines a combination of
+the `S`-values, leaving the one free parameter the solve threads. Pure `ring`, generic. -/
+theorem rank3_relation {R : Type*} [CommRing R] (z1 z2 m0 m1 m2 : R) :
+    (z2 - z1) * ((2 * z2 - 1) * (-z1 * (1 - z1) * m0 + (1 - 2 * z1 ^ 2) * m1 + (2 * z1 - 1) * m2)
+        - (2 * z1 - 1) * (-z2 * (1 - z2) * m0 + (1 - 2 * z2 ^ 2) * m1 + (2 * z2 - 1) * m2))
+      = ((-(2 * z2 - 1) * (z1 * (1 - z1)) + (2 * z1 - 1) * (z2 * (1 - z2))) * (2 * z2 - 1)
+            - ((2 * z2 - 1) * (1 - 2 * z1 ^ 2) - (2 * z1 - 1) * (1 - 2 * z2 ^ 2)) * (1 - z2))
+          * ((1 - z1) * m0 + (2 * z1 - 1) * m1)
+        + ((1 - z1) * ((2 * z2 - 1) * (1 - 2 * z1 ^ 2) - (2 * z1 - 1) * (1 - 2 * z2 ^ 2))
+            - (2 * z1 - 1) * (-(2 * z2 - 1) * (z1 * (1 - z1)) + (2 * z1 - 1) * (z2 * (1 - z2))))
+          * ((1 - z2) * m0 + (2 * z2 - 1) * m1) := by
+  ring
+
 /-- **`êq(α, s)` as a multilinear polynomial in the `α` coordinates** (the building block of the
 `cond:cross2` rank-matrix entries `tr(ψ_c · êq(α, s))`). -/
 noncomputable def eqMvPoly {R : Type*} [CommRing R] {j : ℕ} (b : Cube j) :
