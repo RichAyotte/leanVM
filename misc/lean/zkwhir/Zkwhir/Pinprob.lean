@@ -715,6 +715,62 @@ theorem tail_spread_failure_le_sharp (hprime : (Module.finrank (Fp P) Fq).Prime)
     _ = _ := by
         rw [Finset.sum_const, Finset.card_powersetCard, hEcard, nsmul_eq_mul]
 
+open scoped Classical in
+/-- **Generic SPREAD-failure measure over a coordinate subset** (`lem:span`/`lem:spread`,
+reusable): for *any* coordinate set `J ⊆ Fin k₀`, the `êq`-product family
+`∏_{i∈J} (b_i ? α_i : 1−α_i)` fails to span `Fq` over `Fp` with probability at most
+`C(|J|, |J|−(d−2)) · (p/q)^{|J|−(d−2)}`. By `eqSpan_eq_top` (`lem:span`), failure forces fewer
+than `d−1` of the `J`-coordinates outside `Fp`, i.e. at least `|J|−(d−2)` inside; the event is
+covered by the `C(|J|, |J|−(d−2))` choices of which coordinates lie in `Fp`, each of probability
+`(p/q)^{…}` (`challenge_alpha_primefield_joint_le`). This is the index-set-generic form of
+`tail_spread_failure_le_sharp` — it instantiates to **condition (i) of `lem:fullslice`** (the
+`E'(π)` multipliers, `J = {i : m ≤ i < ℓ}`) and to the R_out SPREAD alike. -/
+theorem spread_failure_le_subset (hprime : (Module.finrank (Fp P) Fq).Prime)
+    (J : Finset (Fin P.k₀)) :
+    (challengePMF P Fq Dom).toOuterMeasure
+        {ch : Challenges P Fq Dom | eqSpan (K := Fp P) ch.α J ≠ ⊤} ≤
+      ((J.card.choose (J.card - (Module.finrank (Fp P) Fq - 2)) : ℕ) : ℝ≥0∞) *
+        ((P.p : ℝ≥0∞) ^ (J.card - (Module.finrank (Fp P) Fq - 2)) /
+          (Fintype.card Fq : ℝ≥0∞) ^ (J.card - (Module.finrank (Fp P) Fq - 2))) := by
+  set e := J.card - (Module.finrank (Fp P) Fq - 2) with he
+  have hsub : {ch : Challenges P Fq Dom | eqSpan (K := Fp P) ch.α J ≠ ⊤} ⊆
+      ⋃ K ∈ J.powersetCard e,
+        {ch : Challenges P Fq Dom | ∀ i ∈ K, ch.α i ∈ Set.range (algebraMap (Fp P) Fq)} := by
+    intro ch hch
+    have hout : (J.filter (fun a => ¬ (ch.α a ∈ Set.range (algebraMap (Fp P) Fq)))).card
+        < Module.finrank (Fp P) Fq - 1 := by
+      by_contra h
+      push_neg at h
+      apply hch
+      apply eqSpan_eq_top hprime ch.α J
+      rw [Finset.filter_congr_decidable] at h ⊢
+      exact h
+    have h2 : (J.filter (fun a => ¬ (ch.α a ∈ Set.range (algebraMap (Fp P) Fq)))).card
+        = J.card - (J.filter (fun i => ch.α i ∈ Set.range (algebraMap (Fp P) Fq))).card := by
+      rw [Finset.filter_not, Finset.card_sdiff,
+        Finset.inter_eq_left.mpr (Finset.filter_subset _ _)]
+    have hle : (J.filter (fun i => ch.α i ∈ Set.range (algebraMap (Fp P) Fq))).card ≤ J.card :=
+      Finset.card_filter_le _ _
+    have hdp := hprime.two_le
+    have hin : e ≤ (J.filter (fun i => ch.α i ∈ Set.range (algebraMap (Fp P) Fq))).card := by
+      rw [he]; omega
+    obtain ⟨K, hKsub, hKcard⟩ := Finset.exists_subset_card_eq hin
+    refine Set.mem_biUnion (Finset.mem_powersetCard.mpr
+      ⟨hKsub.trans (Finset.filter_subset _ _), hKcard⟩) ?_
+    intro i hi
+    exact (Finset.mem_filter.mp (hKsub hi)).2
+  refine (MeasureTheory.measure_mono hsub).trans ?_
+  refine (MeasureTheory.measure_biUnion_finset_le _ _).trans ?_
+  calc ∑ K ∈ J.powersetCard e,
+        (challengePMF P Fq Dom).toOuterMeasure
+          {ch : Challenges P Fq Dom | ∀ i ∈ K, ch.α i ∈ Set.range (algebraMap (Fp P) Fq)}
+      ≤ ∑ _K ∈ J.powersetCard e,
+          ((P.p : ℝ≥0∞) ^ e / (Fintype.card Fq : ℝ≥0∞) ^ e) :=
+        Finset.sum_le_sum fun K hK => by
+          have h := challenge_alpha_primefield_joint_le P Fq Dom K
+          rwa [(Finset.mem_powersetCard.mp hK).2] at h
+    _ = _ := by rw [Finset.sum_const, Finset.card_powersetCard, nsmul_eq_mul]
+
 /-- **Tail-SPREAD failure union bound** (the tail-SPREAD measure skeleton): the probability
 that the head-erased tail family misses `⊤` is at most the sum, over nonzero `Fp`-functionals
 `φ`, of `P[φ` vanishes on every tail product`]`. By `exists_dual_of_not_tail_spread`, every
