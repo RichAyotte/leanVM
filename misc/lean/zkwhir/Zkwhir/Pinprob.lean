@@ -1499,6 +1499,25 @@ theorem crossPrefactor_ne_zero (z1 z2 lam1 δ1 : Fq) (h2 : (2 : Fq) ≠ 0)
   mul_ne_zero (nu11_ne_zero lam1 (2 * z1 - 1) δ1 hlam hz1 hδ)
     (one_add_gFun_ne_zero Fq h2 z2 hz2 hz20 hz21)
 
+/-- **The `cond:cross2` witness bracket is nonzero** (tex:543, `lem:binpow` input — the
+combinatorial half of the witness minor, supplying `hbracket` of `crossMinor_ne_zero`). The
+paper's bracket `ŵ₀(s*,c*)·e_{s''} − ŵ₀(s'',c*)·e_{s*}`, with the class multipliers
+`e_s = êq(ζ, s)` viewed as functions of the moment-class point `ζ`, is a nonzero multilinear MLE:
+at the boolean point `ζ := s''` the Kronecker property `eqPoly_boolPoint` gives `e_{s''} = 1` and
+`e_{s*} = 0` (since `s* ≠ s''`), so the bracket equals `ŵ₀(s*,c*) ≠ 0` there. Hence the bracket is
+not identically zero on the boolean cube — its multilinear-extension table is nonzero, which is
+the `T ≠ 0` hypothesis the `lem:binpow` non-vanishing (`cellPoly_combo_ne_zero`) consumes to make
+the binary-power substitution `z ↦ bracket(powSeq z)` a nonzero univariate. -/
+theorem crossBracket_ne_zero {j : ℕ} (sStar sPP : Cube j) (hne : sStar ≠ sPP)
+    (w wPP : Fq) (hw : w ≠ 0) :
+    (fun ζ : Cube j => w * eqPoly (fun i => if ζ i then (1 : Fq) else 0) sPP
+        - wPP * eqPoly (fun i => if ζ i then (1 : Fq) else 0) sStar) ≠ 0 := by
+  intro h
+  have hval := congrFun h sPP
+  rw [eqPoly_boolPoint, eqPoly_boolPoint, if_pos rfl, if_neg hne] at hval
+  simp only [Pi.zero_apply, mul_one, mul_zero, sub_zero] at hval
+  exact hw hval
+
 /-- **Per-level `S¹`-determination** (`lem:fullslice` Step 2, the threading function `f_ℓ`): under
 the rank-3 genericity `C' ≠ 0` (the `s²`-coefficient of `rank3_relation`), the block-2 output
 `s² = (1−ζ₂)m₀+(2ζ₂−1)m₁` of any moment image is an explicit **affine function of the other three
