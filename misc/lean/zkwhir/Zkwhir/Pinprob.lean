@@ -1968,6 +1968,35 @@ def jointPoint (ch : Challenges P Fq Dom) : JointIdx P → Fq
   | Sum.inr (Sum.inr (Sum.inl i)) => ch.α i
   | Sum.inr (Sum.inr (Sum.inr k)) => ch.zf k
 
+/-- **The `α`-block inclusion** `Fin k₀ ↪ JointIdx`: the third summand, carrying the round-0
+folding challenges `α`. The bridge from the `α`-only rank-matrix entries (`familyFoldMv`,
+`eqMvPoly`) to the *joint* index type the `cond:cross2` determinant `M` lives over. -/
+def alphaIncl : Fin P.k₀ → JointIdx P := fun i => Sum.inr (Sum.inr (Sum.inl i))
+
+/-- `jointPoint ch` restricted to the `α`-block is exactly `ch.α`. -/
+theorem jointPoint_comp_alphaIncl (ch : Challenges P Fq Dom) :
+    jointPoint P Fq Dom ch ∘ alphaIncl P = ch.α := by
+  funext i; rfl
+
+/-- **Evaluating an `α`-renamed polynomial at `jointPoint` is `α`-evaluation** (the joint-matrix
+bridge): renaming an `α`-only polynomial into `JointIdx` and evaluating at `jointPoint ch` recovers
+its evaluation at `ch.α`. So an `α`-only entry matrix lifted by `rename alphaIncl` evaluates, under
+`jointPoint`, exactly as the original `M(α)` — the eval half of turning `familyFoldMv` into joint
+matrix entries. -/
+theorem eval_jointPoint_rename_alphaIncl (ch : Challenges P Fq Dom)
+    (p : MvPolynomial (Fin P.k₀) Fq) :
+    MvPolynomial.eval (jointPoint P Fq Dom ch) (MvPolynomial.rename (alphaIncl P) p)
+      = MvPolynomial.eval ch.α p := by
+  rw [MvPolynomial.eval_rename, jointPoint_comp_alphaIncl]
+
+/-- **Renaming into `JointIdx` does not increase total degree** (the degree half of the joint-matrix
+bridge): so the `α`-only degree bounds (`eqMvPoly_totalDegree_le`, `familyFoldMv_totalDegree_le`)
+transport to the lifted joint entries, feeding `mvpoly_det_totalDegree_le` for the `n·d ≤ 2^{k₀+7}`
+side (P3) of the joint determinant. -/
+theorem totalDegree_rename_alphaIncl_le (p : MvPolynomial (Fin P.k₀) Fq) :
+    (MvPolynomial.rename (alphaIncl P) p).totalDegree ≤ p.totalDegree :=
+  MvPolynomial.totalDegree_rename_le _ _
+
 /-- `Challenges ≃ (Fq-coords) × (qs-part)`, isolating the `Fq`-valued challenges from the
 `qs ∈ Dom` part (which factors out of the Schwartz–Zippel count). -/
 def jointEquiv :
