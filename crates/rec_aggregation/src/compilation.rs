@@ -6,7 +6,7 @@ use lean_prover::{
 };
 use lean_vm::*;
 use std::collections::{BTreeMap, HashMap};
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::OnceLock;
 use sub_protocols::{N_VARS_TO_SEND_GKR_COEFFS, min_stacked_n_vars, total_whir_statements};
 use tracing::instrument;
@@ -16,6 +16,43 @@ use xmss::{LOG_LIFETIME, MESSAGE_LEN_FE, RANDOMNESS_LEN_FE, TARGET_SUM, V, V_GRI
 use crate::{MERKLE_LEVELS_PER_CHUNK_FOR_SLOT, NUM_REPEATED_ONES, ZERO_VEC_LEN};
 
 static BYTECODE: OnceLock<Bytecode> = OnceLock::new();
+
+/// The aggregation program (`main.py`) together with every file it transitively
+/// imports, embedded into the binary at build time via [`include_str!`].
+///
+/// The compiler resolves imports from the filesystem, but the source `.py`
+/// files are not guaranteed to be present at runtime (e.g. CI test jobs run on
+/// machines that do not carry the Rust build tree, where the build-time
+/// `CARGO_MANIFEST_DIR` path no longer exists). Embedding the sources and
+/// materializing them on demand keeps the binary self-contained.
+///
+/// Imports of `snark_lib` are stripped by the compiler before parsing, so they
+/// are intentionally not listed here.
+const EMBEDDED_PROGRAM_FILES: &[(&str, &str)] = &[
+    ("main.py", include_str!("../main.py")),
+    ("recursion.py", include_str!("../recursion.py")),
+    ("xmss_aggregate.py", include_str!("../xmss_aggregate.py")),
+    ("whir.py", include_str!("../whir.py")),
+    ("hashing.py", include_str!("../hashing.py")),
+    ("utils.py", include_str!("../utils.py")),
+    ("fiat_shamir.py", include_str!("../fiat_shamir.py")),
+];
+
+/// Writes [`EMBEDDED_PROGRAM_FILES`] into a fresh per-process temporary
+/// directory and returns its path. The directory is recreated from scratch on
+/// every call so stale content can never be picked up. The caller is
+/// responsible for removing it once compilation is done.
+fn materialize_program_sources() -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("rec_aggregation_program_{}", std::process::id()));
+    // Remove any leftover directory from a previous call before repopulating it.
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("failed to create temporary directory for the aggregation program");
+    for (name, content) in EMBEDDED_PROGRAM_FILES {
+        std::fs::write(dir.join(name), content)
+            .unwrap_or_else(|e| panic!("failed to write embedded program file {name}: {e}"));
+    }
+    dir
+}
 
 pub fn get_aggregation_bytecode() -> &'static Bytecode {
     BYTECODE
@@ -38,12 +75,11 @@ fn compile_main_program(inner_program_log_size: usize, bytecode_zero_eval: F) ->
     let input_data_size_padded = input_data_size.next_multiple_of(DIGEST_LEN);
     let replacements = build_replacements(inner_program_log_size, bytecode_zero_eval, input_data_size_padded);
 
-    let filepath = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("main.py")
-        .to_str()
-        .unwrap()
-        .to_string();
-    compile_program_with_flags(&ProgramSource::Filepath(filepath), CompilationFlags { replacements })
+    let program_dir = materialize_program_sources();
+    let filepath = program_dir.join("main.py").to_str().unwrap().to_string();
+    let bytecode = compile_program_with_flags(&ProgramSource::Filepath(filepath), CompilationFlags { replacements });
+    let _ = std::fs::remove_dir_all(&program_dir);
+    bytecode
 }
 
 #[instrument(skip_all)]
