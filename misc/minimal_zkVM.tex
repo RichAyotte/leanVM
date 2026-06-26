@@ -269,7 +269,7 @@ The VM uses two registers \textbf{pc} and \textbf{fp} that fully describes its s
 
 
 
-\subsection{Addressing modes}
+\subsection{Addressing modes}\label{sec:addressing-modes}
 
 Most of the operands usually come in pair $(x^\textsf{addr}, x)$:
 \begin{itemize}
@@ -1302,6 +1302,8 @@ Every call operates on a fresh contiguous block of $s$ memory cells: its \emph{f
 \textbf{Return.} Before returning, the callee has written its $n_\textsf{out}$ outputs $r_0, \dots, r_{n_\textsf{out}-1}$ to $\textbf{m}[\textbf{fp} + 2 + n_\textsf{in} + k] \gets r_k$ for $k = 0, \dots, n_\textsf{out} - 1$. It then executes the JUMP $\textbf{pc} \gets \textbf{m}[\textbf{fp}]$, $\textbf{fp} \gets \textbf{m}[\textbf{fp} + 1]$, which reads back $\textbf{pc}_\text{ret}$ and $\textbf{fp}_\text{caller}$. Execution resumes at $\textbf{pc}_\text{ret}$ in the caller's original frame.
 
 \paragraph{No allocation pointer.} Cairo \cite{cairo} keeps a register $\textbf{ap}$ pointing to the next free memory cell. leanVM does not: the write-once memory (\Cref{sec:memory}) prevents any frame from overwriting previously-written data. And since a function's internal logic should only depend on its inputs, not on where its frame happens to land, the exact value of $\textbf{fp}_\text{callee}$ does not matter to the verifier.
+
+\paragraph{The initial fp is likewise unconstrained.} For the same reason, the protocol does not pin the first row's $\textbf{fp}$ (the boundary checks of \Cref{sec:e2e-protocol} fix only the initial and final \textbf{pc}): program logic is not expected to depend on the exact value of $\textbf{fp}$, only on the memory values indexed relative to it.
 
 
 \subsection{Loops}\label{sec:loops}

@@ -781,6 +781,8 @@ The runner lays out memory as
 - The runtime region holds the program's stack frames, working memory, and any
   prover-supplied witness data, all governed by the write-once rule.
 
+The initial `fp` (start of the first stack frame) is not constrained by the proof, for the same reason callee frame pointers aren't pinned: program logic is not expected to depend on the exact value of `fp`, only on the memory values indexed relative to it.
+
 ## Tips
 
 1. Prefer `unroll` over `range` for small, fixed-size loops.
