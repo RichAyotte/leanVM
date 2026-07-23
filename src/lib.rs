@@ -7,7 +7,10 @@ pub use rec_aggregation::{
     merge_single_message_aggregates, split_multi_message_aggregate, verify_multi_message_aggregate,
     verify_single_message_aggregate,
 };
-pub use xmss::{MESSAGE_LEN_FE, XmssPublicKey, XmssSecretKey, XmssSignature, xmss_key_gen, xmss_sign, xmss_verify};
+pub use xmss::{
+    MESSAGE_LEN_BYTES, PUB_KEY_SSZ_LEN, SIGNATURE_SSZ_LEN, XmssKeyGenError, XmssPublicKey, XmssSecretKey,
+    XmssSignature, XmssSignatureError, XmssVerifyError, xmss_key_gen, xmss_key_gen_from_seed, xmss_sign, xmss_verify,
+};
 
 pub type F = KoalaBear;
 

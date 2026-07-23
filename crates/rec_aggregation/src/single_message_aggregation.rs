@@ -7,8 +7,8 @@ use tracing::instrument;
 use xmss::CHAIN_LENGTH;
 use xmss::make_tweak;
 use xmss::{
-    LOG_LIFETIME, MESSAGE_LEN_FE, PUB_KEY_FLAT_SIZE, TWEAK_TYPE_CHAIN, TWEAK_TYPE_ENCODING, TWEAK_TYPE_MERKLE,
-    TWEAK_TYPE_WOTS_PK, V, WOTS_SIG_SIZE_FE, XmssPublicKey, XmssSignature,
+    LOG_LIFETIME, MESSAGE_LEN_BYTES, PUB_KEY_FLAT_SIZE, TWEAK_TYPE_CHAIN, TWEAK_TYPE_ENCODING, TWEAK_TYPE_MERKLE,
+    TWEAK_TYPE_WOTS_PK, V, WOTS_SIG_SIZE_FE, XmssPublicKey, XmssSignature, hash_message,
 };
 
 use serde::{Deserialize, Serialize};
@@ -33,7 +33,7 @@ pub(crate) const TWEAK_TABLE_SIZE_FE_PADDED: usize = (N_TWEAKS * TWEAK_SLOT_SIZE
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SingleMessageInfo {
-    pub message: [F; MESSAGE_LEN_FE],
+    pub message: [u8; MESSAGE_LEN_BYTES],
     pub slot: u32,
     pub pubkeys: Vec<XmssPublicKey>,
     pub bytecode_claim: Evaluation<EF>, // value is trusted to be correct (should be recomputed when receiving a proof from an untrusted source)
@@ -55,7 +55,7 @@ impl Serialize for SingleMessageInfo {
 impl<'de> Deserialize<'de> for SingleMessageInfo {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let (message, slot, pubkeys, bytecode_claim_point) =
-            <([F; MESSAGE_LEN_FE], u32, Vec<XmssPublicKey>, MultilinearPoint<EF>)>::deserialize(d)?;
+            <([u8; MESSAGE_LEN_BYTES], u32, Vec<XmssPublicKey>, MultilinearPoint<EF>)>::deserialize(d)?;
         let bytecode =
             try_get_aggregation_bytecode().ok_or_else(|| serde::de::Error::custom("bytecode not initialized"))?;
         if bytecode_claim_point.len() != bytecode.cumulated_n_vars() {
@@ -107,7 +107,7 @@ impl SingleMessageInfo {
         build_single_message_input_data(
             self.pubkeys.len(),
             &hash_pubkeys(&self.pubkeys),
-            &self.message,
+            &hash_message(&self.message),
             self.slot,
             &tweaks_hash,
             &self.bytecode_claim_flat(),
@@ -117,7 +117,7 @@ impl SingleMessageInfo {
 }
 
 pub(crate) fn hash_pubkeys(pub_keys: &[XmssPublicKey]) -> [F; DIGEST_LEN] {
-    let flat: Vec<F> = pub_keys.iter().flat_map(|pk| pk.flaten().into_iter()).collect();
+    let flat: Vec<F> = pub_keys.iter().flat_map(|pk| pk.flatten().into_iter()).collect();
     poseidon_hash_slice(&flat)
 }
 
@@ -165,7 +165,7 @@ fn compute_merkle_chunks_for_slot(slot: u32) -> Vec<F> {
 pub(crate) fn build_single_message_input_data(
     n_sigs: usize,
     pubkeys_hash: &[F; DIGEST_LEN],
-    message: &[F; MESSAGE_LEN_FE],
+    hashed_message: &[F; DIGEST_LEN],
     slot: u32,
     tweaks_hash: &[F; DIGEST_LEN],
     bytecode_claim_flat: &[F],
@@ -181,7 +181,7 @@ pub(crate) fn build_single_message_input_data(
     data.extend(std::iter::repeat_n(F::ZERO, claim_padding));
     data.extend_from_slice(&fiat_shamir_domain_sep(bytecode));
     data.extend_from_slice(pubkeys_hash);
-    data.extend_from_slice(message);
+    data.extend_from_slice(hashed_message);
     data.extend(compute_merkle_chunks_for_slot(slot));
     data.extend_from_slice(tweaks_hash);
     data
@@ -197,7 +197,10 @@ fn encode_wots_signature(sig: &XmssSignature) -> ArenaVec<F> {
     data
 }
 
-// assumes `bytecode_value` in SingleMessageAggregateSignature::proof is correct (it should not be read / deserialized from an untrusted source)
+/// Verify a single-message aggregate against its own `info` (message, slot, pubkeys).
+///
+/// Assumes `sig.info.bytecode_claim.value` is correct: it must not come from an untrusted
+/// source without recomputation (deserializing via serde recomputes it).
 pub fn verify_single_message_aggregate(sig: &SingleMessageAggregateSignature) -> Result<InnerVerified, ProofError> {
     check_single_message_pubkeys(&sig.info.pubkeys).map_err(|_| ProofError::InvalidProof)?;
     verify_inner(sig.info.build_input_data(), sig.proof.proof.clone())
@@ -209,7 +212,7 @@ pub fn verify_single_message_aggregate(sig: &SingleMessageAggregateSignature) ->
 pub fn aggregate_single_message_signatures(
     children: &[SingleMessageAggregateSignature],
     raw_xmss: Vec<(XmssPublicKey, XmssSignature)>,
-    message: [F; MESSAGE_LEN_FE],
+    message: [u8; MESSAGE_LEN_BYTES],
     slot: u32,
     log_inv_rate: usize,
 ) -> Result<SingleMessageAggregateSignature, AggregationError> {
@@ -226,7 +229,7 @@ pub fn aggregate_single_message_signatures(
 pub(crate) fn aggregate_single_message_signatures_with_min_padding(
     children: &[SingleMessageAggregateSignature],
     mut raw_xmss: Vec<(XmssPublicKey, XmssSignature)>,
-    message: [F; MESSAGE_LEN_FE],
+    message: [u8; MESSAGE_LEN_BYTES],
     slot: u32,
     log_inv_rate: usize,
     min_table_log_n_rows: BTreeMap<Table, usize>,
@@ -298,7 +301,7 @@ pub(crate) fn aggregate_single_message_signatures_with_min_padding(
     let pub_input_data = build_single_message_input_data(
         n_sigs,
         &hash_pubkeys(&global_pub_keys),
-        message,
+        &hash_message(message),
         slot,
         &tweaks_hash,
         &reduced_claims.final_claim_flat(),
@@ -369,10 +372,10 @@ pub(crate) fn aggregate_single_message_signatures_with_min_padding(
 
     let mut pubkeys_blob: ArenaVec<F> = ArenaVec::with_capacity((n_sigs + n_dup) * PUB_KEY_FLAT_SIZE);
     for pk in &global_pub_keys {
-        pubkeys_blob.extend_from_slice(&pk.flaten());
+        pubkeys_blob.extend_from_slice(&pk.flatten());
     }
     for pk in &dup_pub_keys {
-        pubkeys_blob.extend_from_slice(&pk.flaten());
+        pubkeys_blob.extend_from_slice(&pk.flatten());
     }
 
     let (merkle_leaf_blobs, merkle_path_blobs) =

@@ -1,16 +1,16 @@
 use std::sync::Mutex;
 
 use backend::*;
-use rand::{CryptoRng, SeedableRng, rngs::StdRng};
+use rand::{CryptoRng, RngExt, SeedableRng, rngs::StdRng};
 use serde::{Deserialize, Serialize};
 
+use crate::wots::*;
 use crate::*;
 
 /// Memory-optimized secret key for a range of R = slot_end - slot_start + 1 slots: O(sqrt(R) +
 /// LOG_LIFETIME) instead of O(R). Stores the top tree (in-range band plus a thin spine) and one
 /// cached bottom subtree, cut at split_level = log2(R)/2. Out-of-range nodes are deterministic
 /// gen_random_node fillers; see `xmss_small_memory.tex` for the picture.
-#[derive(Debug)]
 pub struct XmssSecretKey {
     pub(crate) slot_start: u32, // inclusive
     pub(crate) slot_end: u32,   // inclusive
@@ -22,11 +22,53 @@ pub struct XmssSecretKey {
     pub(crate) cache: Mutex<Option<BottomSubtree>>,
 }
 
+impl std::fmt::Debug for XmssSecretKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("XmssSecretKey")
+            .field("slot_start", &self.slot_start)
+            .field("slot_end", &self.slot_end)
+            .field("split_level", &self.split_level)
+            .finish_non_exhaustive()
+    }
+}
+
 /// Bottom subtree covering the last-signed slot; its leaf range is derived from `subtree_index`.
 #[derive(Debug)]
 pub(crate) struct BottomSubtree {
     subtree_index: u64, // = slot >> split_level
     layers: Vec<Vec<Digest>>,
+}
+
+/// Format version of the persisted secret key; bump on layout changes.
+const SECRET_KEY_FORMAT_VERSION: u8 = 1;
+
+/// Persists (version, seed, slot range, top tree). The top tree is stored so that loading a
+/// key is cheap (no re-hashing of the whole range); the derived fields (public_param,
+/// split_level) are recomputed and the tree shape revalidated. The bottom-subtree cache
+/// restarts empty.
+impl Serialize for XmssSecretKey {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        (
+            SECRET_KEY_FORMAT_VERSION,
+            &self.seed,
+            self.slot_start,
+            self.slot_end,
+            &self.top,
+        )
+            .serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for XmssSecretKey {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let (version, seed, slot_start, slot_end, top) = <(u8, [u8; 32], u32, u32, Vec<Vec<Digest>>)>::deserialize(d)?;
+        if version != SECRET_KEY_FORMAT_VERSION {
+            return Err(serde::de::Error::custom(format!(
+                "unsupported secret key format version {version} (expected {SECRET_KEY_FORMAT_VERSION})"
+            )));
+        }
+        Self::from_parts(seed, slot_start, slot_end, top).map_err(serde::de::Error::custom)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -46,7 +88,7 @@ pub struct XmssPublicKey {
 }
 
 impl XmssPublicKey {
-    pub fn flaten(&self) -> [F; PUB_KEY_FLAT_SIZE] {
+    pub fn flatten(&self) -> [F; PUB_KEY_FLAT_SIZE] {
         let mut output = [F::default(); PUB_KEY_FLAT_SIZE];
         output[..XMSS_DIGEST_LEN].copy_from_slice(&self.merkle_root);
         output[XMSS_DIGEST_LEN..].copy_from_slice(&self.public_param);
@@ -81,6 +123,19 @@ fn gen_random_node(seed: &[u8; 32], level: usize, index: usize) -> Digest {
 pub enum XmssKeyGenError {
     InvalidRange,
 }
+
+impl std::fmt::Display for XmssKeyGenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidRange => write!(
+                f,
+                "invalid slot range (empty, reversed, or beyond the 2^{LOG_LIFETIME} lifetime)"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for XmssKeyGenError {}
 
 fn fill<T: Send>(sequential: bool, data: &mut [T], f: impl Fn(usize, &mut T) + Sync) {
     if sequential {
@@ -171,21 +226,40 @@ fn build_subtree_layers(
     layers
 }
 
-pub fn xmss_key_gen(
+/// Generates a new key pair, active for the `num_active_slots` slots starting at
+/// `activation_slot` (both ends must stay within the `2^LOG_LIFETIME` lifetime).
+pub fn xmss_key_gen<R: CryptoRng>(
+    rng: &mut R,
+    activation_slot: u64,
+    num_active_slots: u64,
+) -> Result<(XmssPublicKey, XmssSecretKey), XmssKeyGenError> {
+    xmss_key_gen_from_seed(rng.random(), activation_slot, num_active_slots)
+}
+
+/// Deterministic [`xmss_key_gen`]: the same (seed, activation range) always regenerates the
+/// same key pair. The seed is the key's entire secret material.
+pub fn xmss_key_gen_from_seed(
     seed: [u8; 32],
-    slot_start: u32,
-    slot_end: u32,
-    sequential: bool,
-) -> Result<(XmssSecretKey, XmssPublicKey), XmssKeyGenError> {
-    if slot_start > slot_end || slot_end as u64 >= (1 << LOG_LIFETIME) {
+    activation_slot: u64,
+    num_active_slots: u64,
+) -> Result<(XmssPublicKey, XmssSecretKey), XmssKeyGenError> {
+    let activation_end = activation_slot
+        .checked_add(num_active_slots)
+        .ok_or(XmssKeyGenError::InvalidRange)?;
+    if num_active_slots == 0 || activation_end > 1 << LOG_LIFETIME {
         return Err(XmssKeyGenError::InvalidRange);
     }
+
+    // The pool forbids nested dispatch: build sequentially when key gen itself already runs
+    // inside a pool task (e.g. generating many keys in a parallel batch).
+    let sequential = parallel::is_in_pool_task();
+
     let public_param: PublicParam = gen_public_param(&seed);
-    let lo = slot_start as u64;
-    let hi = slot_end as u64;
+    let lo = activation_slot;
+    let hi = activation_end - 1;
 
     // ~sqrt(R) leaves per bottom subtree; always <= LOG_LIFETIME/2 since R <= 2^LOG_LIFETIME.
-    let split_level = log2_ceil_usize((hi - lo + 1) as usize).div_ceil(2);
+    let split_level = log2_ceil_usize(num_active_slots as usize).div_ceil(2);
 
     // Roots of each bottom subtree, built one at a time so peak memory stays O(sqrt(R)).
     let first_subtree = lo >> split_level;
@@ -214,46 +288,74 @@ pub fn xmss_key_gen(
         public_param,
     };
     let secret_key = XmssSecretKey {
-        slot_start,
-        slot_end,
+        slot_start: activation_slot as u32,
+        slot_end: hi as u32,
         public_param,
         seed,
         split_level,
         top,
         cache: Mutex::new(None),
     };
-    Ok((secret_key, pub_key))
+    Ok((pub_key, secret_key))
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum XmssSignatureError {
     SlotOutOfRange,
-    InvalidRandomness,
+    EncodingAttemptsExceeded,
 }
 
-/// WARNING: XMSS is statefull signature, you should never sign with the same same `slot` twice.
-/// (Even signing twice with the same message, at the same slot, is insecure, due to the non-determinism of the randomness part of the signature)
-pub fn xmss_sign<R: CryptoRng>(
-    rng: &mut R,
-    secret_key: &XmssSecretKey,
-    message: &[F; MESSAGE_LEN_FE],
-    slot: u32,
-) -> Result<XmssSignature, XmssSignatureError> {
-    let (randomness, _, _) = find_randomness_for_wots_encoding(message, slot, &secret_key.public_key(), rng);
+impl std::fmt::Display for XmssSignatureError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SlotOutOfRange => write!(f, "slot is outside the key's valid range"),
+            Self::EncodingAttemptsExceeded => {
+                write!(f, "no valid WOTS encoding found within {MAX_SIGNING_ATTEMPTS} attempts")
+            }
+        }
+    }
+}
 
+impl std::error::Error for XmssSignatureError {}
+
+/// Deterministic encoding randomness: a seed-keyed Poseidon PRF over (slot, attempt), mixed
+/// with the hashed message by one more compression.
+fn derive_signature_randomness(
+    seed: &[u8; 32],
+    slot: u32,
+    message_fe: &[F; MESSAGE_LEN_FE],
+    attempt: usize,
+) -> Randomness {
+    let prf = poseidon_prf(PRF_DOMAINSEP_SIGNATURE_RANDOMNESS, seed, [slot as usize, attempt]);
+    let mut input = [F::ZERO; POSEIDON1_WIDTH];
+    input[..DIGEST_LEN_FE].copy_from_slice(&prf);
+    input[DIGEST_LEN_FE..].copy_from_slice(message_fe);
+    poseidon16_compress(input)[..RANDOMNESS_LEN_FE].try_into().unwrap()
+}
+
+/// WARNING: XMSS is a stateful signature scheme, never sign two different messages at the same
+/// `slot`. Signing is derandomized (the encoding randomness is derived from the secret key,
+/// slot, and message), so calling this twice with the same (slot, message) pair returns the
+/// same signature and is harmless.
+pub fn xmss_sign(
+    secret_key: &XmssSecretKey,
+    slot: u32,
+    message: &[u8; MESSAGE_LEN_BYTES],
+) -> Result<XmssSignature, XmssSignatureError> {
     if slot < secret_key.slot_start || slot > secret_key.slot_end {
         return Err(XmssSignatureError::SlotOutOfRange);
     }
+    let message_fe = hash_message(message);
+    let pub_key = secret_key.public_key();
+    let (randomness, encoding) = (0..MAX_SIGNING_ATTEMPTS)
+        .find_map(|attempt| {
+            let randomness = derive_signature_randomness(&secret_key.seed, slot, &message_fe, attempt);
+            wots_encode(&message_fe, slot, &pub_key, &randomness).map(|encoding| (randomness, encoding))
+        })
+        .ok_or(XmssSignatureError::EncodingAttemptsExceeded)?;
     let wots_secret_key = gen_wots_secret_key(&secret_key.seed, slot, secret_key.public_param);
-    let wots_signature = wots_secret_key
-        .sign_with_randomness(message, slot, &secret_key.public_key(), randomness)
-        .ok_or(XmssSignatureError::InvalidRandomness)?;
-    // Cache the bottom subtree covering `slot` (reused across its 2^split_level slots), then read the path.
-    let subtree_index = (slot as u64) >> secret_key.split_level;
-    let mut cache = secret_key.cache.lock().unwrap();
-    if cache.as_ref().is_none_or(|s| s.subtree_index != subtree_index) {
-        *cache = Some(secret_key.build_bottom_subtree(subtree_index));
-    }
+    let wots_signature = wots_secret_key.sign_with_encoding(randomness, &encoding, secret_key.public_param, slot);
+    let cache = secret_key.cached_bottom_subtree(slot);
     let sub = cache.as_ref().unwrap();
     let merkle_proof = std::array::from_fn(|level| {
         let neighbour_index = ((slot as u64) >> level) ^ 1;
@@ -274,7 +376,67 @@ impl XmssSecretKey {
         }
     }
 
-    /// (Re)build the bottom subtree with the given index.
+    /// The slots this key can sign for.
+    pub const fn activation_slots(&self) -> std::ops::RangeInclusive<u32> {
+        self.slot_start..=self.slot_end
+    }
+
+    /// Warms the signing cache for `slot`: when the next signing slot is known in advance,
+    /// calling this ahead of time makes the subsequent `xmss_sign` faster.
+    pub fn prepare(&self, slot: u32) -> Result<(), XmssSignatureError> {
+        if slot < self.slot_start || slot > self.slot_end {
+            return Err(XmssSignatureError::SlotOutOfRange);
+        }
+        drop(self.cached_bottom_subtree(slot));
+        Ok(())
+    }
+
+    /// Rebuild a secret key from its persisted parts, recomputing the derived fields and
+    /// revalidating the top tree's shape (its content is trusted, exactly like the seed).
+    pub(crate) fn from_parts(
+        seed: [u8; 32],
+        slot_start: u32,
+        slot_end: u32,
+        top: Vec<Vec<Digest>>,
+    ) -> Result<Self, &'static str> {
+        if slot_start > slot_end {
+            return Err("invalid slot range");
+        }
+        let (lo, hi) = (slot_start as u64, slot_end as u64);
+        let split_level = log2_ceil_usize((hi - lo + 1) as usize).div_ceil(2);
+        let expected_layer_lens =
+            (split_level..=LOG_LIFETIME).map(|level| ((hi >> level) - (lo >> level) + 1) as usize);
+        if top.len() != LOG_LIFETIME - split_level + 1
+            || top
+                .iter()
+                .zip(expected_layer_lens)
+                .any(|(layer, len)| layer.len() != len)
+        {
+            return Err("top tree shape does not match the slot range");
+        }
+        Ok(Self {
+            slot_start,
+            slot_end,
+            public_param: gen_public_param(&seed),
+            seed,
+            split_level,
+            top,
+            cache: Mutex::new(None),
+        })
+    }
+
+    fn cached_bottom_subtree(&self, slot: u32) -> std::sync::MutexGuard<'_, Option<BottomSubtree>> {
+        let subtree_index = (slot as u64) >> self.split_level;
+        let mut cache = self.cache.lock().unwrap();
+        if cache.as_ref().is_none_or(|s| s.subtree_index != subtree_index) {
+            *cache = Some(self.build_bottom_subtree(subtree_index));
+        }
+        cache
+    }
+
+    /// (Re)build the bottom subtree with the given index. Always sequential: signing must
+    /// never wait on the thread pool while it holds the signing-cache mutex (a pool task
+    /// blocked on the same key would deadlock the pool, and hence the signer).
     fn build_bottom_subtree(&self, subtree_index: u64) -> BottomSubtree {
         let (lo, hi) = subtree_bounds(
             self.slot_start as u64,
@@ -319,15 +481,27 @@ pub enum XmssVerifyError {
     InvalidMerklePath,
 }
 
+impl std::fmt::Display for XmssVerifyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidWots => write!(f, "invalid WOTS signature (encoding rejected or wrong chain tips)"),
+            Self::InvalidMerklePath => write!(f, "merkle path does not lead to the public key's root"),
+        }
+    }
+}
+
+impl std::error::Error for XmssVerifyError {}
+
 pub fn xmss_verify(
     pub_key: &XmssPublicKey,
-    message: &[F; MESSAGE_LEN_FE],
-    signature: &XmssSignature,
     slot: u32,
+    message: &[u8; MESSAGE_LEN_BYTES],
+    signature: &XmssSignature,
 ) -> Result<(), XmssVerifyError> {
+    let message_fe = hash_message(message);
     let wots_public_key = signature
         .wots_signature
-        .recover_public_key(message, slot, pub_key)
+        .recover_public_key(&message_fe, slot, pub_key)
         .ok_or(XmssVerifyError::InvalidWots)?;
     let mut current_hash = wots_public_key.hash(pub_key.public_param, slot);
     for (level, neighbour) in signature.merkle_proof.iter().enumerate() {

@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::*;
 
-#[derive(Debug)]
+/// No Debug: `pre_images` are the one-time secret keys.
 pub struct WotsSecretKey {
-    pub pre_images: [Digest; V],
+    pre_images: [Digest; V],
     public_key: WotsPublicKey,
 }
 
@@ -41,18 +41,7 @@ impl WotsSecretKey {
         &self.public_key
     }
 
-    pub fn sign_with_randomness(
-        &self,
-        message: &[F; MESSAGE_LEN_FE],
-        slot: u32,
-        xmss_pub_key: &XmssPublicKey,
-        randomness: Randomness,
-    ) -> Option<WotsSignature> {
-        let encoding = wots_encode(message, slot, xmss_pub_key, &randomness)?;
-        Some(self.sign_with_encoding(randomness, &encoding, xmss_pub_key.public_param, slot))
-    }
-
-    fn sign_with_encoding(
+    pub(crate) fn sign_with_encoding(
         &self,
         randomness: Randomness,
         encoding: &[u8; V],
@@ -125,22 +114,6 @@ pub fn iterate_hash(
     })
 }
 
-pub fn find_randomness_for_wots_encoding(
-    message: &[F; MESSAGE_LEN_FE],
-    slot: u32,
-    xmss_pub_key: &XmssPublicKey,
-    rng: &mut impl CryptoRng,
-) -> (Randomness, [u8; V], usize) {
-    let mut num_iters = 0;
-    loop {
-        num_iters += 1;
-        let randomness = rng.random();
-        if let Some(encoding) = wots_encode(message, slot, xmss_pub_key, &randomness) {
-            return (randomness, encoding, num_iters);
-        }
-    }
-}
-
 pub fn wots_encode(
     message: &[F; MESSAGE_LEN_FE],
     slot: u32,
@@ -190,4 +163,42 @@ fn is_valid_encoding(encoding: &[u8]) -> bool {
         return false;
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
+
+    use super::*;
+
+    /// Measures the average number of randomness attempts before a valid encoding.
+    #[test]
+    #[ignore]
+    fn encoding_grinding_bits() {
+        let n = 100;
+        let xmss_pub_key = XmssPublicKey {
+            merkle_root: Default::default(),
+            public_param: Default::default(),
+        };
+        let total_iters = parallel::map_reduce(
+            n,
+            || 0usize,
+            |i| {
+                let message: [F; MESSAGE_LEN_FE] = Default::default();
+                let slot = i as u32;
+                let mut rng = StdRng::seed_from_u64(i as u64);
+                let mut num_iters = 0;
+                loop {
+                    num_iters += 1;
+                    let randomness: Randomness = rng.random();
+                    if wots_encode(&message, slot, &xmss_pub_key, &randomness).is_some() {
+                        break num_iters;
+                    }
+                }
+            },
+            |a, b| a + b,
+        );
+        let grinding = ((total_iters as f64) / (n as f64)).log2();
+        println!("Average grinding bits: {:.1}", grinding);
+    }
 }
