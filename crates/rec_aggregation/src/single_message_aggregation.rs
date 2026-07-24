@@ -32,11 +32,16 @@ pub(crate) const TWEAK_SLOT_SIZE: usize = 4;
 pub(crate) const TWEAK_TABLE_SIZE_FE_PADDED: usize = (N_TWEAKS * TWEAK_SLOT_SIZE).next_multiple_of(DIGEST_LEN);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SingleMessageInfo {
+pub struct SingleMessageCore {
     pub message: [u8; MESSAGE_LEN_BYTES],
     pub slot: u32,
-    pub pubkeys: Vec<XmssPublicKey>,
     pub bytecode_claim: Evaluation<EF>, // value is trusted to be correct (should be recomputed when receiving a proof from an untrusted source)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SingleMessageInfo {
+    pub core: SingleMessageCore,
+    pub pubkeys: Vec<XmssPublicKey>,
 }
 
 // Aggregation of many signatures, all sharing the same (message, slot)
@@ -46,30 +51,57 @@ pub struct SingleMessageAggregateSignature {
     pub proof: ExecutionProof,
 }
 
+impl Serialize for SingleMessageCore {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        (&self.message, &self.slot, &self.bytecode_claim.point).serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for SingleMessageCore {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let (message, slot, bytecode_claim_point) =
+            <([u8; MESSAGE_LEN_BYTES], u32, MultilinearPoint<EF>)>::deserialize(d)?;
+        let bytecode_claim = rebuild_bytecode_claim(bytecode_claim_point).map_err(serde::de::Error::custom)?;
+        Ok(Self {
+            message,
+            slot,
+            bytecode_claim,
+        })
+    }
+}
+
 impl Serialize for SingleMessageInfo {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        (&self.message, &self.slot, &self.pubkeys, &self.bytecode_claim.point).serialize(s)
+        (&self.core, &self.pubkeys).serialize(s)
     }
 }
 
 impl<'de> Deserialize<'de> for SingleMessageInfo {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let (message, slot, pubkeys, bytecode_claim_point) =
-            <([u8; MESSAGE_LEN_BYTES], u32, Vec<XmssPublicKey>, MultilinearPoint<EF>)>::deserialize(d)?;
-        let bytecode =
-            try_get_aggregation_bytecode().ok_or_else(|| serde::de::Error::custom("bytecode not initialized"))?;
-        if bytecode_claim_point.len() != bytecode.cumulated_n_vars() {
-            return Err(serde::de::Error::custom("invalid bytecode point"));
-        }
+        let (core, pubkeys) = <(SingleMessageCore, Vec<XmssPublicKey>)>::deserialize(d)?;
         check_single_message_pubkeys(&pubkeys).map_err(serde::de::Error::custom)?;
-        let bytecode_value = compute_bytecode_value_at(&bytecode_claim_point);
-        Ok(Self {
-            message,
-            slot,
-            pubkeys,
-            bytecode_claim: Evaluation::new(bytecode_claim_point, bytecode_value),
-        })
+        Ok(Self { core, pubkeys })
     }
+}
+
+impl SingleMessageCore {
+    /// Attach a caller-supplied signer set (sorted and deduplicated here). A set different
+    /// from the one aggregated fails verification.
+    pub fn with_pubkeys(self, mut pubkeys: Vec<XmssPublicKey>) -> Option<SingleMessageInfo> {
+        pubkeys.sort();
+        pubkeys.dedup();
+        check_single_message_pubkeys(&pubkeys).ok()?;
+        Some(SingleMessageInfo { core: self, pubkeys })
+    }
+}
+
+pub(crate) fn rebuild_bytecode_claim(point: MultilinearPoint<EF>) -> Result<Evaluation<EF>, &'static str> {
+    let bytecode = try_get_aggregation_bytecode().ok_or("bytecode not initialized")?;
+    if point.len() != bytecode.cumulated_n_vars() {
+        return Err("invalid bytecode point");
+    }
+    let value = compute_bytecode_value_at(&point);
+    Ok(Evaluation::new(point, value))
 }
 
 pub(crate) fn check_single_message_pubkeys(pubkeys: &[XmssPublicKey]) -> Result<(), &'static str> {
@@ -94,21 +126,37 @@ impl SingleMessageAggregateSignature {
         let (value, rest) = postcard::take_from_bytes::<Self>(bytes).ok()?;
         rest.is_empty().then_some(value)
     }
+
+    /// Serialize without the pubkeys (usually when the receiver already knows the signer set).
+    pub fn to_bytes_without_pubkeys(&self) -> Vec<u8> {
+        postcard::to_allocvec(&(&self.info.core, &self.proof)).expect("postcard serialization failed")
+    }
+
+    /// Inverse of [`Self::to_bytes_without_pubkeys`]; the caller supplies the pubkeys.
+    /// A set different from the one aggregated fails verification.
+    pub fn from_bytes_without_pubkeys(bytes: &[u8], pubkeys: Vec<XmssPublicKey>) -> Option<Self> {
+        let ((core, proof), rest) = postcard::take_from_bytes::<(SingleMessageCore, ExecutionProof)>(bytes).ok()?;
+        if !rest.is_empty() {
+            return None;
+        }
+        let info = core.with_pubkeys(pubkeys)?;
+        Some(Self { info, proof })
+    }
 }
 
 impl SingleMessageInfo {
     pub(crate) fn bytecode_claim_flat(&self) -> Vec<F> {
-        flatten_bytecode_claim(&self.bytecode_claim)
+        flatten_bytecode_claim(&self.core.bytecode_claim)
     }
 
     pub(crate) fn build_input_data(&self) -> Vec<F> {
-        let tweak_table = compute_tweak_table(self.slot);
+        let tweak_table = compute_tweak_table(self.core.slot);
         let tweaks_hash = poseidon_hash_slice(&tweak_table);
         build_single_message_input_data(
             self.pubkeys.len(),
             &hash_pubkeys(&self.pubkeys),
-            &hash_message(&self.message),
-            self.slot,
+            &hash_message(&self.core.message),
+            self.core.slot,
             &tweaks_hash,
             &self.bytecode_claim_flat(),
             get_aggregation_bytecode(),
@@ -243,12 +291,12 @@ pub(crate) fn aggregate_single_message_signatures_with_min_padding(
         });
     }
     for child in children {
-        if child.info.message != message {
+        if child.info.core.message != message {
             return Err(AggregationError::InconsistentChildren {
                 what: "all children of a single-message aggregation must share the same message",
             });
         }
-        if child.info.slot != slot {
+        if child.info.core.slot != slot {
             return Err(AggregationError::InconsistentChildren {
                 what: "all children of a single-message aggregation must share the same slot",
             });
@@ -447,10 +495,12 @@ pub(crate) fn aggregate_single_message_signatures_with_min_padding(
 
     Ok(SingleMessageAggregateSignature {
         info: SingleMessageInfo {
-            message: *message,
-            slot,
+            core: SingleMessageCore {
+                message: *message,
+                slot,
+                bytecode_claim: reduced_claims.final_claim,
+            },
             pubkeys: global_pub_keys,
-            bytecode_claim: reduced_claims.final_claim,
         },
         proof,
     })

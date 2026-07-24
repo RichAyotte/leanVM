@@ -20,7 +20,7 @@ pub use multi_message_aggregation::{
     split_multi_message_aggregate_by_message, verify_multi_message_aggregate,
 };
 pub use single_message_aggregation::{
-    SingleMessageAggregateSignature, SingleMessageInfo, aggregate_single_message_signatures,
+    SingleMessageAggregateSignature, SingleMessageCore, SingleMessageInfo, aggregate_single_message_signatures,
     verify_single_message_aggregate,
 };
 

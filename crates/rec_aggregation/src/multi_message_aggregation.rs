@@ -8,18 +8,17 @@ use lean_vm::*;
 use serde::{Deserialize, Serialize};
 
 use crate::InnerVerified;
-use crate::bytecode_claims::compute_bytecode_value_at;
 use crate::bytecode_claims::flatten_bytecode_claim;
 use crate::bytecode_claims::reduce_bytecode_claims;
 use crate::compilation::{
     BYTECODE_CLAIM_OFFSET, MAX_RECURSIONS, MULTI_MESSAGE_FLAG, PREAMBLE_MEMORY_LEN, get_aggregation_bytecode,
-    try_get_aggregation_bytecode,
 };
 use crate::single_message_aggregation::{
-    SingleMessageAggregateSignature, SingleMessageInfo, check_single_message_pubkeys, extract_merkle_hint_blobs,
-    verify_single_message_aggregate,
+    SingleMessageAggregateSignature, SingleMessageCore, SingleMessageInfo, check_single_message_pubkeys,
+    extract_merkle_hint_blobs, rebuild_bytecode_claim, verify_single_message_aggregate,
 };
 use crate::verify_inner;
+use xmss::XmssPublicKey;
 
 /// A bundle of `n` single-message aggregate signatures with potentially distinct (message, slot) per component, attested by a single snark.
 #[derive(Debug, Clone)]
@@ -39,15 +38,10 @@ impl<'de> Deserialize<'de> for MultiMessageAggregateSignature {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let (info, bytecode_claim_point, proof) =
             <(Vec<SingleMessageInfo>, MultilinearPoint<EF>, ExecutionProof)>::deserialize(d)?;
-        let bytecode =
-            try_get_aggregation_bytecode().ok_or_else(|| serde::de::Error::custom("bytecode not initialized"))?;
-        if bytecode_claim_point.len() != bytecode.cumulated_n_vars() {
-            return Err(serde::de::Error::custom("invalid bytecode point"));
-        }
-        let bytecode_value = compute_bytecode_value_at(&bytecode_claim_point);
+        let bytecode_claim = rebuild_bytecode_claim(bytecode_claim_point).map_err(serde::de::Error::custom)?;
         Ok(MultiMessageAggregateSignature {
             info,
-            bytecode_claim: Evaluation::new(bytecode_claim_point, bytecode_value),
+            bytecode_claim,
             proof,
         })
     }
@@ -61,6 +55,31 @@ impl MultiMessageAggregateSignature {
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
         let (value, rest) = postcard::take_from_bytes::<Self>(bytes).ok()?;
         rest.is_empty().then_some(value)
+    }
+
+    pub fn to_bytes_without_pubkeys(&self) -> Vec<u8> {
+        let infos: Vec<&SingleMessageCore> = self.info.iter().map(|i| &i.core).collect();
+        postcard::to_allocvec(&(infos, &self.bytecode_claim.point, &self.proof)).expect("postcard serialization failed")
+    }
+
+    /// Inverse of [`Self::to_bytes_without_pubkeys`]; the caller supplies one pubkey set per
+    /// component, in order. Sets different from the ones aggregated fail verification.
+    pub fn from_bytes_without_pubkeys(bytes: &[u8], pubkeys_per_info: Vec<Vec<XmssPublicKey>>) -> Option<Self> {
+        let ((infos, bytecode_claim_point, proof), rest) =
+            postcard::take_from_bytes::<(Vec<SingleMessageCore>, MultilinearPoint<EF>, ExecutionProof)>(bytes).ok()?;
+        if !rest.is_empty() || infos.len() != pubkeys_per_info.len() {
+            return None;
+        }
+        let info = infos
+            .into_iter()
+            .zip(pubkeys_per_info)
+            .map(|(core, pubkeys)| core.with_pubkeys(pubkeys))
+            .collect::<Option<Vec<_>>>()?;
+        Some(Self {
+            info,
+            bytecode_claim: rebuild_bytecode_claim(bytecode_claim_point).ok()?,
+            proof,
+        })
     }
 
     pub(crate) fn bytecode_claim_flat(&self) -> Vec<F> {
@@ -213,10 +232,16 @@ pub fn split_multi_message_aggregate_by_message(
     message: [u8; xmss::MESSAGE_LEN_BYTES],
     log_inv_rate: usize,
 ) -> Result<SingleMessageAggregateSignature, AggregationError> {
-    let Some(index) = multi_message.info.iter().position(|info| info.message == message) else {
+    let Some(index) = multi_message.info.iter().position(|info| info.core.message == message) else {
         return Err(AggregationError::UnknownMessage);
     };
-    if multi_message.info.iter().filter(|info| info.message == message).count() > 1 {
+    if multi_message
+        .info
+        .iter()
+        .filter(|info| info.core.message == message)
+        .count()
+        > 1
+    {
         return Err(AggregationError::MultipleMessages);
     }
     split_multi_message_aggregate(multi_message, index, log_inv_rate)
@@ -255,7 +280,7 @@ pub fn split_multi_message_aggregate(
         .collect();
 
     let mut outer_single_message = multi_message.info[index].clone();
-    outer_single_message.bytecode_claim = reduced_claims.final_claim.clone();
+    outer_single_message.core.bytecode_claim = reduced_claims.final_claim.clone();
     let ourer_input_data = outer_single_message.build_input_data();
     let outer_digest = poseidon_hash_slice(&ourer_input_data);
 

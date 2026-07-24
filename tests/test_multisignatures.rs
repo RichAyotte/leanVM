@@ -80,6 +80,19 @@ fn test_single_message_aggregation() {
     let recovered = SingleMessageAggregateSignature::from_bytes(&serialized_proof).unwrap();
 
     verify_single_message_aggregate(&recovered).unwrap();
+
+    // Without-pubkeys serialization: smaller, and recoverable given the signer set.
+    let without_pubkeys = final_sig.to_bytes_without_pubkeys();
+    assert!(without_pubkeys.len() < serialized_proof.len());
+    let reattached =
+        SingleMessageAggregateSignature::from_bytes_without_pubkeys(&without_pubkeys, final_sig.info.pubkeys).unwrap();
+    verify_single_message_aggregate(&reattached).unwrap();
+
+    // A wrong signer set makes verification fail.
+    let wrong_set =
+        SingleMessageAggregateSignature::from_bytes_without_pubkeys(&without_pubkeys, vec![signatures[7].0.clone()])
+            .unwrap();
+    assert!(verify_single_message_aggregate(&wrong_set).is_err());
 }
 
 #[test]
@@ -128,6 +141,13 @@ fn test_multi_message_aggregation() {
     let multi_message = MultiMessageAggregateSignature::from_bytes(&serialized_multi_message).unwrap();
     verify_multi_message_aggregate(&multi_message).unwrap();
 
+    // Without-pubkeys serialization roundtrip.
+    let without_pubkeys = multi_message.to_bytes_without_pubkeys();
+    let pubkeys_per_info: Vec<_> = multi_message.info.iter().map(|i| i.pubkeys.clone()).collect();
+    let reattached =
+        MultiMessageAggregateSignature::from_bytes_without_pubkeys(&without_pubkeys, pubkeys_per_info).unwrap();
+    verify_multi_message_aggregate(&reattached).unwrap();
+
     let time = Instant::now();
     let split_a = split_multi_message_aggregate(multi_message.clone(), 0, log_inv_rate).unwrap();
     println!("split index 0: {:.2}s", time.elapsed().as_secs_f64());
@@ -135,12 +155,20 @@ fn test_multi_message_aggregation() {
     let split_b = split_multi_message_aggregate_by_message(multi_message, message_b, log_inv_rate).unwrap();
     println!("split index 1: {:.2}s", time.elapsed().as_secs_f64());
     assert_eq!(
-        (split_a.info.message, &split_a.info.slot, &split_a.info.pubkeys),
-        (info_a.message, &info_a.slot, &info_a.pubkeys)
+        (
+            split_a.info.core.message,
+            &split_a.info.core.slot,
+            &split_a.info.pubkeys
+        ),
+        (info_a.core.message, &info_a.core.slot, &info_a.pubkeys)
     );
     assert_eq!(
-        (split_b.info.message, &split_b.info.slot, &split_b.info.pubkeys),
-        (info_b.message, &info_b.slot, &info_b.pubkeys)
+        (
+            split_b.info.core.message,
+            &split_b.info.core.slot,
+            &split_b.info.pubkeys
+        ),
+        (info_b.core.message, &info_b.core.slot, &info_b.pubkeys)
     );
     verify_single_message_aggregate(&split_a).expect("split index 0 failed verify_single_message_aggregate");
     verify_single_message_aggregate(&split_b).expect("split index 1 failed verify_single_message_aggregate");
