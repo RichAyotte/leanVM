@@ -132,6 +132,15 @@ macro_rules! impl_packed_ext_scalar_ops {
                 }
             }
         }
+
+        impl From<KoalaBear> for PackedQuinticExtensionField<KoalaBear, $pf> {
+            #[inline]
+            fn from(x: KoalaBear) -> Self {
+                Self::from(<$pf>::from(x))
+            }
+        }
+
+        impl Algebra<KoalaBear> for PackedQuinticExtensionField<KoalaBear, $pf> {}
     };
 }
 
@@ -246,13 +255,10 @@ where
     }
 
     #[inline]
-    fn to_ext_iter(iter: impl IntoIterator<Item = Self>) -> impl Iterator<Item = QuinticExtensionField<F>> {
-        let width = F::Packing::WIDTH;
-        iter.into_iter().flat_map(move |x| {
-            (0..width).map(move |i| {
-                let values = array::from_fn(|j| x.value[j].as_slice()[i]);
-                QuinticExtensionField::new(values)
-            })
+    fn to_ext_lanes(self) -> impl Iterator<Item = QuinticExtensionField<F>> {
+        (0..F::Packing::WIDTH).map(move |i| {
+            let values = array::from_fn(|j| self.value[j].as_slice()[i]);
+            QuinticExtensionField::new(values)
         })
     }
 

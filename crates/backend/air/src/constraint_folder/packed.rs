@@ -1,5 +1,6 @@
 use crate::*;
 use field::*;
+use koala_bear::KoalaBear;
 use poly::*;
 
 #[derive(Debug)]
@@ -38,7 +39,7 @@ where
 
 impl<'a, IF, EF, ExtraData> AirBuilder for ConstraintFolderPacked<'a, IF, EF, ExtraData>
 where
-    IF: Algebra<PFPacking<EF>> + 'static,
+    IF: Algebra<PFPacking<EF>> + Algebra<KoalaBear> + 'static,
     EF: Field + ExtensionField<PF<EF>>,
     EFPacking<EF>: PrimeCharacteristicRing + Mul<IF, Output = EFPacking<EF>> + Add<IF, Output = EFPacking<EF>>,
     ExtraData: AlphaPowers<EF>,

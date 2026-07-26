@@ -167,7 +167,7 @@ const EVAL_BASE_PACKED_MIN_VARS: usize = 6;
 /// subtrees, which is several times more base multiplications in total.
 pub fn eval_base_packed<EF, const PARALLEL: bool>(evals: &[PF<EF>], point: &[EF]) -> EF
 where
-    EF: ExtensionField<PF<EF>>,
+    EF: KoalaBearExtension,
 {
     debug_assert_eq!(evals.len(), 1 << point.len());
     if point.len() < EVAL_BASE_PACKED_MIN_VARS {
@@ -187,7 +187,7 @@ where
         for (&a, &b) in part.iter().zip(eq_lo.iter()) {
             acc += b * a;
         }
-        EFPacking::<EF>::to_ext_iter([acc]).sum::<EF>() * eq_hi[i]
+        (acc).to_ext_lanes().sum::<EF>() * eq_hi[i]
     };
 
     let work_size: usize = (1 << 15) / std::mem::size_of::<PF<EF>>();
@@ -200,7 +200,7 @@ where
 
 pub fn eval_packed<EF, const PARALLEL: bool>(evals: &[EFPacking<EF>], point: &[EF]) -> EF
 where
-    EF: ExtensionField<PF<EF>>,
+    EF: KoalaBearExtension,
 {
     let log_width = packing_log_width::<EF>();
     let res_packed: EFPacking<EF> = eval_multilinear_generic::<_, _, _, _, _, _, PARALLEL>(

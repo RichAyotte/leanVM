@@ -1,7 +1,6 @@
 // Credits: whir-p3 (https://github.com/tcoratger/whir-p3) (MIT and Apache-2.0 licenses).
 
 use fiat_shamir::FSProver;
-use field::{ExtensionField, TwoAdicField};
 use poly::*;
 use tracing::{info_span, instrument};
 use zk_alloc::ArenaVec;
@@ -9,12 +8,12 @@ use zk_alloc::ArenaVec;
 use crate::*;
 
 #[derive(Debug, Clone)]
-pub enum MerkleData<EF: ExtensionField<PF<EF>>> {
+pub enum MerkleData<EF: KoalaBearExtension> {
     Base(RoundMerkleTree<PF<EF>>),
     Extension(RoundMerkleTree<PF<EF>>),
 }
 
-impl<EF: ExtensionField<PF<EF>>> MerkleData<EF> {
+impl<EF: KoalaBearExtension> MerkleData<EF> {
     pub(crate) fn build(
         matrix: DftOutput<EF>,
         full_n_cols: usize,
@@ -22,11 +21,11 @@ impl<EF: ExtensionField<PF<EF>>> MerkleData<EF> {
     ) -> (Self, [PF<EF>; DIGEST_ELEMS]) {
         match matrix {
             DftOutput::Base(m) => {
-                let (root, prover_data) = merkle_commit::<PF<EF>, PF<EF>>(m, full_n_cols, effective_n_cols);
+                let (root, prover_data) = merkle_commit::<PF<EF>>(m, full_n_cols, effective_n_cols);
                 (MerkleData::Base(prover_data), root)
             }
             DftOutput::Extension(m) => {
-                let (root, prover_data) = merkle_commit::<PF<EF>, EF>(m, full_n_cols, effective_n_cols);
+                let (root, prover_data) = merkle_commit::<EF>(m, full_n_cols, effective_n_cols);
                 (MerkleData::Extension(prover_data), root)
             }
         }
@@ -35,11 +34,11 @@ impl<EF: ExtensionField<PF<EF>>> MerkleData<EF> {
     pub(crate) fn open(&self, index: usize) -> (MleOwned<EF>, Vec<[PF<EF>; DIGEST_ELEMS]>) {
         match self {
             MerkleData::Base(prover_data) => {
-                let (leaf, proof) = merkle_open::<PF<EF>, PF<EF>>(prover_data, index);
+                let (leaf, proof) = merkle_open::<PF<EF>>(prover_data, index);
                 (MleOwned::Base(ArenaVec::from_slice(&leaf)), proof)
             }
             MerkleData::Extension(prover_data) => {
-                let (leaf, proof) = merkle_open::<PF<EF>, EF>(prover_data, index);
+                let (leaf, proof) = merkle_open::<EF>(prover_data, index);
                 (MleOwned::Extension(ArenaVec::from_slice(&leaf)), proof)
             }
         }
@@ -49,7 +48,7 @@ impl<EF: ExtensionField<PF<EF>>> MerkleData<EF> {
 #[derive(Debug, Clone)]
 pub struct Witness<EF>
 where
-    EF: ExtensionField<PF<EF>>,
+    EF: KoalaBearExtension,
 {
     pub prover_data: MerkleData<EF>,
     pub ood_points: Vec<EF>,
@@ -58,8 +57,7 @@ where
 
 impl<EF> WhirConfig<EF>
 where
-    EF: ExtensionField<PF<EF>>,
-    PF<EF>: TwoAdicField,
+    EF: KoalaBearExtension,
 {
     #[instrument(skip_all)]
     pub fn commit(

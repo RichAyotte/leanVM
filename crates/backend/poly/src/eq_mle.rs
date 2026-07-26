@@ -59,11 +59,11 @@ fn par_eval_eq<In, Buf, Out>(
 /// defined on the boolean hypercube by: ∀ (x_1, ..., x_n) ∈ {0, 1}^n,
 /// P(x_1, ..., x_n) = Π_{i=1}^{n} (x_i.α_i + (1 - x_i).(1 - α_i))
 /// (often denoted as P(x) = eq(x, evals))
-pub fn eval_eq<F: ExtensionField<PF<F>>>(eval: &[F]) -> ArenaVec<F> {
+pub fn eval_eq<F: KoalaBearExtension>(eval: &[F]) -> ArenaVec<F> {
     eval_eq_scaled(eval, F::ONE)
 }
 
-pub fn eval_eq_scaled<F: ExtensionField<PF<F>>>(eval: &[F], scalar: F) -> ArenaVec<F> {
+pub fn eval_eq_scaled<F: KoalaBearExtension>(eval: &[F], scalar: F) -> ArenaVec<F> {
     // SAFETY: fully written by `compute_eval_eq`.
     let mut out = unsafe { ArenaVec::uninitialized(1 << eval.len()) };
     compute_eval_eq::<PF<F>, F, false>(eval, &mut out, scalar);
@@ -71,17 +71,17 @@ pub fn eval_eq_scaled<F: ExtensionField<PF<F>>>(eval: &[F], scalar: F) -> ArenaV
 }
 
 /// Single-threaded, arena-free [`eval_eq`] (verifier side).
-pub fn eval_eq_sequential<F: ExtensionField<PF<F>>>(eval: &[F]) -> Vec<F> {
+pub fn eval_eq_sequential<F: KoalaBearExtension>(eval: &[F]) -> Vec<F> {
     let mut out = vec![F::ZERO; 1 << eval.len()];
     eval_eq_basic::<PF<F>, F, F, false>(eval, &mut out, F::ONE);
     out
 }
 
-pub fn eval_eq_packed<F: ExtensionField<PF<F>>>(eval: &[F]) -> ArenaVec<EFPacking<F>> {
+pub fn eval_eq_packed<F: KoalaBearExtension>(eval: &[F]) -> ArenaVec<EFPacking<F>> {
     eval_eq_packed_scaled(eval, F::ONE)
 }
 
-pub fn eval_eq_packed_scaled<F: ExtensionField<PF<F>>>(eval: &[F], scalar: F) -> ArenaVec<EFPacking<F>> {
+pub fn eval_eq_packed_scaled<F: KoalaBearExtension>(eval: &[F], scalar: F) -> ArenaVec<EFPacking<F>> {
     // Alloc memory without initializing it to zero.
     // This is safe because we overwrite it inside `compute_eval_eq_packed`.
     let mut out = unsafe { ArenaVec::uninitialized(1 << (eval.len() - packing_log_width::<F>())) };
@@ -89,7 +89,7 @@ pub fn eval_eq_packed_scaled<F: ExtensionField<PF<F>>>(eval: &[F], scalar: F) ->
     out
 }
 
-pub fn compute_sparse_eval_eq<F: ExtensionField<PF<F>>>(selector: usize, eval: &[F], out: &mut [F], scalar: F) {
+pub fn compute_sparse_eval_eq<F: KoalaBearExtension>(selector: usize, eval: &[F], out: &mut [F], scalar: F) {
     if eval.is_empty() {
         out[selector] += scalar;
         return;
@@ -103,7 +103,7 @@ pub fn compute_sparse_eval_eq<F: ExtensionField<PF<F>>>(selector: usize, eval: &
 
 pub fn compute_sparse_eval_eq_packed<EF>(selector: usize, eval: &[EF], out: &mut [EFPacking<EF>], scalar: EF)
 where
-    EF: ExtensionField<PF<EF>>,
+    EF: KoalaBearExtension,
 {
     let log_packing = packing_log_width::<EF>();
     if eval.len() < log_packing {
@@ -171,7 +171,7 @@ where
 #[inline]
 pub fn compute_eval_eq_packed<EF, const INITIALIZED: bool>(eval: &[EF], out: &mut [EF::ExtensionPacking], scalar: EF)
 where
-    EF: ExtensionField<PF<EF>>,
+    EF: KoalaBearExtension,
 {
     // `packing_width` may be 1 (e.g. Goldilocks on Neon, or without `target-cpu=native`),
     // so nothing here may assume it is > 1.
@@ -704,21 +704,27 @@ fn eval_eq_with_packed_scalar<F: Field, EF: ExtensionField<F>, const INITIALIZED
 
     match eval.len() {
         0 => {
-            let result: Vec<EF> = EF::ExtensionPacking::to_ext_iter([scalar]).collect();
+            let result: Vec<EF> = (scalar).to_ext_lanes().collect();
             add_or_set_f::<_, INITIALIZED>(out, &result);
         }
         1 => {
             // Manually unroll for single variable case
             let eq_evaluations = eval_eq_1(eval, scalar);
 
-            let result: Vec<EF> = EF::ExtensionPacking::to_ext_iter(eq_evaluations).collect();
+            let result: Vec<EF> = eq_evaluations
+                .into_iter()
+                .flat_map(EF::ExtensionPacking::to_ext_lanes)
+                .collect();
             add_or_set_f::<_, INITIALIZED>(out, &result);
         }
         2 => {
             // Manually unroll for two variables case
             let eq_evaluations = eval_eq_2(eval, scalar);
 
-            let result: Vec<EF> = EF::ExtensionPacking::to_ext_iter(eq_evaluations).collect();
+            let result: Vec<EF> = eq_evaluations
+                .into_iter()
+                .flat_map(EF::ExtensionPacking::to_ext_lanes)
+                .collect();
             add_or_set_f::<_, INITIALIZED>(out, &result);
         }
         3 => {
@@ -735,15 +741,18 @@ fn eval_eq_with_packed_scalar<F: Field, EF: ExtensionField<F>, const INITIALIZED
             // This avoids the allocation used to accumulate `result` in the other branches. We could
             // do a similar strategy in those branches but, those branches should only be hit
             // infrequently in small cases which are already sufficiently fast.
-            iter_array_chunks_padded::<_, EVAL_LEN>(EF::ExtensionPacking::to_ext_iter(eq_evaluations), EF::ZERO)
-                .zip(out.as_chunks_mut::<EVAL_LEN>().0.iter_mut())
-                .for_each(|(res, out_chunk)| {
-                    if INITIALIZED {
-                        EF::add_slices(out_chunk, &res);
-                    } else {
-                        out_chunk.copy_from_slice(&res);
-                    }
-                });
+            iter_array_chunks_padded::<_, EVAL_LEN>(
+                eq_evaluations.into_iter().flat_map(EF::ExtensionPacking::to_ext_lanes),
+                EF::ZERO,
+            )
+            .zip(out.as_chunks_mut::<EVAL_LEN>().0.iter_mut())
+            .for_each(|(res, out_chunk)| {
+                if INITIALIZED {
+                    EF::add_slices(out_chunk, &res);
+                } else {
+                    out_chunk.copy_from_slice(&res);
+                }
+            });
         }
         _ => {
             let (&x, tail) = eval.split_first().unwrap();
@@ -879,7 +888,7 @@ pub fn compute_eval_eq_packed_dual<EF>(
     scalar_a: EF,
     scalar_b: EF,
 ) where
-    EF: ExtensionField<PF<EF>>,
+    EF: KoalaBearExtension,
 {
     let packing_width = packing_width::<EF>();
     let log_packing_width = log2_strict_usize(packing_width);

@@ -1,9 +1,9 @@
-use field::{ExtensionField, PackedFieldExtension};
+use field::PackedFieldExtension;
 use poly::*;
 use zk_alloc::ArenaVec;
 
 #[derive(Debug)]
-pub struct SplitEq<EF: ExtensionField<PF<EF>>> {
+pub struct SplitEq<EF: KoalaBearExtension> {
     pub eq_lo: ArenaVec<EF>,
     pub eq_hi_packed: ArenaVec<EFPacking<EF>>,
     pub log_packed_hi: u32, // = log2(eq_hi_packed.len()), cached for bit-shift in get_packed
@@ -11,7 +11,7 @@ pub struct SplitEq<EF: ExtensionField<PF<EF>>> {
     pub remainder: ArenaVec<EF>,
 }
 
-impl<EF: ExtensionField<PF<EF>>> SplitEq<EF> {
+impl<EF: KoalaBearExtension> SplitEq<EF> {
     pub fn new(eq_point: &[EF]) -> Self {
         let n = eq_point.len();
 
@@ -54,7 +54,12 @@ impl<EF: ExtensionField<PF<EF>>> SplitEq<EF> {
             self.log_packed_hi = new_len.trailing_zeros();
         } else {
             // eq_hi_packed has 0 or 1 element — unpack to remainder and halve
-            let mut unpacked: ArenaVec<EF> = EFPacking::<EF>::to_ext_iter(self.eq_hi_packed.iter().copied()).collect();
+            let mut unpacked: ArenaVec<EF> = self
+                .eq_hi_packed
+                .iter()
+                .copied()
+                .flat_map(EFPacking::<EF>::to_ext_lanes)
+                .collect();
             let scale = self.eq_lo[0];
             for v in &mut unpacked {
                 *v *= scale;
@@ -98,7 +103,7 @@ impl<EF: ExtensionField<PF<EF>>> SplitEq<EF> {
         } else {
             let width = packing_width::<EF>();
             let packed_val = self.get_packed(i / width);
-            EFPacking::<EF>::to_ext_iter([packed_val]).nth(i % width).unwrap()
+            (packed_val).to_ext_lanes().nth(i % width).unwrap()
         }
     }
 }

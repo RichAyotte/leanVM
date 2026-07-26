@@ -9,7 +9,7 @@ use crate::{SumcheckComputation, packing_unpack_sum, sumcheck_prove_many_rounds}
 #[derive(Debug)]
 pub struct ProductComputation;
 
-impl<EF: ExtensionField<PF<EF>>> SumcheckComputation<EF> for ProductComputation {
+impl<EF: KoalaBearExtension> SumcheckComputation<EF> for ProductComputation {
     type ExtraData = Vec<EF>;
 
     fn degree(&self) -> usize {
@@ -34,7 +34,7 @@ impl<EF: ExtensionField<PF<EF>>> SumcheckComputation<EF> for ProductComputation 
 }
 
 #[instrument(skip_all)]
-pub fn run_product_sumcheck<EF: ExtensionField<PF<EF>>>(
+pub fn run_product_sumcheck<EF: KoalaBearExtension>(
     pol_a: &MleRef<'_, EF>, // evals
     pol_b: &MleRef<'_, EF>, // weights
     prover_state: &mut impl FSProver<EF>,
@@ -45,10 +45,10 @@ pub fn run_product_sumcheck<EF: ExtensionField<PF<EF>>>(
     assert!(n_rounds >= 1);
     let first_sumcheck_poly = match (pol_a, pol_b) {
         (MleRef::BasePacked(evals), MleRef::ExtensionPacked(weights)) => {
-            compute_product_sumcheck_polynomial(evals, weights, sum, |e| EFPacking::<EF>::to_ext_iter([e]).collect())
+            compute_product_sumcheck_polynomial(evals, weights, sum, |e| (e).to_ext_lanes().collect())
         }
         (MleRef::ExtensionPacked(evals), MleRef::ExtensionPacked(weights)) => {
-            compute_product_sumcheck_polynomial(evals, weights, sum, |e| EFPacking::<EF>::to_ext_iter([e]).collect())
+            compute_product_sumcheck_polynomial(evals, weights, sum, |e| (e).to_ext_lanes().collect())
         }
         (MleRef::Base(evals), MleRef::Extension(weights)) => {
             compute_product_sumcheck_polynomial(evals, weights, sum, |e| vec![e])
@@ -69,7 +69,7 @@ pub fn run_product_sumcheck<EF: ExtensionField<PF<EF>>>(
 
 /// Rounds 1+ of the product sumcheck, for callers that computed round 0 themselves.
 /// `sum` is the running sum after binding `r1`.
-pub fn run_product_sumcheck_from_round1<EF: ExtensionField<PF<EF>>>(
+pub fn run_product_sumcheck_from_round1<EF: KoalaBearExtension>(
     pol_a: &MleRef<'_, EF>, // evals
     pol_b: &MleRef<'_, EF>, // weights
     prover_state: &mut impl FSProver<EF>,
@@ -85,16 +85,12 @@ pub fn run_product_sumcheck_from_round1<EF: ExtensionField<PF<EF>>>(
     let (second_sumcheck_poly, folded) = match (pol_a, pol_b) {
         (MleRef::BasePacked(evals), MleRef::ExtensionPacked(weights)) => {
             let (second_sumcheck_poly, folded) =
-                fold_and_compute_product_sumcheck_polynomial(evals, weights, r1, sum, |e| {
-                    EFPacking::<EF>::to_ext_iter([e]).collect()
-                });
+                fold_and_compute_product_sumcheck_polynomial(evals, weights, r1, sum, |e| (e).to_ext_lanes().collect());
             (second_sumcheck_poly, MleGroupOwned::ExtensionPacked(folded))
         }
         (MleRef::ExtensionPacked(evals), MleRef::ExtensionPacked(weights)) => {
             let (second_sumcheck_poly, folded) =
-                fold_and_compute_product_sumcheck_polynomial(evals, weights, r1, sum, |e| {
-                    EFPacking::<EF>::to_ext_iter([e]).collect()
-                });
+                fold_and_compute_product_sumcheck_polynomial(evals, weights, r1, sum, |e| (e).to_ext_lanes().collect());
             (second_sumcheck_poly, MleGroupOwned::ExtensionPacked(folded))
         }
         (MleRef::Base(evals), MleRef::Extension(weights)) => {
@@ -273,7 +269,7 @@ where
 
 /// Algo 3 of https://eprint.iacr.org/2024/1046.pdf. Requires n_rounds >= 3.
 #[allow(clippy::too_many_arguments)]
-pub fn run_product_sumcheck_from_round1_delayed<EF: ExtensionField<PF<EF>>>(
+pub fn run_product_sumcheck_from_round1_delayed<EF: KoalaBearExtension>(
     evals: &[PFPacking<EF>],
     weights: &[EFPacking<EF>],
     prover_state: &mut impl FSProver<EF>,
