@@ -259,7 +259,7 @@ where
     #[inline]
     fn packed_ext_powers(base: QuinticExtensionField<F>) -> field::Powers<Self> {
         let width = F::Packing::WIDTH;
-        let powers = base.powers().take(width + 1).collect();
+        let powers: Vec<_> = base.powers().take(width + 1).collect();
         // Transpose first WIDTH powers
         let current = Self::from_ext_slice(&powers[..width]);
 

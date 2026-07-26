@@ -10,7 +10,7 @@ use core::{array, slice};
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use utils::{flatten_to_base, iter_array_chunks_padded};
+use utils::iter_array_chunks_padded;
 
 use crate::exponentiation::bits_u64;
 use crate::integers::{QuotientMap, from_integer_types};
@@ -972,60 +972,11 @@ impl<R: PrimeCharacteristicRing> Powers<R> {
 }
 
 impl<F: Field> Powers<F> {
+    /// The first `n` powers.
     #[inline]
     #[must_use]
     pub fn collect_n(self, n: usize) -> Vec<F> {
         self.take(n).collect()
-    }
-}
-
-impl<F: Field> BoundedPowers<F> {
-    /// Collect exactly `num_powers` ascending powers of `self.base`, starting at `self.current`.
-    ///
-    /// # Details
-    ///
-    /// The computation is split evenly amongst available threads, and each chunk is computed
-    /// using packed fields.
-    ///
-    /// # Performance
-    ///
-    /// Enable the `parallel` feature to enable parallelization.
-    #[must_use]
-    pub fn collect(self) -> Vec<F> {
-        let num_powers = self.n;
-
-        // When num_powers is small, fallback to serial computation
-        if num_powers < 16 {
-            return self.take(num_powers).collect();
-        }
-
-        // Allocate buffer storing packed powers, containing at least `num_powers` scalars.
-        let width = F::Packing::WIDTH;
-        let num_packed = num_powers.div_ceil(width);
-        let mut points_packed = F::Packing::zero_vec(num_packed);
-
-        // Split computation evenly among threads
-        let num_threads = parallel::num_threads().max(1);
-        let chunk_size = num_packed.div_ceil(num_threads);
-
-        // Precompute base for each chunk.
-        let base = self.iter.base;
-        let chunk_base = base.exp_u64((chunk_size * width) as u64);
-        let shift = self.iter.current;
-
-        parallel::par_chunks_mut(&mut points_packed, chunk_size, |chunk_idx, chunk_slice| {
-            // First power in this chunk
-            let chunk_start = shift * chunk_base.exp_u64(chunk_idx as u64);
-
-            // Fill the chunk with packed powers.
-            F::Packing::packed_shifted_powers(base, chunk_start).fill(chunk_slice);
-        });
-
-        // return the number of requested points, discarding the unused packed powers
-        // SAFETY: size_of::<F::Packing> always divides size_of::<F::Packing>.
-        let mut points = unsafe { flatten_to_base(points_packed) };
-        points.truncate(num_powers);
-        points
     }
 }
 

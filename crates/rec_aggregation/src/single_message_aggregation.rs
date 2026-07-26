@@ -135,6 +135,7 @@ impl SingleMessageAggregateSignature {
     /// Inverse of [`Self::to_bytes_without_pubkeys`]; the caller supplies the pubkeys.
     /// A set different from the one aggregated fails verification.
     pub fn from_bytes_without_pubkeys(bytes: &[u8], pubkeys: Vec<XmssPublicKey>) -> Option<Self> {
+        let _forbid = parallel::forbid_parallelism();
         let ((core, proof), rest) = postcard::take_from_bytes::<(SingleMessageCore, ExecutionProof)>(bytes).ok()?;
         if !rest.is_empty() {
             return None;
@@ -170,10 +171,10 @@ pub(crate) fn hash_pubkeys(pub_keys: &[XmssPublicKey]) -> [F; DIGEST_LEN] {
 }
 
 /// Tweak slots are 4-FE [tw[0], tw[1], 0, 0]
-fn compute_tweak_table(slot: u32) -> ArenaVec<F> {
-    let mut table = ArenaVec::new();
+fn compute_tweak_table(slot: u32) -> Vec<F> {
+    let mut table = Vec::new();
 
-    let push_padded = |table: &mut ArenaVec<F>, tweak_type: usize, sub_position: usize, index: u32| {
+    let push_padded = |table: &mut Vec<F>, tweak_type: usize, sub_position: usize, index: u32| {
         table.extend(make_tweak(tweak_type, sub_position, index));
         table.extend(std::iter::repeat_n(F::ZERO, 2));
     };
@@ -250,12 +251,15 @@ fn encode_wots_signature(sig: &XmssSignature) -> ArenaVec<F> {
 /// Assumes `sig.info.bytecode_claim.value` is correct: it must not come from an untrusted
 /// source without recomputation (deserializing via serde recomputes it).
 pub fn verify_single_message_aggregate(sig: &SingleMessageAggregateSignature) -> Result<InnerVerified, ProofError> {
+    let _forbid = parallel::forbid_parallelism();
     check_single_message_pubkeys(&sig.info.pubkeys).map_err(|_| ProofError::InvalidProof)?;
     verify_inner(sig.info.build_input_data(), sig.proof.proof.clone())
 }
 
 /// Aggregate raw XMSS signatures and previously aggregated single-message signatures.
 /// Single-message = one shared (message, slot).
+///
+/// One proving job at a time per process: a concurrent call panics.
 #[instrument(skip_all)]
 pub fn aggregate_single_message_signatures(
     children: &[SingleMessageAggregateSignature],
@@ -474,7 +478,7 @@ pub(crate) fn aggregate_single_message_signatures_with_min_padding(
     hints.insert(bytecode, "merkle_leaf", merkle_leaf_blobs);
     hints.insert(bytecode, "merkle_path", merkle_path_blobs);
     hints.insert(bytecode, "aggregate_sizes", arena_vec![aggregate_sizes]);
-    hints.insert(bytecode, "tweak_table", arena_vec![tweak_table]);
+    hints.insert(bytecode, "tweak_table", arena_vec![ArenaVec::from_slice(&tweak_table)]);
     if n_recursions > 0 {
         hints.insert(
             bytecode,

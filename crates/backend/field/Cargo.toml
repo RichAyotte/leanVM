@@ -7,6 +7,5 @@ edition.workspace = true
 utils = { path = "../utils", package = "utils" }
 
 paste.workspace = true
-parallel.workspace = true
 rand.workspace = true
 serde.workspace = true

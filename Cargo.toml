@@ -99,6 +99,7 @@ system-info.workspace = true
 
 [dev-dependencies]
 rand.workspace = true
+parallel = { workspace = true, features = ["forbid-parallelism"] }
 
 [profile.release]
 lto = "thin"

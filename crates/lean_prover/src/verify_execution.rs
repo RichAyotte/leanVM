@@ -74,7 +74,7 @@ pub fn verify_execution(
     let logup_c = verifier_state.sample();
     verifier_state.duplex();
     let logup_alphas = verifier_state.sample_vec(LOG_MAX_BUS_WIDTH);
-    let logup_alphas_eq_poly = eval_eq(&logup_alphas);
+    let logup_alphas_eq_poly = eval_eq_sequential(&logup_alphas);
 
     let logup_statements = verify_generic_logup(
         &mut verifier_state,

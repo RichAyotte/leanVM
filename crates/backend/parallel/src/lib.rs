@@ -17,6 +17,7 @@
 
 use std::any::Any;
 use std::cell::{Cell, UnsafeCell};
+use std::marker::PhantomData;
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -50,6 +51,8 @@ thread_local! {
     static WORKER_ID: Cell<usize> = const { Cell::new(0) };
     /// Set while running a task; a dispatch in this state is forbidden nesting (panics).
     static IN_TASK: Cell<bool> = const { Cell::new(false) };
+    /// Set by `forbid_parallelism` (`forbid-parallelism` feature): pool dispatch on this thread panics while set.
+    static FORBIDDEN: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Calling worker's id in `0..NUM_THREADS` (`0` off-pool).
@@ -63,6 +66,36 @@ pub(crate) fn current_worker_id() -> usize {
 #[must_use]
 pub fn is_in_pool_task() -> bool {
     IN_TASK.get()
+}
+
+/// Forbid pool dispatch on this thread until the guard drops; `zk-alloc` extends the ban to
+/// arena allocation.
+#[must_use]
+pub fn forbid_parallelism() -> ForbidParallelismGuard {
+    ForbidParallelismGuard {
+        prev: cfg!(feature = "forbid-parallelism") && FORBIDDEN.replace(true),
+        _not_send: PhantomData,
+    }
+}
+
+#[must_use]
+#[inline]
+pub fn parallelism_forbidden() -> bool {
+    cfg!(feature = "forbid-parallelism") && FORBIDDEN.get()
+}
+
+#[derive(Debug)]
+pub struct ForbidParallelismGuard {
+    prev: bool,
+    _not_send: PhantomData<*const ()>,
+}
+
+impl Drop for ForbidParallelismGuard {
+    fn drop(&mut self) {
+        if cfg!(feature = "forbid-parallelism") {
+            FORBIDDEN.set(self.prev);
+        }
+    }
 }
 
 /// Type-erased work unit. The `&dyn Fn` lifetime is erased to `'static`; it is dereferenced
@@ -226,6 +259,7 @@ fn drain(pool: &Pool) {
 /// several (guided self-scheduling, see [`drain`]). Blocks until done, the dispatcher acting as
 /// worker 0. The base primitive — range-based so reductions amortize per-worker lookups.
 pub fn for_each_chunk<F: Fn(usize, usize) + Sync>(n_tasks: usize, f: F) {
+    assert!(!parallelism_forbidden(), "pool dispatch while parallelism is forbidden");
     // Nesting would deadlock the dispatch lock — panic so it's caught, not silently serial.
     assert!(!IN_TASK.get(), "nested parallel dispatch from within a pool task");
 

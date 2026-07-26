@@ -9,5 +9,8 @@ system-info.workspace = true
 parallel.workspace = true
 libc.workspace = true
 
+[dev-dependencies]
+parallel = { workspace = true, features = ["forbid-parallelism"] }
+
 [lints]
 workspace = true

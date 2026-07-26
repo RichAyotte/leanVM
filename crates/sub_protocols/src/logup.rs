@@ -391,7 +391,7 @@ pub fn verify_generic_logup(
     let mut bytecode_point = bytecode_and_acc_point.0.clone();
     bytecode_point.extend(from_end(alphas, log2_ceil_usize(N_INSTRUCTION_COLUMNS)));
     let bytecode_point = MultilinearPoint(bytecode_point);
-    let bytecode_value = bytecode_multilinear.evaluate(&bytecode_point);
+    let bytecode_value = bytecode_multilinear.evaluate_sequential(&bytecode_point);
     let bytecode_value_corrected = bytecode_value
         * alphas[..alphas.len() - log2_ceil_usize(N_INSTRUCTION_COLUMNS)]
             .iter()

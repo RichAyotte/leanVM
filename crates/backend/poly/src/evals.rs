@@ -26,7 +26,7 @@ impl<F: Field, EL: AsRef<[F]>> EvaluationsList<F> for EL {
     }
 
     fn evaluate_sequential<EF: ExtensionField<F>>(&self, point: &MultilinearPoint<EF>) -> EF {
-        eval_multilinear::<_, _, false>(self.as_ref(), point)
+        eval_multilinear_sequential(self.as_ref(), point)
     }
 
     fn as_constant(&self) -> F {
@@ -62,6 +62,45 @@ pub fn bit_reverse_permutation<T>(data: &mut [T]) {
             data.swap(i, j);
         }
     }
+}
+
+/// Single-threaded, arena-free multilinear evaluation (verifier side): the regrouped sum
+/// `Σ_hi eq(hi) · Σ_lo f(hi, lo) · eq(lo)` with sequential `Vec` eq tables. The fast
+/// prover-side paths are [`eval_base_packed`] / [`eval_packed`].
+pub fn eval_multilinear_sequential<F, EF>(evals: &[F], point: &[EF]) -> EF
+where
+    F: Field,
+    EF: ExtensionField<F>,
+{
+    debug_assert_eq!(evals.len(), 1 << point.len());
+    let mid = point.len() / 2;
+    let (hi, lo) = point.split_at(point.len() - mid);
+    let eq_lo = seq_eq_table(lo);
+    let eq_hi = seq_eq_table(hi);
+    eq_hi
+        .iter()
+        .enumerate()
+        .map(|(i, &h)| {
+            let row = &evals[i << mid..][..1 << mid];
+            h * row.iter().zip(&eq_lo).map(|(&a, &b)| b * a).sum::<EF>()
+        })
+        .sum()
+}
+
+/// eq(x, point) over the hypercube, first coordinate most significant. Not [`eval_eq_sequential`]:
+/// that one needs `EF: ExtensionField<PF<EF>>`, which callers here don't have.
+fn seq_eq_table<EF: Field>(point: &[EF]) -> Vec<EF> {
+    let mut table = vec![EF::ONE; 1 << point.len()];
+    let mut len = 1;
+    for &x in point.iter().rev() {
+        let (lo, hi) = table.split_at_mut(len);
+        for (l, h) in lo.iter_mut().zip(hi) {
+            *h = *l * x;
+            *l -= *h;
+        }
+        len *= 2;
+    }
+    table
 }
 
 pub fn eval_multilinear_coeffs<F, EF>(coeffs: &[F], point: &[EF]) -> EF
@@ -400,6 +439,21 @@ mod tests {
     type EF = QuinticExtensionFieldKB;
 
     use super::*;
+
+    #[test]
+    fn sequential_evaluate_matches_parallel() {
+        type Base = koala_bear::KoalaBear;
+        let mut rng = StdRng::seed_from_u64(1);
+        for n_vars in 0..=14 {
+            let evals: Vec<Base> = (0..1usize << n_vars).map(|_| rng.random()).collect();
+            let point = MultilinearPoint((0..n_vars).map(|_| rng.random::<EF>()).collect());
+            assert_eq!(
+                evals.evaluate_sequential(&point),
+                evals.evaluate(&point),
+                "n_vars = {n_vars}"
+            );
+        }
+    }
 
     #[test]
     fn test_evaluate() {

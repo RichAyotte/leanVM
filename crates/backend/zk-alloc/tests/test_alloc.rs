@@ -47,3 +47,10 @@ fn arena_vec_without_global_allocator() {
     drop(v);
     drop(w);
 }
+
+#[test]
+#[should_panic = "parallelism is forbidden"]
+fn arena_alloc_forbidden_under_guard() {
+    let _forbid = parallel::forbid_parallelism();
+    let _ = ArenaVec::<u64>::with_capacity(N);
+}

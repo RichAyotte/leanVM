@@ -23,6 +23,12 @@ fn serialize_arena_tests() -> MutexGuard<'static, ()> {
 }
 
 #[test]
+fn forbid_parallelism_is_active_in_tests() {
+    let _forbid = parallel::forbid_parallelism();
+    assert!(parallel::parallelism_forbidden());
+}
+
+#[test]
 fn test_xmss_signature() {
     let activation_slot = 111;
     let num_active_slots = 90;
@@ -170,6 +176,6 @@ fn test_multi_message_aggregation() {
         ),
         (info_b.core.message, &info_b.core.slot, &info_b.pubkeys)
     );
-    verify_single_message_aggregate(&split_a).expect("split index 0 failed verify_single_message_aggregate");
-    verify_single_message_aggregate(&split_b).expect("split index 1 failed verify_single_message_aggregate");
+    verify_single_message_aggregate(&split_a).expect("split index 0 failed verify");
+    verify_single_message_aggregate(&split_b).expect("split index 1 failed verify");
 }

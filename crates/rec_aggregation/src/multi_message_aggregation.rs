@@ -65,6 +65,7 @@ impl MultiMessageAggregateSignature {
     /// Inverse of [`Self::to_bytes_without_pubkeys`]; the caller supplies one pubkey set per
     /// component, in order. Sets different from the ones aggregated fail verification.
     pub fn from_bytes_without_pubkeys(bytes: &[u8], pubkeys_per_info: Vec<Vec<XmssPublicKey>>) -> Option<Self> {
+        let _forbid = parallel::forbid_parallelism();
         let ((infos, bytecode_claim_point, proof), rest) =
             postcard::take_from_bytes::<(Vec<SingleMessageCore>, MultilinearPoint<EF>, ExecutionProof)>(bytes).ok()?;
         if !rest.is_empty() || infos.len() != pubkeys_per_info.len() {
@@ -112,6 +113,8 @@ fn build_multi_message_input_data(digests: &[[F; DIGEST_LEN]], bytecode_claim_fl
 
 /// Merge single-message aggregates (each with its own (message, slot)) into one
 /// multi-message aggregate attested by a single proof.
+///
+/// One proving job at a time per process: a concurrent call panics.
 pub fn merge_single_message_aggregates(
     single_messages: Vec<SingleMessageAggregateSignature>,
     log_inv_rate: usize,
@@ -210,6 +213,7 @@ pub fn merge_single_message_aggregates(
 
 /// Verify a multi-message aggregate against its per-component `info` (message, slot, pubkeys).
 pub fn verify_multi_message_aggregate(sig: &MultiMessageAggregateSignature) -> Result<InnerVerified, ProofError> {
+    let _forbid = parallel::forbid_parallelism();
     if sig.info.is_empty() || sig.info.len() > MAX_RECURSIONS {
         return Err(ProofError::InvalidProof);
     }
@@ -249,6 +253,8 @@ pub fn split_multi_message_aggregate_by_message(
 
 /// Recover an independent single-message aggregate signature for the component at `index`
 /// from a multi-message aggregate signature.
+///
+/// One proving job at a time per process: a concurrent call panics.
 pub fn split_multi_message_aggregate(
     multi_message: MultiMessageAggregateSignature,
     index: usize,

@@ -59,18 +59,21 @@ fn par_eval_eq<In, Buf, Out>(
 /// defined on the boolean hypercube by: ∀ (x_1, ..., x_n) ∈ {0, 1}^n,
 /// P(x_1, ..., x_n) = Π_{i=1}^{n} (x_i.α_i + (1 - x_i).(1 - α_i))
 /// (often denoted as P(x) = eq(x, evals))
-/// Returns an arena-backed table (see [`ArenaVec`]). Every eq table is phase-local proof scratch
-/// (consumed within the proving phase that built it, or system-backed when the arena is inactive,
-/// e.g. in the verifier), so it never outlives a `begin_phase()` reset.
 pub fn eval_eq<F: ExtensionField<PF<F>>>(eval: &[F]) -> ArenaVec<F> {
     eval_eq_scaled(eval, F::ONE)
 }
 
 pub fn eval_eq_scaled<F: ExtensionField<PF<F>>>(eval: &[F], scalar: F) -> ArenaVec<F> {
-    // Alloc memory without initializing it to zero.
-    // This is safe because we overwrite it inside `compute_eval_eq`.
+    // SAFETY: fully written by `compute_eval_eq`.
     let mut out = unsafe { ArenaVec::uninitialized(1 << eval.len()) };
     compute_eval_eq::<PF<F>, F, false>(eval, &mut out, scalar);
+    out
+}
+
+/// Single-threaded, arena-free [`eval_eq`] (verifier side).
+pub fn eval_eq_sequential<F: ExtensionField<PF<F>>>(eval: &[F]) -> Vec<F> {
+    let mut out = vec![F::ZERO; 1 << eval.len()];
+    eval_eq_basic::<PF<F>, F, F, false>(eval, &mut out, F::ONE);
     out
 }
 
@@ -1162,6 +1165,15 @@ mod tests {
     use super::*;
     type F = koala_bear::KoalaBear;
     type EF = QuinticExtensionFieldKB;
+
+    #[test]
+    fn eval_eq_sequential_matches_parallel() {
+        let mut rng = StdRng::seed_from_u64(2);
+        for n_vars in 0..=13 {
+            let point: Vec<EF> = (0..n_vars).map(|_| rng.random()).collect();
+            assert_eq!(&*eval_eq(&point), &*eval_eq_sequential(&point), "n_vars = {n_vars}");
+        }
+    }
 
     #[test]
     fn test_compute_sparse_eval() {

@@ -38,7 +38,7 @@ pub trait OwnedBuffer<T>: DerefMut<Target = [T]> + Sized {
     /// Every element must be written before it is read.
     unsafe fn uninit(len: usize) -> Self;
 
-    /// `len` elements, initialized in place by `fill` — which **must** write all of them.
+    /// `len` elements, initialized in place by `fill`, which **must** write all of them.
     #[inline]
     fn build(len: usize, fill: impl FnOnce(&mut [T])) -> Self {
         // SAFETY: `fill` writes every one of the `len` elements before any is read.

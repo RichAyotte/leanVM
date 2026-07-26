@@ -28,7 +28,7 @@ pub(crate) fn compute_bytecode_value_at(point: &MultilinearPoint<EF>) -> EF {
         // fast path for multi-signatures coming from 100% raw XMSS (no recursion):
         EF::from(bytecode.instructions_multilinear()[0])
     } else {
-        bytecode.instructions_multilinear().evaluate(point)
+        bytecode.instructions_multilinear().evaluate_sequential(point)
     }
 }
 

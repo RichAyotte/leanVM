@@ -89,13 +89,17 @@ pub fn enable_arena() {
 }
 
 /// Activate the arena and reset every thread's slab (overwriting the previous phase). No-op until
-/// [`enable_arena`]; phases must not nest.
+/// [`enable_arena`]. Panics if a phase is already active, whether nested on this thread or owned
+/// by another (only one proving job runs at a time).
 pub fn begin_phase() {
     if !ARENA_ENGAGED.load(Ordering::Acquire) {
         return;
     }
     let prev_active = ARENA_ACTIVE.swap(true, Ordering::Release);
-    assert!(!prev_active, "phases must not nest");
+    assert!(
+        !prev_active,
+        "arena phase already active: phases must not nest, and only one proving job runs at a time"
+    );
     GENERATION.fetch_add(1, Ordering::Release);
 }
 
@@ -118,6 +122,7 @@ impl Drop for PhaseGuard {
 }
 
 /// [`begin_phase`] + an RAII guard that [`end_phase`]s on drop (incl. early return / panic).
+/// Bind it before the phase's `ArenaVec`s so it drops after them.
 #[must_use = "the phase ends the moment the guard is dropped"]
 pub fn enter_phase() -> PhaseGuard {
     begin_phase();
@@ -161,6 +166,10 @@ unsafe fn arena_alloc_cold(size: usize, align: usize) -> *mut u8 {
 /// the next `begin_phase()`.
 #[inline(always)]
 pub(crate) unsafe fn raw_alloc(size: usize, align: usize) -> *mut u8 {
+    assert!(
+        !parallel::parallelism_forbidden(),
+        "ArenaVec allocation on a thread where parallelism is forbidden"
+    );
     if ARENA_ACTIVE.load(Ordering::Relaxed) {
         let generation = GENERATION.load(Ordering::Relaxed);
         if ARENA_GEN.get() == generation {
