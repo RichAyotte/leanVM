@@ -23,6 +23,13 @@ pub type F = KoalaBear;
 /// Use separate processes to parallelize
 pub fn setup_prover() {
     zk_alloc::enable_arena();
+    setup_prover_without_arena();
+}
+
+/// similar to [`setup_prover`], but for memory-constrained devices
+/// -> slower proving time, but less memory usage
+/// (uses the system allocator instead of the arena)
+pub fn setup_prover_without_arena() {
     parallel::init();
     rec_aggregation::init_aggregation_bytecode();
     precompute_dft_twiddles::<F>(1 << 24);
