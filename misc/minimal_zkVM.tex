@@ -647,8 +647,8 @@ We restrict their maximal heights, to ensure logup multiplicites never overflow 
 Table & Max rows \\
 \midrule
 \textsc{EXECUTION} & $2^{24}$ \\
-\textsc{EXTENSION} & $2^{21}$ \\
-\textsc{POSEIDON} & $2^{21}$ \\
+\textsc{EXTENSION} & $2^{22}$ \\
+\textsc{POSEIDON} & $2^{22}$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1089,7 +1089,7 @@ Virtual (non-committed) columns: $\textsf{multiplicity} = \textsf{flag\_start} \
 \[
 \textsc{Pull}\big(\textsf{idx}_A,\, \textsf{idx}_B,\, \textsf{idx}_R,\, 0_{12},\, \textsf{aux}_2\big) \quad \text{with multiplicity } \textsf{multiplicity},
 \]
-The domain separator $\textsf{aux}_2$ binds the mode and length to the bus data: since $\textsf{flag\_be}, \textsf{flag\_add}, \textsf{flag\_dot\_product}, \textsf{flag\_eq}$ are boolean and the length is $\leq 2^{21}$ (\Cref{lem:len-bound}), the encoding is injective, so every $\textsf{aux}_2$ sent by the execution table is faithfully received here.
+The domain separator $\textsf{aux}_2$ binds the mode and length to the bus data: since $\textsf{flag\_be}, \textsf{flag\_add}, \textsf{flag\_dot\_product}, \textsf{flag\_eq}$ are boolean and the length is $\leq 2^{22}$ (\Cref{lem:len-bound}), the encoding is injective, so every $\textsf{aux}_2$ sent by the execution table is faithfully received here.
 
 
 \subsubsection{AIR constraints}
@@ -1137,7 +1137,7 @@ Let $\textsf{acc\_tail} = \text{next}(\textsf{acc}) \cdot (1 - \text{next}(\text
 \vspace{5mm}
 
 \begin{lemma}\label{lem:len-bound}
-On every row $r$ of the extension table, $\textsf{len}_r \leq H - r$ (as an integer in $\{0, \dots, p-1\}$), where $H \leq 2^{21}$ is the table height. In particular, $\textsf{len}_r \leq H$.
+On every row $r$ of the extension table, $\textsf{len}_r \leq H - r$ (as an integer in $\{0, \dots, p-1\}$), where $H \leq 2^{22}$ is the table height. In particular, $\textsf{len}_r \leq H$.
 \end{lemma}
 
 \begin{proof}
@@ -1153,7 +1153,7 @@ By backward induction on $r$, from $r = H - 1$ down to $r = 0$.
 
 \begin{itemize}
     \item If $\textsf{flag\_start}_{r+1} = 1$: \eqref{c:len-boundary} gives $1 \cdot (\textsf{len}_r - 1) = 0$, so $\textsf{len}_r = 1 \leq H - r$.
-    \item If $\textsf{flag\_start}_{r+1} = 0$: \eqref{c:len-countdown} gives $(1 - 0) \cdot (\textsf{len}_r - \textsf{len}_{r+1} - 1) = 0$, so $\textsf{len}_r = \textsf{len}_{r+1} + 1$ in $\Fp$. By induction, $\textsf{len}_{r+1} \leq H - (r+1)$, so $\textsf{len}_{r+1} + 1 \leq H - r$. Since $H - r \leq H \leq 2^{21} < p$, the addition does not overflow modulo $p$, so $\textsf{len}_r = \textsf{len}_{r+1} + 1 \leq H - r$ as integers.
+    \item If $\textsf{flag\_start}_{r+1} = 0$: \eqref{c:len-countdown} gives $(1 - 0) \cdot (\textsf{len}_r - \textsf{len}_{r+1} - 1) = 0$, so $\textsf{len}_r = \textsf{len}_{r+1} + 1$ in $\Fp$. By induction, $\textsf{len}_{r+1} \leq H - (r+1)$, so $\textsf{len}_{r+1} + 1 \leq H - r$. Since $H - r \leq H \leq 2^{22} < p$, the addition does not overflow modulo $p$, so $\textsf{len}_r = \textsf{len}_{r+1} + 1 \leq H - r$ as integers.
 \end{itemize}
 \end{proof}
 
