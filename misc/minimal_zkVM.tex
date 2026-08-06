@@ -252,9 +252,11 @@ where $+$ represents field coordinate-wise addition, and $[0..8]$ represents the
 
 We use a read-only memory (also called write-once memory). Each memory word is a base field element. The memory is a 1D array of $2^{h_\textsc{memory}}$ words; the log-size $h_\textsc{memory}$ is attached to each execution of the VM and must satisfy $h_\textsc{memory}^{\min} \leq h_\textsc{memory} \leq h_\textsc{memory}^{\max}$, with $h_\textsc{memory}^{\min} = 16$ and $h_\textsc{memory}^{\max} = 26$. The first $\ell_\textsc{public}$ memory cells (one hash digest) hold the "public input", which informally represents the part of the memory "controlled" by the verifier of an execution proof. If a program requires bigger input, it is enought to pass as public input its hash, and to hint (see \Cref{sec:hints}) the corresponding data at runtime (whose hash will be checked against the public input).
 
-\subsection{Bytecode}
+\subsection{Bytecode}\label{sec:bytecode}
 
 The bytecode is also read-only, and also has a power of two size. It lives in a separate region than the memory (Harvard architecture). Both prover and verifier are expected to have access to the bytecode. For a bytecode of size $2^{h_\textsc{bytecode}}$, a valid execution should start at $\textbf{pc} = 0$, and ends at $\textbf{pc} = 2^{h_\textsc{bytecode}} - 1$. In practice, it is suggested to use for the last instruction (at index $2^{h_\textsc{bytecode}} - 1$) a \texttt{JUMP} (\cref{sec:jump}) that unconditionally jumps to itself (for padding reasons within the snark). The minimal bytecode log-size is $h^{\min}$.
+
+\paragraph{Well-formed bytecode.} The bytecode is assumed \emph{well-formed}: every instruction is a legal encoding, as produced by \Cref{sec:opcode-encoding}. Many constraints rely on it (\Cref{sec:air-eval-after}), without enforcing it.
 
 \subsection{Registers}
 
@@ -954,7 +956,7 @@ for the 12 instruction columns.
 \]
 where $\textsf{aux}_2$ encodes a call to either the \textsf{POSEIDON} or \textsf{EXTENSION} table.
 
-\subsection{POSEIDON table}
+\subsection{POSEIDON table}\label{sec:poseidon-table}
 
 The Poseidon table runs one $\texttt{POSEIDON\_OP}$ precompile call (\Cref{sec:poseidon-op}) per row, pulling the call $(\nu_A, \nu_B, \nu_C, 0_{12}, \textsf{aux}_2)$ from the precompile bus. The call's compile-time parameters are recorded in the row as the boolean flags $\textsf{flag\_permute}, \textsf{flag\_out8}, \textsf{flag\_out4}, \textsf{flag\_left}$ and the offset $\textsf{offset\_left} \in \Fp$, with $\textsf{flag\_left} = [\delta \neq \bot]$ and $\textsf{offset\_left} = \delta$ (so $\textsf{flag\_left} = 1$ replaces the first four left-input elements by a hardcoded prefix). The pair $(\textsf{flag\_out8}, \textsf{flag\_out4})$ encodes the output length — $(1, 0) \mapsto 8$, $(0, 1) \mapsto 4$, $(0, 0) \mapsto 16$ — so the four valid $(\textsf{permute}, \text{output})$ modes are: compression $8$ $(\textsf{permute}{=}0, \textsf{out8}{=}1)$, compression $4$ $(\textsf{permute}{=}0, \textsf{out4}{=}1)$, permutation $16$ $(\textsf{permute}{=}1, \textsf{out16})$, and permutation $8$ $(\textsf{permute}{=}1, \textsf{out8}{=}1)$.
 
@@ -1023,7 +1025,7 @@ Write $\nu_A = \textsf{addr}^\text{hi}_\text{left} - (1 - \textsf{flag\_left}) \
 \end{itemize}
 
 
-\subsection{EXTENSION table}
+\subsection{EXTENSION table}\label{sec:extension-table}
 
 \subsubsection{Trace layout}
 
@@ -1170,7 +1172,7 @@ TODO: Verify and (formally) prove soundness.
 \begin{minipage}{0.97\textwidth}
 \textbf{Verification parameters (known to both prover and verifier).}
 \begin{itemize}
-    \item $\textsf{bytecode}$: the bytecode of the program being executed (\Cref{sec:opcode-encoding}), of size $2^{h_\textsc{bytecode}}$.
+    \item $\textsf{bytecode}$: the bytecode of the program being executed (\Cref{sec:opcode-encoding}), of size $2^{h_\textsc{bytecode}}$, assumed well-formed (\Cref{sec:bytecode}).
     \item $\textsf{public\_input}$: the initial public part of the memory, occupying cells $[0,\, \ell_\textsc{public})$ with $\ell_\textsc{public} = 8$.
 \end{itemize}
 \end{minipage}}
