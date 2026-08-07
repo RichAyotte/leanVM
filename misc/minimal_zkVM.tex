@@ -201,8 +201,8 @@ $h_\textsc{memory}^{\min}$ & $16$ & log2 of the minimum size of the memory \\
 $h_\textsc{memory}^{\max}$ & $26$ & log2 of the maximum size of the memory \\
 $h^{\min}$ & $8$ & log2 of the minimum height shared by all tables (and by the bytecode) \\
 $h_\textsc{exec}^{\max}$ & $24$ & log2 of the maximum height of the \texttt{execution} table \\
-$h_\textsc{poseidon}^{\max}$ & $21$ & log2 of the maximum height of the \texttt{poseidon} table \\
-$h_\textsc{extension}^{\max}$ & $21$ & log2 of the maximum height of the \texttt{extension} table \\
+$h_\textsc{poseidon}^{\max}$ & $22$ & log2 of the maximum height of the \texttt{poseidon} table \\
+$h_\textsc{extension}^{\max}$ & $22$ & log2 of the maximum height of the \texttt{extension} table \\
 $\textsf{bus\_width}$ & 16 & number of field elements in the bus (see \Cref{sec:bus-interactions}) \\
 $\ell$ & 4 & $\log_2(\textsf{bus\_width})$ \\
 $\textsf{memory\_sep}$ & 1 & domain separator of memory interactions \\
@@ -709,6 +709,28 @@ These columns serve as the multiplicities of the two corresponding bus pushes:
     \item For each $i \in [0, 2^{h_\textsc{memory}})$: $\textsc{Push}\big(i,\, \textbf{m}[i],\, 0_{13},\, \textsf{memory\_sep}\big)$ with multiplicity $\textsf{memory\_acc}[i]$.
     \item For each $\textbf{pc} \in [0, 2^{h_\textsc{bytecode}})$: $\textsc{Push}\big(\textsf{instr}_0(\textbf{pc}), \dots, \textsf{instr}_{11}(\textbf{pc}),\, \textbf{pc},\, 0_2,\, \textsf{bytecode\_sep}\big)$ with multiplicity $\textsf{bytecode\_acc}[\textbf{pc}]$.
 \end{itemize}
+
+The index slot of these two pushes ($i$, resp.\ $\textbf{pc}$) is \emph{not} committed: it is the position of the entry in the list, so the logup argument below sees it through the MLE of $(0, 1, \ldots, 2^h - 1)$ (with $h = h_\textsc{memory}$, resp.\ $h_\textsc{bytecode}$), i.e.\ the multilinear polynomial $\sum_{j=1}^{h} 2^{h-j} x_j$, which the verifier evaluates on its own. The $12$ instruction slots are likewise the MLE of the public bytecode. So the prover only commits to $\textbf{m}$, $\textsf{memory\_acc}$ and $\textsf{bytecode\_acc}$.
+
+\begin{lemma}[Indexed lookup]\label{lem:indexed-lookup}
+Assume the bytecode is well-formed (\Cref{sec:bytecode}), the bus is balanced (i.e.\ for every tuple, its push and pull multiplicities sum to the same value in $\Fp$), and every tuple is pulled strictly fewer than $p$ times in total (guaranteed by the height bounds of \Cref{sec:table-sizes}). Then any tuple pulled at least once and of the form $(a, v, 0_{13}, \textsf{memory\_sep})$ satisfies $a < 2^{h_\textsc{memory}}$ and $v = \textbf{m}[a]$, and any such tuple of the form $(\textsf{instr}_0, \ldots, \textsf{instr}_{11}, \textbf{pc}, 0_2, \textsf{bytecode\_sep})$ satisfies $\textbf{pc} < 2^{h_\textsc{bytecode}}$ and $(\textsf{instr}_0, \ldots, \textsf{instr}_{11}) = \textsf{bytecode}[\textbf{pc}]$.
+\end{lemma}
+
+\begin{proof}
+\emph{Any tuple pulled at least once is pushed.} All pull multiplicities are non-negative integers: the memory and bytecode pulls carry multiplicity $1$, and the two precompile pulls carry a multiplicity column built from boolean flags (\Cref{sec:poseidon-table,sec:extension-table}). So the total pull multiplicity of such a tuple $\sigma$ is a positive integer, $< p$ by hypothesis, hence non-zero in $\Fp$. By balance, the total push multiplicity of $\sigma$ is non-zero as well, so some push carries $\sigma$ with non-zero multiplicity.
+
+\emph{The last slot identifies the pushing family.} There are exactly three families of pushes: the memory and bytecode pushes above, whose last slot is the constant $1$, resp.\ $2$, and the precompile pushes of the execution table (\Cref{sec:execution-bus}), one per row, of the form $(\nu_A, \nu_B, \nu_C, 0_{12}, \textsf{aux}_2)$ with multiplicity $\textsf{flag}_\textsf{precompile}$. So it suffices to prove that $\textsf{aux}_2 \notin \{1, 2\}$ on every row where $\textsf{flag}_\textsf{precompile} \neq 0$.
+
+Fix such a row, and write $\textsf{instr}$ for its $12$ instruction fields, the last of which, in slot $11$, is $\textsf{aux}_2$. The row pulls its own instruction, with multiplicity $1$, as the tuple $\tau = (\textsf{instr}, \textbf{pc}, 0_2, \textsf{bytecode\_sep})$. By the previous step some push carries $\tau$, and the last slot of $\tau$ is $2 \neq 1$, so that push is a bytecode or a precompile one:
+\begin{itemize}
+    \item a bytecode push: then $\textsf{instr} = \textsf{bytecode}[\textbf{pc}]$, so $\textsf{aux}_2$ is the last field of a well-formed instruction, namely $0$ for \texttt{ADD}, \texttt{MUL}, \texttt{DEREF} and \texttt{JUMP}, an odd value $\geq 3$ for \texttt{POSEIDON}, a multiple of $4$ for \texttt{EXTENSION} (\Cref{sec:opcode-encoding});
+    \item a precompile push: its slots $3, \ldots, 14$ are $0$, and comparing slot $11$ gives $\textsf{aux}_2 = 0$.
+\end{itemize}
+In both cases $\textsf{aux}_2 \notin \{1, 2\}$. A push carrying a tuple whose last slot is $1$, resp.\ $2$, is therefore a memory, resp.\ bytecode, push.
+
+\emph{Conclusion.} Let $\sigma = (a, v, 0_{13}, \textsf{memory\_sep})$ be pulled at least once. Its last slot being $1$, the push carrying it is a memory push, i.e.\ $\sigma = (i, \textbf{m}[i], 0_{13}, \textsf{memory\_sep})$ for some $i \in [0, 2^{h_\textsc{memory}})$; comparing the first two slots, $a = i < 2^{h_\textsc{memory}}$ and $v = \textbf{m}[a]$. The bytecode case is identical, with $\textsf{bytecode\_sep}$ in place of $\textsf{memory\_sep}$ and the $12$ instruction slots in place of the single value slot.
+\end{proof}
+
 
 \subsubsection{Balanced bus proved via logup}
 
@@ -1354,7 +1376,7 @@ In case $t$ is a memory cell, the program should crucially enforce $t \leq 2^{16
 We denote by \textbf{m}[\textbf{fp} + $x$] the memory cell for which we want to ensure \textbf{m}[\textbf{fp} + $x$] $< t$.
 We also denote by \textbf{m}[\textbf{fp} + $i$], \textbf{m}[\textbf{fp} + $j$] and \textbf{m}[\textbf{fp} + $k$] 3 auxiliary memory cells (that have not been used yet).
 \begin{enumerate}
-    \item \textbf{m}[\textbf{m}[\textbf{fp} + $x$]] = \textbf{m}[\textbf{fp} + $i$] (using DEREF, this ensures \textbf{m}[\textbf{fp} + $x$] $ < M$, the memory size)
+    \item \textbf{m}[\textbf{m}[\textbf{fp} + $x$]] = \textbf{m}[\textbf{fp} + $i$] (using DEREF, this ensures \textbf{m}[\textbf{fp} + $x$] $ < M$, the memory size, by \Cref{lem:indexed-lookup})
     \item \textbf{m}[\textbf{fp} + $x$] + \textbf{m}[\textbf{fp} + $j$] = (t-1) (using ADD, this computes $\textbf{m}[\textbf{fp} + $j$] = t - 1 - $ \textbf{m}[\textbf{fp} + $x$])
         \item \textbf{m}[\textbf{m}[\textbf{fp} + $j$]] = \textbf{m}[\textbf{fp} + $k$] (using DEREF, this ensures $t - 1 - $ \textbf{m}[\textbf{fp} + $x$] $ < M$)
 \end{enumerate}
