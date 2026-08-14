@@ -1021,12 +1021,9 @@ fn base_eval_eq_packed_with_packed_output<F, EF, const INITIALIZED: bool>(
     F: Field,
     EF: ExtensionField<F>,
 {
-    // Ensure that the output buffer size is correct:
-    // It should be of size `2^n`, where `n` is the number of variables.
-    let width = F::Packing::WIDTH;
-    let log_packing_width = log2_strict_usize(width);
+    // `eval_points` is the middle slice from `par_eval_eq`, so its length says nothing about the
+    // packing width (the callers assert that against the full point).
     debug_assert_eq!(out.len(), 1 << eval_points.len());
-    debug_assert!(log_packing_width <= eval_points.len());
 
     match eval_points.len() {
         0 => {
@@ -1317,6 +1314,29 @@ mod tests {
 
                 assert_eq!(out_2, out_3_packed);
             }
+        }
+    }
+
+    /// `par_eval_eq` hands the kernel a middle slice of any length >= 2, so the hardcoded arms
+    /// below `log_packing_width` must agree with the unpacked-output twin. Calling the kernel
+    /// directly keeps this independent of the SIMD width and thread count.
+    #[test]
+    fn base_packed_kernel_handles_short_slices() {
+        let mut rng = StdRng::seed_from_u64(11);
+        let scalar: EF = rng.random();
+        let eq_evals = <F as Field>::Packing::from_fn(|_| rng.random());
+
+        for len in 1..=3 {
+            let points: Vec<F> = (0..len).map(|_| rng.random()).collect();
+
+            let mut expected = EF::zero_vec(<F as Field>::Packing::WIDTH << len);
+            base_eval_eq_packed::<F, EF, false>(&points, &mut expected, eq_evals, scalar);
+
+            let mut packed = EFPacking::<EF>::zero_vec(1 << len);
+            let packed_scalar = EFPacking::<EF>::from(scalar);
+            base_eval_eq_packed_with_packed_output::<F, EF, false>(&points, &mut packed, eq_evals, packed_scalar);
+
+            assert_eq!(expected, EFPacking::<EF>::to_ext_iter_vec(packed), "len = {len}");
         }
     }
 
