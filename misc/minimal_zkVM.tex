@@ -1325,10 +1325,23 @@ Every call operates on a fresh contiguous block of $s$ memory cells: its \emph{f
 
 \textbf{Return.} Before returning, the callee has written its $n_\textsf{out}$ outputs $r_0, \dots, r_{n_\textsf{out}-1}$ to $\textbf{m}[\textbf{fp} + 2 + n_\textsf{in} + k] \gets r_k$ for $k = 0, \dots, n_\textsf{out} - 1$. It then executes the JUMP $\textbf{pc} \gets \textbf{m}[\textbf{fp}]$, $\textbf{fp} \gets \textbf{m}[\textbf{fp} + 1]$, which reads back $\textbf{pc}_\text{ret}$ and $\textbf{fp}_\text{caller}$. Execution resumes at $\textbf{pc}_\text{ret}$ in the caller's original frame.
 
-\paragraph{No allocation pointer.} Cairo \cite{cairo} keeps a register $\textbf{ap}$ pointing to the next free memory cell. leanVM does not: the write-once memory (\Cref{sec:memory}) prevents any frame from overwriting previously-written data. And since a function's internal logic should only depend on its inputs, not on where its frame happens to land, the exact value of $\textbf{fp}_\text{callee}$ does not matter to the verifier.
+\paragraph{No allocation pointer.} Cairo \cite{cairo} keeps a register $\textbf{ap}$ pointing to the next free memory cell. leanVM does not: the write-once memory (\Cref{sec:memory}) prevents any frame from overwriting previously-written data. The following convention is thus crucial: \textit{a function's internal logic should only depend on its inputs, not on where its frame happens to land}, so that the value of $\textbf{fp}_\text{callee}$ does not impact its execution.
 
 \paragraph{The initial fp is likewise unconstrained.} For the same reason, the protocol does not pin the first row's $\textbf{fp}$ (the boundary checks of \Cref{sec:e2e-protocol} fix only the initial and final \textbf{pc}): program logic is not expected to depend on the exact value of $\textbf{fp}$, only on the memory values indexed relative to it.
 
+\vspace{5mm}
+
+The ISA makes it possible to use values of \textbf{fp} outside the range $[0, 2^{h_\textsc{memory}})$. As long as every memory access of the form $\textbf{m}[\textbf{fp} + x]$ (for some offset $x \in \Fp$) is in range, i.e. $\textbf{fp} + x < 2^{h_\textsc{memory}}$, the execution is valid. Yet, reasoning about such out-of-range values of $\textbf{fp}$ is tricky, and we thus recommend the following two programming conventions, that ensure $\textbf{fp}$ always stays in range $[0, 2^{h_\textsc{memory}})$:
+
+\begin{itemize}
+    \item The first instruction of the program should be $\texttt{ADD}[\texttt{imm}, 0,\;\; \texttt{imm}, 0,\;\; \texttt{mem}, 0]$, of semantics $\textbf{m}[\textbf{fp}] = 0$: the memory access at address $\textbf{fp}$ forces the initial $\textbf{fp} < 2^{h_\textsc{memory}}$ (\Cref{lem:indexed-lookup}).
+
+    \item Whenever a JUMP updates $\textbf{fp}$, the program should guarantee that the new value is in range. The calling convention above does it for free:
+    \begin{itemize}
+        \item On a call, $\textbf{fp} \gets \textbf{m}[\textbf{fp} + x]$, where $\textbf{m}[\textbf{fp} + x] = \textbf{fp}_\text{callee}$ is hinted, hence arbitrary. But the callee frame was initialized with the DEREF $\textbf{m}[\textbf{m}[\textbf{fp} + x] + 0] \gets \textbf{pc}_\text{ret}$, whose memory access at address $\textbf{m}[\textbf{fp} + x]$ forces $\textbf{m}[\textbf{fp} + x] < 2^{h_\textsc{memory}}$ (\Cref{lem:indexed-lookup}).
+        \item On a return, $\textbf{fp} \gets \textbf{m}[\textbf{fp} + 1]$ reads back what the caller wrote there, i.e. its own $\textbf{fp}$, in range by induction.
+    \end{itemize}
+\end{itemize}
 
 \subsection{Loops}\label{sec:loops}
 

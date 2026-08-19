@@ -61,11 +61,24 @@ pub fn compile_to_low_level_bytecode(
         .ok_or("No end_program label found in the compiled program")?;
     assert_eq!(count_real_instructions(&exit_point), 1);
 
-    label_to_pc.insert(Label::function("main"), STARTING_PC);
-    let entrypoint = intermediate_bytecode
+    label_to_pc.insert(Label::function("main"), STARTING_PC + 1);
+    let mut entrypoint = intermediate_bytecode
         .bytecode
         .remove(&Label::function("main"))
         .ok_or("No main function found in the compiled program")?;
+
+    // `m[fp] = 0`: accessing the cell at address fp forces the initial fp to be in range
+    entrypoint.insert(
+        0,
+        IntermediateInstruction::Computation {
+            operation: Operation::Add,
+            arg_a: ConstExpression::zero().into(),
+            arg_b: ConstExpression::zero().into(),
+            res: IntermediateValue::MemoryAfterFp {
+                offset: ConstExpression::zero(),
+            },
+        },
+    );
 
     let mut pc = count_real_instructions(&entrypoint);
     let mut code_blocks = vec![(STARTING_PC, entrypoint)];
