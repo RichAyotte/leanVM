@@ -10,9 +10,13 @@ workspace = true
 [dependencies]
 primitives.workspace = true
 parallel.workspace = true
-ethereum_ssz.workspace = true
+ethereum_ssz = { workspace = true, optional = true }
 rand.workspace = true
 serde.workspace = true
+
+[features]
+default = ["ssz"]
+ssz = ["dep:ethereum_ssz"]
 
 [dev-dependencies]
 bincode.workspace = true

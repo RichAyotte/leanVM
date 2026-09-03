@@ -11,7 +11,9 @@
 
 mod hash;
 pub use hash::*;
+#[cfg(feature = "ssz")]
 mod ssz_serialization;
+#[cfg(feature = "ssz")]
 pub use ssz_serialization::*;
 mod wots;
 pub use wots::*;
