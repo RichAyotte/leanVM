@@ -70,6 +70,7 @@
 use fiat_shamir::transcript::Challenger;
 use primitives::bits::transpose_8x8_bits;
 use primitives::field::{F64, F192};
+use std::num::NonZeroUsize;
 
 use super::pack::PACKING_WIDTH;
 use super::tensor_algebra::{DEGREE_E, TensorAlgebraE, transpose_s_hat};
@@ -460,7 +461,8 @@ pub(crate) fn combine_deferred_into(outputs: &[DeferredRingSwitchOutput], out: &
             .all(|o| { o.eq_lo.len() == block_len && o.eq_lo.len() * o.eq_hi.len() == out.len() })
     );
 
-    parallel::chunks_mut(out, block_len, |hi, out_block| {
+    let block = NonZeroUsize::new(block_len).expect("the assertion above divides out.len() by it");
+    parallel::chunks_mut(out, block, |hi, out_block| {
         for (claim_idx, claim) in outputs.iter().enumerate() {
             let e_hi = claim.eq_hi[hi];
             if claim_idx == 0 {

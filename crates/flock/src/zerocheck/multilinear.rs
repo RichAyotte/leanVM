@@ -39,6 +39,7 @@ use crate::zerocheck::univariate_skip::pack_bits;
 use crate::zerocheck::univariate_skip::{SplitEq, build_eq};
 use primitives::field::{F192, F192Unreduced, PHI_8_TABLE_192 as PHI_8_TABLE};
 use primitives::stream::Stream;
+use std::num::NonZeroUsize;
 use zk_alloc::ArenaVec;
 
 /// Four independent products. Tuples keep the scalar and NEON paths in registers, while AVX-512 uses the batched helper.
@@ -461,8 +462,9 @@ pub fn uni_skip_fold_and_round_pair_optimized_packed_padded(
 
     // Parallel: each worker writes one disjoint chunk of a_folded/b_folded
     // and returns its (sum1, sum_inf) contribution. Reduce by F192 XOR.
-    let a_chunks = parallel::Chunks::new(&mut a_folded, chunk_size);
-    let b_chunks = parallel::Chunks::new(&mut b_folded, chunk_size);
+    let width = NonZeroUsize::new(chunk_size).expect("twice a power of two");
+    let a_chunks = parallel::Chunks::new(&mut a_folded, width);
+    let b_chunks = parallel::Chunks::new(&mut b_folded, width);
     let (sum1, sum_inf) = parallel::map_reduce(
         a_chunks.count(),
         || (F192::ZERO, F192::ZERO),
@@ -589,7 +591,8 @@ pub fn uni_skip_fold_and_round_single_optimized_packed_padded(
     let eq_lo = &eq.lo;
     let (pair_in_block_mask, useful_pairs_inclusive) = round2_pair_skip(padding, k_skip);
 
-    let c_chunks = parallel::Chunks::new(&mut c_folded, chunk_size);
+    let width = NonZeroUsize::new(chunk_size).expect("twice a power of two");
+    let c_chunks = parallel::Chunks::new(&mut c_folded, width);
     let sum1 = parallel::map_reduce(
         c_chunks.count(),
         || F192::ZERO,
@@ -712,7 +715,8 @@ pub fn fold_and_compute_round_single_into(c: &[F192], c_out: &mut [F192], r_fold
     let eq_lo = &eq.lo;
     let eq_hi = &eq.hi;
 
-    let c_chunks = parallel::Chunks::new(c_out, chunk_out);
+    let width = NonZeroUsize::new(chunk_out).expect("twice a power of two");
+    let c_chunks = parallel::Chunks::new(c_out, width);
     parallel::map_reduce(
         c_chunks.count(),
         || F192::ZERO,
@@ -829,8 +833,9 @@ pub fn fold_and_compute_round_pair_into(
     let eq_lo = &eq.lo;
     let eq_hi = &eq.hi;
 
-    let a_chunks = parallel::Chunks::new(a_out, chunk_out);
-    let b_chunks = parallel::Chunks::new(b_out, chunk_out);
+    let width = NonZeroUsize::new(chunk_out).expect("twice a power of two");
+    let a_chunks = parallel::Chunks::new(a_out, width);
+    let b_chunks = parallel::Chunks::new(b_out, width);
     let (sum1, sum_inf) = parallel::map_reduce(
         a_chunks.count(),
         || (F192::ZERO, F192::ZERO),

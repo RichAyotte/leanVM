@@ -177,7 +177,7 @@ pub(crate) fn add_eq_table_ext_seeded(
     } else {
         let chunk = parallel::recommended_chunk_size(half);
         parallel::chunks_mut2(lo, hi, chunk, |ci, lo_c, hi_c| {
-            expand(lo_c, hi_c, &eq[ci * chunk..ci * chunk + lo_c.len()]);
+            expand(lo_c, hi_c, &eq[ci * chunk.get()..ci * chunk.get() + lo_c.len()]);
         });
     }
 }

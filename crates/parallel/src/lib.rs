@@ -2,6 +2,7 @@
 
 use std::any::Any;
 use std::cell::{Cell, UnsafeCell};
+use std::num::NonZeroUsize;
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -29,11 +30,12 @@ const MAX_CLAIM_BATCH: usize = 1 << 12;
 ///
 #[must_use]
 #[inline]
-pub fn recommended_chunk_size(n_items: usize) -> usize {
-    n_items
+pub fn recommended_chunk_size(n_items: usize) -> NonZeroUsize {
+    let width = n_items
         .div_ceil(num_threads() * CHUNK_OVERSUBSCRIBE)
         .max(CHUNK_FLOOR)
-        .min(n_items.max(1))
+        .min(n_items.max(1));
+    NonZeroUsize::new(width).expect("the floor is positive and the cap is at least one")
 }
 
 /// Claims per worker that [`recommended_chunk_size`] aims for, and the smallest
@@ -358,7 +360,7 @@ impl<T> SendPtr<T> {
 
 /// Parallel `data.chunks_mut(chunk).enumerate().for_each(f)`; the final chunk may
 /// be shorter.
-pub fn chunks_mut<T: Send, F>(data: &mut [T], chunk: usize, f: F)
+pub fn chunks_mut<T: Send, F>(data: &mut [T], chunk: NonZeroUsize, f: F)
 where
     F: Fn(usize, &mut [T]) + Sync,
 {
@@ -372,14 +374,14 @@ where
 
 /// Parallel `a.chunks_mut(chunk).zip(b.chunks_mut(chunk))`, for the kernels that
 /// fold two tables in lockstep. `a` and `b` must have equal length.
-pub fn chunks_mut2<A: Send, B: Send, F>(a: &mut [A], b: &mut [B], chunk: usize, f: F)
+pub fn chunks_mut2<A: Send, B: Send, F>(a: &mut [A], b: &mut [B], chunk: NonZeroUsize, f: F)
 where
     F: Fn(usize, &mut [A], &mut [B]) + Sync,
 {
     assert_eq!(a.len(), b.len(), "chunks_mut2: slices differ in length");
     let b_ptr = SendPtr(b.as_mut_ptr());
     chunks_mut(a, chunk, |i, sub| {
-        let start = i * chunk;
+        let start = i * chunk.get();
         // SAFETY: `b` has the same length as `a`, so chunk `i` of `b` is the same
         // in-bounds range that chunk `i` of `a` just proved disjoint.
         let sub_b = unsafe { b_ptr.slice(start, sub.len()) };
@@ -394,15 +396,14 @@ where
 #[derive(Clone, Copy, Debug)]
 pub struct Chunks<T> {
     base: SendPtr<T>,
-    width: usize,
+    width: NonZeroUsize,
     len: usize,
 }
 
 impl<T> Chunks<T> {
     /// View `data` as `len.div_ceil(width)` chunks of `width` (the last shorter).
     #[must_use]
-    pub fn new(data: &mut [T], width: usize) -> Self {
-        assert!(width > 0, "chunk width must be non-zero");
+    pub fn new(data: &mut [T], width: NonZeroUsize) -> Self {
         Self {
             base: SendPtr(data.as_mut_ptr()),
             width,
@@ -413,7 +414,7 @@ impl<T> Chunks<T> {
     /// Number of chunks.
     #[must_use]
     pub const fn count(&self) -> usize {
-        self.len.div_ceil(self.width)
+        self.len.div_ceil(self.width.get())
     }
 
     /// Chunk `i`.
@@ -424,21 +425,21 @@ impl<T> Chunks<T> {
     /// [`for_each`] body satisfies all three.
     #[inline]
     pub unsafe fn get<'a>(&self, i: usize) -> &'a mut [T] {
-        let start = i * self.width;
+        let start = i * self.width.get();
         debug_assert!(start < self.len);
-        unsafe { self.base.slice(start, self.width.min(self.len - start)) }
+        unsafe { self.base.slice(start, self.width.get().min(self.len - start)) }
     }
 }
 
 /// Parallel `dst.chunks_mut(chunk).zip(src.chunks(chunk))`, for a kernel that
 /// writes one table while reading another of the same length.
-pub fn chunks_mut_zip<T: Send, S: Sync, F>(dst: &mut [T], src: &[S], chunk: usize, f: F)
+pub fn chunks_mut_zip<T: Send, S: Sync, F>(dst: &mut [T], src: &[S], chunk: NonZeroUsize, f: F)
 where
     F: Fn(usize, &mut [T], &[S]) + Sync,
 {
     assert_eq!(dst.len(), src.len(), "chunks_mut_zip: slices differ in length");
     chunks_mut(dst, chunk, |i, sub| {
-        let start = i * chunk;
+        let start = i * chunk.get();
         f(i, sub, &src[start..start + sub.len()]);
     });
 }
@@ -453,7 +454,7 @@ where
     let chunk = recommended_chunk_size(data.len());
     chunks_mut(data, chunk, |chunk_index, values| {
         for (offset, slot) in values.iter_mut().enumerate() {
-            f(chunk_index * chunk + offset, slot);
+            f(chunk_index * chunk.get() + offset, slot);
         }
     });
 }

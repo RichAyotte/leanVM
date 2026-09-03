@@ -8,6 +8,7 @@
 
 use primitives::field::F64;
 use primitives::log2_strict_usize;
+use std::num::NonZeroUsize;
 
 /// Normalized subspace-polynomial evaluation table (see the extension-field twin).
 fn generate_evals_from_subspace(basis: &[F64]) -> Vec<Vec<F64>> {
@@ -316,7 +317,8 @@ impl AdditiveNttF64 {
         // row loop inside a fused kernel stays serial, since the parallelism is
         // already spent on the subs and a nested dispatch would deadlock.
         let sub_elems = (1usize << (log_d - n_top)) * num_ntts;
-        parallel::chunks_mut(data, sub_elems, |sub_idx, sub_data| {
+        let sub = NonZeroUsize::new(sub_elems).expect("a shift by a non-negative width, times a positive row count");
+        parallel::chunks_mut(data, sub, |sub_idx, sub_data| {
             self.run_layers(
                 sub_data,
                 log_d,
@@ -484,7 +486,8 @@ fn butterfly_interleaved_block_par_rows(block: &mut [F64], twiddle: F64, block_s
     let half_offset = block_size_half * num_ntts;
     let (top, bot) = block.split_at_mut(half_offset);
     let bot_base = parallel::SendPtr(bot.as_mut_ptr());
-    parallel::chunks_mut(top, num_ntts, |r, top_row| {
+    let row = NonZeroUsize::new(num_ntts).expect("a block holds at least one row");
+    parallel::chunks_mut(top, row, |r, top_row| {
         // SAFETY: distinct `r` take disjoint `num_ntts`-windows of `bot`, the
         // same windows `chunks_mut` just proved disjoint in `top`; the two halves
         // are themselves disjoint by `split_at_mut`.
@@ -625,7 +628,9 @@ pub fn transpose_lane_major(out: &mut [F64], msg: &[F64], n_lanes: usize, log_ro
     let tile_rows = (1usize << (TILE_WORDS / n_lanes).ilog2()).min(rows);
     assert_eq!(rows % tile_rows, 0, "row tiles must cover every row");
 
-    parallel::chunks_mut(out, tile_rows * n_lanes, |t, tile| {
+    let tile_elems =
+        NonZeroUsize::new(tile_rows * n_lanes).expect("both are positive, tile_rows being a shift capped at rows");
+    parallel::chunks_mut(out, tile_elems, |t, tile| {
         let r0 = t * tile_rows;
         for lane in 0..n_lanes {
             let block = n_lanes - 1 - lane;

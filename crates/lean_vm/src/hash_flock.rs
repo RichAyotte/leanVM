@@ -39,6 +39,7 @@ use flock::hash::{
 use flock::verifier::VerifyError;
 use primitives::field::{F64, F192};
 use primitives::stream::Stream;
+use std::num::NonZeroUsize;
 use zk_alloc::ArenaVec;
 
 pub use flock::hash::{
@@ -193,7 +194,8 @@ fn flatten_packed_into(packed: &[u64], out: &mut [F64]) {
     // SAFETY: `F64` is `repr(transparent)` over `u64`, so the two slices are the
     // same bytes.
     let words: &mut [u64] = unsafe { std::slice::from_raw_parts_mut(out.as_mut_ptr().cast(), out.len()) };
-    parallel::chunks_mut_zip(words, packed, 1 << 14, |_, dst, src| Stream::new().copy(dst, src));
+    let chunk = NonZeroUsize::new(1 << 14).expect("a positive literal");
+    parallel::chunks_mut_zip(words, packed, chunk, |_, dst, src| Stream::new().copy(dst, src));
 }
 
 /// Build the committed `q_flock` column (flock's packed witness) for `blocks`, padded

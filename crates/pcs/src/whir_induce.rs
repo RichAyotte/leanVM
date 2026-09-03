@@ -10,6 +10,7 @@
 use crate::ntt::AdditiveNttF64;
 use crate::whir::build_eq_table_ext;
 use primitives::field::{F64, F192};
+use std::num::NonZeroUsize;
 use zk_alloc::ArenaVec;
 
 // ===================================================================
@@ -322,7 +323,8 @@ fn transpose_layers_ext(ntt: &AdditiveNttF64, data: &mut [F192], log_d: usize, l
         let block_size = 1usize << (log_d - layer);
         let bsh = block_size >> 1;
         if num_blocks >= n_threads {
-            parallel::chunks_mut(data, block_size, |block, chunk: &mut [F192]| {
+            let width = NonZeroUsize::new(block_size).expect("a shift by a non-negative width");
+            parallel::chunks_mut(data, width, |block, chunk: &mut [F192]| {
                 let (top, bot) = chunk.split_at_mut(bsh);
                 butterfly(ntt.twiddle(layer, block), top, bot);
             });
@@ -386,7 +388,7 @@ fn transpose_forward_ntt_sparse_ext(
 
     // Steps s = 0..k-1 within each active window, in parallel (windows disjoint).
     let mut win_vec: Vec<(usize, Vec<F192>)> = windows.into_iter().collect();
-    parallel::chunks_mut(&mut win_vec, 1, |_, win| {
+    parallel::chunks_mut(&mut win_vec, NonZeroUsize::MIN, |_, win| {
         let (w, buf) = &mut win[0];
         let w = *w;
         for s in 0..k {

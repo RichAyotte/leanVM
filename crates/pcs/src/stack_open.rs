@@ -60,6 +60,7 @@ use crate::merkle::Hash;
 use fiat_shamir::transcript::{Receiver, Transmitter};
 use primitives::field::{F64, F192, powers};
 use primitives::multilinear::eq_eval;
+use std::num::NonZeroUsize;
 
 use super::pack::PACKING_WIDTH;
 use super::ring_switch;
@@ -428,7 +429,7 @@ pub fn open_batch_mixed_whir_stacked(
     let (write_first, mut written) = claim_write_plan(point_claims, (ring.offset, ring.offset + qflock_len));
     let mut b_stack = unsafe { zk_alloc::ArenaVec::<F192>::uninitialized(stack.len()) };
     {
-        const ZERO_CHUNK: usize = 1 << 16;
+        const ZERO_CHUNK: NonZeroUsize = NonZeroUsize::new(1 << 16).unwrap();
         written.sort_unstable();
         let mut cursor = 0usize;
         let zero = |part: &mut [F192]| parallel::chunks_mut(part, ZERO_CHUNK, |_, c| c.fill(F192::ZERO));

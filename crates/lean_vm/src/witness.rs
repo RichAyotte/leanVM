@@ -5,6 +5,7 @@
 //! the column's offset.
 
 use primitives::field::F64;
+use std::num::NonZeroUsize;
 use zk_alloc::ArenaVec;
 
 /// A committed column: `2^κ` `K`-elements.
@@ -103,7 +104,7 @@ pub fn placements_of(kappas: &[Option<usize>]) -> (Vec<Placement>, StackShape) {
 
 /// Chunk width for the bulk writes below: big enough to amortize the dispatch,
 /// small enough to spread one column across cores.
-const FILL_CHUNK: usize = 1 << 16;
+const FILL_CHUNK: NonZeroUsize = NonZeroUsize::new(1 << 16).unwrap();
 
 /// The uninitialized stacked witness: [`StackShape::committed_len`] slots, the
 /// placed columns rounded up to a whole lane rather than all the way to `2^mu`.

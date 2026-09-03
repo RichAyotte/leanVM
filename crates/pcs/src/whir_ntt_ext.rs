@@ -11,6 +11,7 @@ use crate::ntt::AdditiveNttF64;
 use primitives::field::{F64, F192};
 use primitives::log2_ceil_usize;
 use primitives::log2_strict_usize;
+use std::num::NonZeroUsize;
 
 // ===================================================================
 // Interleaved forward additive NTT over E with K-twiddles
@@ -114,7 +115,8 @@ pub(crate) fn forward_transform_interleaved_ext_parallel_from_layer(
     // kernel stays serial, since the parallelism is already spent on the subs and
     // a nested dispatch would deadlock.
     let sub_elems = (1usize << (log_d - n_top)) * num_ntts;
-    parallel::chunks_mut(data, sub_elems, |sub_idx, sub_data| {
+    let sub = NonZeroUsize::new(sub_elems).expect("a shift by a non-negative width, times a positive row count");
+    parallel::chunks_mut(data, sub, |sub_idx, sub_data| {
         run_layers_ext(
             ntt,
             sub_data,
@@ -242,7 +244,8 @@ fn butterfly_interleaved_ext_block_par_rows(block: &mut [F192], twiddle: F64, bl
     let half_offset = block_size_half * num_ntts;
     let (top, bot) = block.split_at_mut(half_offset);
     let bot_base = parallel::SendPtr(bot.as_mut_ptr());
-    parallel::chunks_mut(top, num_ntts, |r, top_row| {
+    let row = NonZeroUsize::new(num_ntts).expect("a block holds at least one row");
+    parallel::chunks_mut(top, row, |r, top_row| {
         // SAFETY: distinct `r` take disjoint `num_ntts`-windows of `bot` (the
         // same windows `chunks_mut` proved disjoint in `top`), and the halves are
         // disjoint by `split_at_mut`.

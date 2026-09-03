@@ -18,6 +18,8 @@ pub mod gf2_64x3;
 pub mod gf2_8;
 pub mod phi8_tower;
 
+use std::num::NonZeroUsize;
+
 pub use gf2_8::F8;
 pub use gf2_64::F64;
 pub use gf2_64x3::{F192, F192BaseUnreduced, F192Unreduced, mul_unreduced4, mul2, mul4};
@@ -64,10 +66,10 @@ pub fn powers(x: F192, n: usize) -> Vec<F192> {
 /// [`g_pow`] (`O(log)`) and fills by `mul_by_g`, breaking the serial prefix
 /// chain across cores.
 pub fn g_powers(n: usize) -> Vec<F64> {
-    const CHUNK: usize = 1 << 12;
+    const CHUNK: NonZeroUsize = NonZeroUsize::new(1 << 12).unwrap();
     let mut v = vec![F64::ZERO; n];
     parallel::chunks_mut(&mut v, CHUNK, |ci, chunk| {
-        let mut acc = g_pow(ci * CHUNK);
+        let mut acc = g_pow(ci * CHUNK.get());
         for slot in chunk.iter_mut() {
             *slot = acc;
             acc = mul_by_g(acc);

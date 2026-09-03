@@ -3,6 +3,7 @@
 //! (only `hash` in this vendored subset).
 
 use primitives::bits::transpose_8_u64s_to_64_bytes;
+use std::num::NonZeroUsize;
 use zk_alloc::ArenaVec;
 
 /// OR the low 32 bits of `val` into `buf` starting at bit-offset `bit_off`.
@@ -179,10 +180,12 @@ where
 
     // Four output tables at two widths, indexed by the same group: `z`/`a`/`b`
     // take eight blocks' packed words, `z_lincheck` takes one byte stripe.
-    let z_chunks = parallel::Chunks::new(&mut z, 8 * u64_per_block);
-    let a_chunks = parallel::Chunks::new(&mut a, 8 * u64_per_block);
-    let b_chunks = parallel::Chunks::new(&mut b, 8 * u64_per_block);
-    let stripe_chunks = parallel::Chunks::new(&mut z_lincheck, k);
+    let group_words = NonZeroUsize::new(8 * u64_per_block).expect("a block holds at least one word");
+    let stripe_bytes = NonZeroUsize::new(k).expect("k is u64_per_block * 64");
+    let z_chunks = parallel::Chunks::new(&mut z, group_words);
+    let a_chunks = parallel::Chunks::new(&mut a, group_words);
+    let b_chunks = parallel::Chunks::new(&mut b, group_words);
+    let stripe_chunks = parallel::Chunks::new(&mut z_lincheck, stripe_bytes);
     debug_assert_eq!(z_chunks.count(), stripe_chunks.count());
     parallel::for_each(z_chunks.count(), |g| {
         // SAFETY: each group `g` takes chunk `g` of each table exactly once, and

@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::time::Instant;
 
 /// Median of `PASSES` timed passes, with a cooldown between them: the machine
@@ -35,7 +36,8 @@ fn multithreaded_throughput() {
     let data: Vec<u8> = (0..TASKS * K * 64).map(|i| (i & 0xff) as u8).collect();
     let mut out = vec![0u8; TASKS * K * 32];
     let s = time(2, || {
-        parallel::chunks_mut(&mut out, K * 32, |i, sub| {
+        let chunk = NonZeroUsize::new(K * 32).expect("K is a power of two");
+        parallel::chunks_mut(&mut out, chunk, |i, sub| {
             let d = &data[i * K * 64..i * K * 64 + sub.len() * 2];
             for _ in 0..ITERS {
                 primitives::hash::hash_many::<64>(d, sub);

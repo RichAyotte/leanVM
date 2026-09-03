@@ -571,7 +571,8 @@ fn partial_fold_packed_z_iblock_padded(
     let p = parallel::num_threads();
     let i_chunk = (useful / p).max(BLOCK_K).next_multiple_of(BLOCK_K);
 
-    parallel::chunks_mut(&mut out[..useful], i_chunk, |ci, out_slice| {
+    let i_width = std::num::NonZeroUsize::new(i_chunk).expect("a positive multiple of BLOCK_K");
+    parallel::chunks_mut(&mut out[..useful], i_width, |ci, out_slice| {
         let i_base = ci * i_chunk;
         let n_block = out_slice.len() / BLOCK_K;
         // Per-tile tables stay L1-resident.
@@ -639,7 +640,8 @@ fn partial_fold_packed_z_oblock_padded(
     let n_workers = n_tiles.div_ceil(tiles_per_worker); // ≤ p, every band non-empty
 
     let mut partials = vec![F192::ZERO; n_workers * k];
-    parallel::chunks_mut(&mut partials, k, |w, partial| {
+    let cols = std::num::NonZeroUsize::new(k).expect("a band holds at least one column");
+    parallel::chunks_mut(&mut partials, cols, |w, partial| {
         let tile_lo = w * tiles_per_worker;
         let tile_hi = ((w + 1) * tiles_per_worker).min(n_tiles);
         // Build each tile's L1-resident tables once.
@@ -800,7 +802,8 @@ pub fn pack_z_lincheck_from_packed(z_packed_words: &[u64], m: usize, k_log: usiz
     let mut z_packed = zk_alloc::alloc_uninit(n_total / 8);
     // Each stripe (byte_idx) writes a disjoint k-byte chunk, so process them in
     // parallel. Inside one stripe, k independent output bytes.
-    parallel::chunks_mut(&mut z_packed, k, |byte_idx, chunk| {
+    let stripe = std::num::NonZeroUsize::new(k).expect("a stripe holds at least one byte");
+    parallel::chunks_mut(&mut z_packed, stripe, |byte_idx, chunk| {
         for i_inner in 0..k {
             let mut byte = 0u8;
             for r in 0..8 {

@@ -2,6 +2,7 @@
 //! caller partitioned them, reductions are order-independent, and a task panic
 //! surfaces on the dispatcher without wedging the pool.
 
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const SIZES: [usize; 7] = [0, 1, 2, 17, 1_000, 4_096, 100_000];
@@ -53,11 +54,11 @@ fn fill_writes_every_slot() {
 
 #[test]
 fn chunks_mut_hands_out_disjoint_slices() {
-    for chunk in [1usize, 3, 64, 1024] {
+    for chunk in [1usize, 3, 64, 1024].map(|w| NonZeroUsize::new(w).expect("positive")) {
         let mut data = vec![0usize; 5_000];
         parallel::chunks_mut(&mut data, chunk, |ci, sub| {
             for (k, slot) in sub.iter_mut().enumerate() {
-                *slot = ci * chunk + k;
+                *slot = ci * chunk.get() + k;
             }
         });
         assert!(data.iter().enumerate().all(|(i, &v)| v == i), "chunk = {chunk}");
@@ -68,7 +69,8 @@ fn chunks_mut_hands_out_disjoint_slices() {
 fn chunks_mut2_stays_in_lockstep() {
     let mut a = vec![0usize; 3_000];
     let mut b = vec![0usize; 3_000];
-    parallel::chunks_mut2(&mut a, &mut b, 128, |ci, sa, sb| {
+    let chunk = NonZeroUsize::new(128).expect("positive");
+    parallel::chunks_mut2(&mut a, &mut b, chunk, |ci, sa, sb| {
         assert_eq!(sa.len(), sb.len());
         for (k, (x, y)) in sa.iter_mut().zip(sb.iter_mut()).enumerate() {
             *x = ci * 128 + k;

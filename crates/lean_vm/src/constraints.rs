@@ -41,6 +41,7 @@ use primitives::field::{F64, F192, F192Unreduced, powers};
 use primitives::multilinear::{
     add3, eq_table_arena, fold_high_inplace, fold_high_k, poly_eval, shrink_eq_high, tri_coeffs, xor3,
 };
+use std::num::NonZeroUsize;
 use zk_alloc::ArenaVec;
 
 /// One table's involved columns' evaluations at its table-sumcheck point.
@@ -203,7 +204,7 @@ pub fn prove(
             }
             if let Some(table) = &mut folded[t] {
                 if m >= PAR_THRESHOLD.trailing_zeros() as usize {
-                    let cols = parallel::Chunks::new(table, 1);
+                    let cols = parallel::Chunks::new(table, NonZeroUsize::MIN);
                     parallel::for_each(cols.count(), |ci| {
                         // SAFETY: column `ci` is folded by exactly one task.
                         let col = unsafe { &mut cols.get(ci)[0] };

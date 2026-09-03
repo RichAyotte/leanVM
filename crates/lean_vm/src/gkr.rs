@@ -12,6 +12,7 @@ use primitives::field::{F192, F192Unreduced, mul_unreduced4, mul2, mul4};
 use primitives::multilinear::{eq_table, interp, poly_eval, shrink_eq_low};
 #[cfg(target_arch = "x86_64")]
 use primitives::stream::Stream;
+use std::num::NonZeroUsize;
 use zk_alloc::ArenaVec;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -206,7 +207,8 @@ impl QuaternaryLayerState {
         };
         if full_rows >= PAR_THRESHOLD {
             let rows = window_rows(full_rows);
-            parallel::chunks_mut(&mut next[..4 * full_rows], 4 * rows, |index, destination| {
+            let width = NonZeroUsize::new(4 * rows).expect("a window covers at least one row");
+            parallel::chunks_mut(&mut next[..4 * full_rows], width, |index, destination| {
                 window(index * rows, destination);
             });
         } else {

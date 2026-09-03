@@ -46,6 +46,7 @@
 use bincode::Options as _;
 use pcs::whir::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE};
 use std::collections::{BTreeMap, BTreeSet};
+use std::num::NonZeroUsize;
 use std::ops::Range;
 
 use lean_compiler::{compile, parse_with_replacements};
@@ -900,7 +901,8 @@ fn weighted_eq_table(points: &[Vec<F192>], lambdas: &[F192], vars: usize, active
         .collect();
     let mut weights = vec![F192::ZERO; active.len()];
     let first = active.start / lo_len;
-    parallel::chunks_mut(&mut weights, lo_len, |high_index, chunk| {
+    let low_width = NonZeroUsize::new(lo_len).expect("the low half holds at least one weight");
+    parallel::chunks_mut(&mut weights, low_width, |high_index, chunk| {
         for (low, high) in &halves {
             let scale = high[first + high_index];
             for (output, &low_weight) in chunk.iter_mut().zip(low) {
