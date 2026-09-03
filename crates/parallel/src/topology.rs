@@ -109,7 +109,7 @@ fn sysctl_usize(name: &core::ffi::CStr) -> Option<usize> {
 /// core cluster: the scheduler keeps `USER_INTERACTIVE` work off the efficiency
 /// cores and places `UTILITY` work on them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Qos {
+pub enum Qos {
     /// Latency-critical: performance cores.
     Interactive,
     /// Background-ish: efficiency cores.
@@ -117,7 +117,7 @@ pub(crate) enum Qos {
 }
 
 /// Tag the calling thread with `qos`. Best-effort, since QoS is a scheduling hint
-/// and a failure must not affect correctness, only placement. No-op off macOS.
+/// and a failure must not affect correctness, only placement.
 pub(crate) fn set_qos(qos: Qos) {
     #[cfg(target_os = "macos")]
     {
@@ -135,7 +135,35 @@ pub(crate) fn set_qos(qos: Qos) {
             let _ = pthread_set_qos_class_self_np(class, 0);
         }
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    {
+        // Only the background class moves. SCHED_IDLE runs a worker when nothing
+        // else wants the core, which is what an embedded caller needs when its
+        // latency-critical work sits on a thread outside the pool; Interactive
+        // keeps the default SCHED_OTHER, so a pool nobody asked about is
+        // untouched. Lowering into SCHED_IDLE needs no privilege.
+        if matches!(qos, Qos::Utility) {
+            const SCHED_IDLE: core::ffi::c_int = 5;
+            #[repr(C)]
+            struct SchedParam {
+                sched_priority: core::ffi::c_int,
+            }
+            unsafe extern "C" {
+                fn sched_setscheduler(
+                    pid: core::ffi::c_int,
+                    policy: core::ffi::c_int,
+                    param: *const SchedParam,
+                ) -> core::ffi::c_int;
+            }
+            let param = SchedParam { sched_priority: 0 };
+            // SAFETY: pid 0 names the calling thread on Linux, and the parameter
+            // block is what the call reads for a policy with no priority band.
+            unsafe {
+                let _ = sched_setscheduler(0, SCHED_IDLE, &raw const param);
+            }
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
         let _ = qos;
     }
