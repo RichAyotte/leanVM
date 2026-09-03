@@ -10,8 +10,8 @@ use std::thread::Thread;
 
 mod topology;
 
-use topology::{Qos, set_qos};
-pub use topology::{Topology, num_threads, topology};
+use topology::set_qos;
+pub use topology::{Qos, Topology, num_threads, topology};
 
 /// Idle spins before a worker parks: long enough to stay hot across back-to-back
 /// dispatches, short enough to yield the core during a sequential stretch.
@@ -117,13 +117,26 @@ pub fn init() {
     });
 }
 
+static WORKER_QOS: OnceLock<Qos> = OnceLock::new();
+
+/// Sets the scheduling class every pool worker runs in, overriding the per-core
+/// default. A caller whose latency-critical work runs on a thread outside the
+/// pool wants [`Qos::Utility`], so no dispatch can delay it. Only a call made
+/// before the pool's first dispatch has any effect, and the thread that opens
+/// that dispatch joins the class too, being worker 0.
+pub fn set_worker_qos(qos: Qos) {
+    let _ = WORKER_QOS.set(qos);
+}
+
 fn pool() -> &'static Pool {
     static POOL: OnceLock<&'static Pool> = OnceLock::new();
     POOL.get_or_init(|| {
         let topo = topology();
         let n = topo.total().max(1);
-        // The dispatcher is worker 0 and runs on a performance core.
-        set_qos(Qos::Interactive);
+        let requested = WORKER_QOS.get().copied();
+        // Worker 0 is the dispatcher, taking the requested class or, absent one,
+        // the performance-core default.
+        set_qos(requested.unwrap_or(Qos::Interactive));
         let pool_ref: &'static Pool = Box::leak(Box::new(Pool {
             job: UnsafeCell::new(None),
             generation: Line(AtomicUsize::new(0)),
@@ -140,7 +153,7 @@ fn pool() -> &'static Pool {
         }));
         for id in 1..n {
             // Ids past the performance count are the efficiency workers.
-            let qos = if id < topo.perf { Qos::Interactive } else { Qos::Utility };
+            let qos = requested.unwrap_or(if id < topo.perf { Qos::Interactive } else { Qos::Utility });
             std::thread::Builder::new()
                 .name(format!("parallel-{id}"))
                 .spawn(move || worker_main(pool_ref, id, qos))
