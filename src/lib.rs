@@ -51,8 +51,7 @@ pub fn setup_prover() {
     setup_prover_without_arena();
 }
 
-/// [`setup_prover`] for a machine whose RAM the arena does not fit: every prover
-/// buffer goes to the system allocator, at the cost of slower proving.
+/// [`setup_prover`] for a machine with small memory.
 pub fn setup_prover_without_arena() {
     setup_verifier();
 }
