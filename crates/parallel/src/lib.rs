@@ -119,11 +119,19 @@ pub fn init() {
 
 static WORKER_QOS: OnceLock<Qos> = OnceLock::new();
 
-/// Sets the scheduling class every pool worker runs in, overriding the per-core
-/// default. A caller whose latency-critical work runs on a thread outside the
-/// pool wants [`Qos::Utility`], so no dispatch can delay it. Only a call made
-/// before the pool's first dispatch has any effect, and the thread that opens
-/// that dispatch joins the class too, being worker 0.
+/// Sets the scheduling class the pool's own worker threads run in, overriding
+/// the per-core default. A caller whose latency-critical work runs on a thread
+/// outside the pool wants [`Qos::Utility`], so a dispatch can only delay it for
+/// as long as one core is busy. Only a call made before the pool's first
+/// dispatch has any effect.
+///
+/// Worker 0 is excluded, being a caller's thread on loan for one dispatch rather
+/// than one the pool owns: on Linux an unprivileged thread cannot leave
+/// `SCHED_IDLE` again — `sched_setscheduler` back to `SCHED_OTHER` returns
+/// `EPERM` under the default `RLIMIT_NICE` — so the class would outlive the
+/// dispatch for good, and every thread that caller spawned afterwards would
+/// inherit it. One core's share of a dispatch therefore runs at the caller's
+/// own weight.
 pub fn set_worker_qos(qos: Qos) {
     let _ = WORKER_QOS.set(qos);
 }
@@ -134,9 +142,9 @@ fn pool() -> &'static Pool {
         let topo = topology();
         let n = topo.total().max(1);
         let requested = WORKER_QOS.get().copied();
-        // Worker 0 is the dispatcher, taking the requested class or, absent one,
-        // the performance-core default.
-        set_qos(requested.unwrap_or(Qos::Interactive));
+        // The dispatcher takes the performance-core default and never the
+        // requested class, for the reason [`set_worker_qos`] gives.
+        set_qos(Qos::Interactive);
         let pool_ref: &'static Pool = Box::leak(Box::new(Pool {
             job: UnsafeCell::new(None),
             generation: Line(AtomicUsize::new(0)),
