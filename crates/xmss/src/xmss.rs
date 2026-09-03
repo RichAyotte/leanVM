@@ -322,6 +322,16 @@ impl XmssSecretKey {
         self.epoch_start..=self.epoch_end
     }
 
+    /// Epochs one bottom subtree covers, which is the distance between the
+    /// rebuilds [`sign`] pays for.
+    ///
+    /// A caller warming ahead of a boundary has to know where the boundary is,
+    /// and `split_level` is this crate's own: deriving the width a second time
+    /// from the epoch range copies a formula only this file may change.
+    pub fn subtree_width(&self) -> Epoch {
+        1 << self.split_level
+    }
+
     pub fn public_key(&self) -> XmssPublicKey {
         XmssPublicKey {
             merkle_root: self.top.last().unwrap()[0],
@@ -448,6 +458,30 @@ mod tests {
     use super::*;
     use rand::SeedableRng;
     use rand::rngs::StdRng;
+
+    /// The width has to be the distance the cache keys on, or a signer warming
+    /// ahead of a boundary builds a subtree it is not about to need.
+    #[test]
+    fn the_reported_width_is_the_distance_between_rebuilds() {
+        let (sk, _) = key_gen_from_seed([5u8; 32], 0, 1023).expect("valid range");
+        let width = sk.subtree_width();
+        sk.prepare(0).expect("in range");
+        let builds = sk.cache.lock().unwrap().builds;
+
+        sk.prepare(width - 1).expect("in range");
+        assert_eq!(
+            sk.cache.lock().unwrap().builds,
+            builds,
+            "the last epoch below the width shares the first subtree"
+        );
+
+        sk.prepare(width).expect("in range");
+        assert_eq!(
+            sk.cache.lock().unwrap().builds,
+            builds + 1,
+            "the epoch at the width opens a subtree of its own"
+        );
+    }
 
     /// A warm has to leave the subtree being signed under resident: a signer
     /// spends the rest of subtree n after asking for n+1, and every one of those
