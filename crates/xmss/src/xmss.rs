@@ -2,9 +2,9 @@
 //!
 //! Mirrors leanVM's memory-optimized secret key: for a range of R = epoch_end -
 //! epoch_start + 1 epochs, storage is O(sqrt(R) + LOG_LIFETIME) instead of O(R).
-//! The key stores the top tree (in-range band plus a thin spine) and one cached
-//! bottom subtree, cut at `split_level = ceil(log2(R)) / 2`. Out-of-range nodes
-//! are deterministic `gen_random_node` fillers.
+//! The key stores the top tree (in-range band plus a thin spine) and a small
+//! cache of bottom subtrees, cut at `split_level = ceil(log2(R)) / 2`.
+//! Out-of-range nodes are deterministic `gen_random_node` fillers.
 
 use std::sync::{Mutex, MutexGuard};
 
@@ -23,13 +23,45 @@ pub struct XmssSecretKey {
     pub(crate) split_level: usize,
     pub(crate) top: Vec<Vec<Digest>>,
     #[serde(skip)]
-    pub(crate) cache: Mutex<Option<BottomSubtree>>,
+    pub(crate) cache: Mutex<SubtreeCache>,
 }
 
 #[derive(Debug)]
 pub(crate) struct BottomSubtree {
     subtree_index: u64,
     layers: Vec<Vec<Digest>>,
+}
+
+/// Two slots, so warming the next subtree cannot evict the one being signed
+/// under: with a single slot, a [`XmssSecretKey::prepare`] for subtree n+1 while
+/// epochs in n are still being spent makes every one of them rebuild n.
+#[derive(Debug, Default)]
+pub(crate) struct SubtreeCache {
+    slots: [Option<BottomSubtree>; 2],
+    next_evict: usize,
+    /// Subtrees built since the key was loaded. A warm that saved a rebuild and
+    /// one that caused extra rebuilds are indistinguishable without counting them.
+    builds: usize,
+}
+
+impl SubtreeCache {
+    fn slot_of(&self, subtree_index: u64) -> Option<usize> {
+        self.slots
+            .iter()
+            .position(|slot| slot.as_ref().is_some_and(|s| s.subtree_index == subtree_index))
+    }
+
+    /// Installs `subtree` and returns the slot holding it, keeping whichever
+    /// copy is already resident when a concurrent build raced this one.
+    fn install(&mut self, subtree: BottomSubtree) -> usize {
+        if let Some(slot) = self.slot_of(subtree.subtree_index) {
+            return slot;
+        }
+        let slot = self.slots.iter().position(Option::is_none).unwrap_or(self.next_evict);
+        self.slots[slot] = Some(subtree);
+        self.next_evict = (slot + 1) % self.slots.len();
+        slot
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -234,7 +266,7 @@ pub fn key_gen_from_seed(
         seed,
         split_level,
         top,
-        cache: Mutex::new(None),
+        cache: Mutex::new(SubtreeCache::default()),
     };
     Ok((secret_key, pub_key))
 }
@@ -270,8 +302,8 @@ pub fn sign(
     let wots_secret_key = gen_wots_secret_key(&secret_key.seed, epoch);
     let wots_signature = wots_secret_key.sign(&encoding, randomness, epoch, &secret_key.public_param);
 
-    let cache = secret_key.cached_bottom_subtree(epoch);
-    let subtree = cache.as_ref().unwrap();
+    let (cache, slot) = secret_key.cached_bottom_subtree(epoch);
+    let subtree = cache.slots[slot].as_ref().unwrap();
     let merkle_proof = std::array::from_fn(|level| {
         let neighbour_index = ((epoch as u64) >> level) ^ 1;
         secret_key.merkle_sibling(level, neighbour_index, subtree)
@@ -309,13 +341,22 @@ impl XmssSecretKey {
 
     /// The bottom subtree covering `epoch`, rebuilt only on a miss: one subtree
     /// serves all `2^split_level` epochs under it.
-    fn cached_bottom_subtree(&self, epoch: Epoch) -> MutexGuard<'_, Option<BottomSubtree>> {
+    ///
+    /// A miss builds without the lock held, so a signature landing in a subtree
+    /// that is already resident is not blocked for the length of a build.
+    fn cached_bottom_subtree(&self, epoch: Epoch) -> (MutexGuard<'_, SubtreeCache>, usize) {
         let subtree_index = (epoch as u64) >> self.split_level;
-        let mut cache = self.cache.lock().unwrap();
-        if cache.as_ref().is_none_or(|s| s.subtree_index != subtree_index) {
-            *cache = Some(self.build_bottom_subtree(subtree_index));
+        let cache = self.cache.lock().unwrap();
+        if let Some(slot) = cache.slot_of(subtree_index) {
+            return (cache, slot);
         }
-        cache
+        drop(cache);
+
+        let subtree = self.build_bottom_subtree(subtree_index);
+        let mut cache = self.cache.lock().unwrap();
+        cache.builds += 1;
+        let slot = cache.install(subtree);
+        (cache, slot)
     }
 
     fn build_bottom_subtree(&self, subtree_index: u64) -> BottomSubtree {
@@ -399,5 +440,40 @@ pub fn verify(
         Ok(())
     } else {
         Err(XmssVerifyError::InvalidMerklePath)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::SeedableRng;
+    use rand::rngs::StdRng;
+
+    /// A warm has to leave the subtree being signed under resident: a signer
+    /// spends the rest of subtree n after asking for n+1, and every one of those
+    /// signatures rebuilds n if the warm evicted it.
+    #[test]
+    fn warming_the_next_subtree_rebuilds_neither() {
+        let (sk, pk) = key_gen_from_seed([3u8; 32], 0, 1023).expect("valid range");
+        let width = 1u32 << sk.split_level;
+        let message = [7u8; 32];
+        let mut rng = StdRng::seed_from_u64(9);
+        let mut sign_at = |epoch| {
+            let signature = sign(&mut rng, &sk, &message, epoch).expect("in range");
+            verify(&pk, &message, &signature, epoch).expect("valid signature");
+        };
+
+        sign_at(0);
+        sk.prepare(width).expect("in range");
+        let builds_after_warm = sk.cache.lock().unwrap().builds;
+
+        sign_at(1);
+        sign_at(width + 1);
+
+        assert_eq!(
+            sk.cache.lock().unwrap().builds,
+            builds_after_warm,
+            "a signature under the current subtree or the warmed one rebuilt a subtree"
+        );
     }
 }
