@@ -1,41 +1,58 @@
-use backend::*;
+//! leanVM-b — arithmetization of a minimal binary-field zkVM (see `doc.tex`).
+//!
+//! **v2 design (in progress):** every machine value is an element of GF(2^128),
+//! and logical indices are powers of a fixed generator `g`, so incrementing an
+//! index is multiplication by `g` — a free virtual operation needing no
+//! addition gadget. The witness is field-valued and committed directly by a
+//! dense multilinear PCS (no bit-decomposition, no ring-switching).
+//!
+//! Modules:
+//!
+//! - [`compiler`]    — a minimal Python-like zkDSL front end: parse → lower to
+//!                     the v1 ISA (calls, `range` loops in the exponent,
+//!                     `assert`) → witness, producing a provable [`cpu::Program`].
+//! - [`field`]       — GF(2^128) in GHASH form (flock), the generator `g`, and
+//!                     the g-power index helpers.
+//! - [`transcript`]  — Fiat–Shamir transcript (observe-and-fold in one op).
+//! - [`multilinear`] — eq polynomial, folding, MLE evaluation, Lagrange eval.
+//! - [`pcs`]         — field-valued witness commitment via flock's BaseFold,
+//!                     opened at a plain point (§3).
+//! - [`witness`]     — field-valued columns stacked into one committed witness.
+//! - [`gkr`]         — the grand product via GKR (§4.3), which balances the bus.
+//! - [`leaf`]        — the shared bus: grand-product balance with g-power
+//!                     addresses/counts and the index column, decomposed to
+//!                     per-column claims (§4.2–§4.4, §5).
+//! - [`constraints`] — the per-table degree-2 field zerocheck (§4.1): addresses,
+//!                     `XOR` sum, `MUL_NATIVE` product, `JUMP` selection.
+//! - [`cpu`]         — whole-program assembly: all five v1 opcodes (`XOR`,
+//!                     `MUL_NATIVE`, `SET_CONSTANT`, `DEREF`, `JUMP`) as tables
+//!                     sharing the state/memory/bytecode buses, with control
+//!                     flow, bound to one commitment and verified oracle-free.
 
-pub use backend::ProofError;
-pub use rec_aggregation::{
-    AggregationError, MAX_RECURSIONS, MAX_XMSS_AGGREGATED, MAX_XMSS_DUPLICATES, MultiMessageAggregateSignature,
-    ProverError, SingleMessageAggregateSignature, SingleMessageCore, SingleMessageInfo,
-    aggregate_single_message_signatures, merge_single_message_aggregates, split_multi_message_aggregate,
-    verify_multi_message_aggregate, verify_single_message_aggregate,
-};
-pub use xmss::{
-    MESSAGE_LEN_BYTES, PUB_KEY_SSZ_LEN, SIGNATURE_SSZ_LEN, XmssKeyGenError, XmssPublicKey, XmssSecretKey,
-    XmssSignature, XmssSignatureError, XmssVerifyError, xmss_key_gen, xmss_key_gen_from_seed, xmss_sign, xmss_verify,
-};
+pub mod compiler;
+pub mod constraints;
+pub mod cpu;
+pub mod field;
+pub mod gkr;
+pub mod leaf;
+pub mod multilinear;
+pub mod pcs;
+pub mod tables;
+pub mod transcript;
+pub mod witness;
 
-pub type F = KoalaBear;
+/// Below this many parallelizable items (sumcheck-round summands, per-block leaf
+/// rows) a pass runs serially: rayon's fan-out overhead is not worth it for small
+/// inputs. Shared by [`constraints`], [`gkr`], and [`leaf`].
+pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 
-/// Call once before proving.
-///
-/// # Safety
-/// Never generate two proofs concurrently in one process.
-///
-/// (The arena allocator has a single shared region per process, so concurrent proving corrupts each proof's buffers)
-/// Use separate processes to parallelize
-pub fn setup_prover() {
-    zk_alloc::enable_arena();
-    setup_prover_without_arena();
+/// `log2(n)` for a power-of-two `n`; panics otherwise (mirrors leanVM).
+pub(crate) fn log2_strict_usize(n: usize) -> usize {
+    assert!(n.is_power_of_two(), "not a power of two: {n}");
+    n.trailing_zeros() as usize
 }
 
-/// similar to [`setup_prover`], but for memory-constrained devices
-/// -> slower proving time, but less memory usage
-/// (uses the system allocator instead of the arena)
-pub fn setup_prover_without_arena() {
-    parallel::init();
-    rec_aggregation::init_aggregation_bytecode();
-    precompute_dft_twiddles::<F>(1 << 24);
-}
-
-/// Call once before verifying (not needed if `setup_prover` was already called).
-pub fn setup_verifier() {
-    rec_aggregation::init_aggregation_bytecode();
+/// `ceil(log2(n))` (mirrors leanVM).
+pub(crate) const fn log2_ceil_usize(n: usize) -> usize {
+    (usize::BITS - n.saturating_sub(1).leading_zeros()) as usize
 }

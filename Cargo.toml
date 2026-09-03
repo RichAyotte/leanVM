@@ -1,105 +1,28 @@
 [package]
-name = "lean-multisig"
-version.workspace = true
-edition.workspace = true
-
-[workspace.package]
+name = "leanvm-b"
 version = "0.1.0"
 edition = "2024"
 
-[workspace]
-members = [
-    "crates/*",
-    "crates/backend/utils",
-    "crates/backend/field",
-    "crates/backend/koala-bear",
-    "crates/backend/poly",
-    "crates/backend/symetric",
-    "crates/backend/air",
-    "crates/backend/fiat-shamir",
-    "crates/backend/sumcheck",
-    "crates/backend/system-info",
-    "crates/backend/parallel",
-    "crates/backend/zk-alloc",
-]
+[lib]
+name = "leanvm_b"
+path = "src/lib.rs"
 
-[workspace.lints]
-rust.missing_debug_implementations = "warn"
-rust.rust_2018_idioms = { level = "deny", priority = -1 }
-rust.dead_code = "allow"
-rustdoc.all = "warn"
-
-[lints.clippy]
-# all lints that are on by default (correctness, suspicious, style, complexity, perf)
-all = { level = "warn", priority = -1 }
-
-# new lints that are still under development
-nursery = { level = "warn", priority = -1 }
-# avoid lints that are too pedantic
-doc_markdown = "allow"
-
-# lints which are rather strict or have occasional false positives
-pedantic = { level = "warn", priority = -1 }
-# avoid lints that are too pedantic
-cast_possible_truncation = "allow"
-cast_precision_loss = "allow"
-missing_errors_doc = "allow"
-missing_panics_doc = "allow"
-many_single_char_names = "allow"
-should_panic_without_expect = "allow"
-similar_names = "allow"
-suboptimal_flops = "allow"
-cast_sign_loss = "allow"
-wildcard_imports = "allow"
-
-[workspace.dependencies]
-# Local
-lean_vm = { path = "crates/lean_vm" }
-xmss = { path = "crates/xmss" }
-sub_protocols = { path = "crates/sub_protocols" }
-lean_compiler = { path = "crates/lean_compiler" }
-lean_prover = { path = "crates/lean_prover" }
-rec_aggregation = { path = "crates/rec_aggregation" }
-backend = { path = "crates/backend" }
-system-info = { path = "crates/backend/system-info" }
-parallel = { path = "crates/backend/parallel" }
-zk-alloc = { path = "crates/backend/zk-alloc" }
-
-# External
-clap = { version = "4.5.59", features = ["derive"] }
-rand = "0.10.0"
-pest = "2.7"
-pest_derive = "2.7"
-tracing = "0.1.26"
-serde_json = "1.0.145"
-serde = { version = "1.0.228", features = ["derive"] }
-tracing-subscriber = { version = "0.3.23", features = ["std", "env-filter"] }
-tracing-forest = { version = "0.3.0", features = ["ansi", "smallvec"] }
-postcard = { version = "1.1.3", features = ["alloc"] }
-ssz = { package = "ethereum_ssz", version = "0.10" }
-include_dir = "0.7"
-libc = "0.2"
-paste = "1"
-objc2 = { version = "0.6.4", default-features = false, features = ["std"] }
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSProcessInfo", "NSString"] }
-
-[features]
-prox-gaps-conjecture = ["rec_aggregation/prox-gaps-conjecture"]
+[[bin]]
+name = "leanvm-b"
+path = "src/main.rs"
 
 [dependencies]
-clap.workspace = true
-rec_aggregation.workspace = true
-zk-alloc.workspace = true
-sub_protocols.workspace = true
-lean_vm.workspace = true
-xmss = { workspace = true, features = ["test-utils"] }
-backend.workspace = true
-serde_json.workspace = true
-system-info.workspace = true
-
-[dev-dependencies]
-rand.workspace = true
-parallel = { workspace = true, features = ["forbid-parallelism"] }
+rayon = "1.10"
+blake3 = "1.5"
+# Proof types derive `Serialize` so a proof can be measured / transmitted.
+serde = { version = "1", features = ["derive"] }
+# GF(2^128), additive NTT, Merkle, BaseFold/Ligerito PCS (§3). VENDORED under
+# `vendor/flock-core` so we do not depend on the external `../binary-fields/flock`
+# tree (which is restructured underneath us). Renamed to `flare` so the imports
+# stay `flare::…`; it is a frozen local snapshot, not a live path dependency.
+flare = { path = "vendor/flock-core", package = "flock-core" }
+# Measures the serialized proof size (the demo binary and the proof-size test).
+bincode = "1"
 
 [profile.release]
 lto = "thin"
