@@ -436,8 +436,6 @@ pub fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::SeedableRng;
-    use rand::rngs::StdRng;
 
     /// The width has to be the distance the cache keys on, or a signer warming
     /// ahead of a boundary builds a subtree it is not about to need.
@@ -471,9 +469,8 @@ mod tests {
         let (sk, pk) = key_gen_from_seed([3u8; 32], 0, 1023).expect("valid range");
         let width = 1u32 << sk.split_level;
         let message = [7u8; 32];
-        let mut rng = StdRng::seed_from_u64(9);
-        let mut sign_at = |epoch| {
-            let signature = sign(&mut rng, &sk, &message, epoch).expect("in range");
+        let sign_at = |epoch| {
+            let signature = sign(&sk, &message, epoch).expect("in range");
             verify(&pk, &message, &signature, epoch).expect("valid signature");
         };
 
