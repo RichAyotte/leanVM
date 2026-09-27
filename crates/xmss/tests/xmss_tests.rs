@@ -41,6 +41,28 @@ fn keygen_sign_verify() {
 }
 
 #[test]
+fn a_restored_secret_key_signs_as_the_original() {
+    let keygen_seed: [u8; 20] = std::array::from_fn(|i| i as u8);
+    let message: [F; MESSAGE_LEN_FE] = std::array::from_fn(|i| F::from_usize(i * 3 + 7));
+    let (sk, pk) = xmss_key_gen(keygen_seed, 100, 115).unwrap();
+
+    let restored: XmssSecretKey = postcard::from_bytes(&postcard::to_allocvec(&sk).unwrap()).unwrap();
+
+    assert_eq!(restored.public_key(), pk);
+    for slot in 100..=115 {
+        let rng = || StdRng::seed_from_u64(u64::from(slot));
+        let original = xmss_sign(&mut rng(), &sk, &message, slot).unwrap();
+        let from_restored = xmss_sign(&mut rng(), &restored, &message, slot).unwrap();
+        assert_eq!(from_restored, original, "slot {slot}");
+    }
+    assert_eq!(
+        xmss_sign(&mut StdRng::seed_from_u64(0), &restored, &message, 116),
+        Err(XmssSignatureError::SlotOutOfRange),
+        "the restored key lost its range"
+    );
+}
+
+#[test]
 #[ignore]
 fn encoding_grinding_bits() {
     let n = 100;
