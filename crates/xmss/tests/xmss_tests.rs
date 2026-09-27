@@ -63,6 +63,56 @@ fn a_restored_secret_key_signs_as_the_original() {
     );
 }
 
+#[test]
+fn a_key_rebuilt_from_its_parts_signs_as_the_original() {
+    let seed: [u8; 20] = std::array::from_fn(|i| i as u8);
+    let message: [F; MESSAGE_LEN_FE] = std::array::from_fn(|i| F::from_usize(i * 3 + 7));
+    let (sk, pk) = xmss_key_gen(seed, 100, 115).unwrap();
+
+    let rebuilt = XmssSecretKey::from_parts(seed, 100, 115, sk.merkle_tree().to_vec()).unwrap();
+
+    assert_eq!(rebuilt.public_key(), pk);
+    for slot in 100..=115 {
+        let rng = || StdRng::seed_from_u64(u64::from(slot));
+        assert_eq!(
+            xmss_sign(&mut rng(), &rebuilt, &message, slot).unwrap(),
+            xmss_sign(&mut rng(), &sk, &message, slot).unwrap(),
+            "slot {slot}"
+        );
+    }
+}
+
+/// A tree whose levels are not the widths its range makes them is not the tree
+/// of that range, and indexing it would read past a level or the wrong node.
+#[test]
+fn a_tree_not_shaped_for_its_range_is_refused() {
+    let seed = [1u8; 20];
+    let (sk, _) = xmss_key_gen(seed, 100, 115).unwrap();
+
+    let mut short_leaves = sk.merkle_tree().to_vec();
+    short_leaves[0].pop();
+    let mut missing_root = sk.merkle_tree().to_vec();
+    missing_root.pop();
+    let other_range = sk.merkle_tree().to_vec();
+
+    assert_eq!(
+        XmssSecretKey::from_parts(seed, 100, 115, short_leaves).unwrap_err(),
+        XmssKeyGenError::InvalidTree
+    );
+    assert_eq!(
+        XmssSecretKey::from_parts(seed, 100, 115, missing_root).unwrap_err(),
+        XmssKeyGenError::InvalidTree
+    );
+    assert_eq!(
+        XmssSecretKey::from_parts(seed, 100, 116, other_range).unwrap_err(),
+        XmssKeyGenError::InvalidTree
+    );
+    assert_eq!(
+        XmssSecretKey::from_parts(seed, 115, 100, sk.merkle_tree().to_vec()).unwrap_err(),
+        XmssKeyGenError::InvalidRange
+    );
+}
+
 /// The try a seeded search accepts at, and the chain indices it yields. Every
 /// try before the accepted one was refused, so a change to either the digest or
 /// the acceptance rule moves one of the two.

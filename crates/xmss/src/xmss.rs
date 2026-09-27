@@ -49,6 +49,7 @@ fn gen_random_node(seed: &[u8; 20], level: usize, index: u32) -> Digest {
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum XmssKeyGenError {
     InvalidRange,
+    InvalidTree,
 }
 
 pub fn xmss_key_gen(
@@ -172,6 +173,39 @@ impl XmssSecretKey {
 
     pub fn slot_range(&self) -> std::ops::RangeInclusive<u32> {
         self.slot_start..=self.slot_end
+    }
+
+    /// The Merkle tree level by level from the leaves, level `l` holding the
+    /// nodes indexed `(slot_start >> l)..=(slot_end >> l)`. It holds no secret:
+    /// every node hashes public keys, and signatures reveal them.
+    pub fn merkle_tree(&self) -> &[Vec<Digest>] {
+        &self.merkle_tree
+    }
+
+    /// The key `xmss_key_gen` builds from `seed` over `slot_start..=slot_end`,
+    /// given the tree `merkle_tree` returned for it.
+    pub fn from_parts(
+        seed: [u8; 20],
+        slot_start: u32,
+        slot_end: u32,
+        merkle_tree: Vec<Vec<Digest>>,
+    ) -> Result<Self, XmssKeyGenError> {
+        if slot_start > slot_end {
+            return Err(XmssKeyGenError::InvalidRange);
+        }
+        let shaped = merkle_tree.len() == LOG_LIFETIME + 1
+            && merkle_tree.iter().enumerate().all(|(level, nodes)| {
+                nodes.len() as u64 == (u64::from(slot_end) >> level) - (u64::from(slot_start) >> level) + 1
+            });
+        if !shaped {
+            return Err(XmssKeyGenError::InvalidTree);
+        }
+        Ok(Self {
+            slot_start,
+            slot_end,
+            seed,
+            merkle_tree,
+        })
     }
 }
 
