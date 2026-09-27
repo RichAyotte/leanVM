@@ -109,22 +109,58 @@ pub fn wots_encode(
     truncated_merkle_root: &[F; TRUNCATED_MERKLE_ROOT_LEN_FE],
     randomness: &[F; RANDOMNESS_LEN_FE],
 ) -> Option<[u8; V]> {
+    encoding_of(&encoding_digest(message, slot, truncated_merkle_root, *randomness))
+}
+
+/// [`wots_encode`] for one randomness per lane of `F`'s packing, hashing every
+/// lane in one pass of each compression.
+pub fn wots_encode_packed(
+    message: &[F; MESSAGE_LEN_FE],
+    slot: u32,
+    truncated_merkle_root: &[F; TRUNCATED_MERKLE_ROOT_LEN_FE],
+    randomness: &[[F; RANDOMNESS_LEN_FE]; <F as Field>::Packing::WIDTH],
+) -> [Option<[u8; V]>; <F as Field>::Packing::WIDTH] {
+    type Packed = <F as Field>::Packing;
+    let lanes: [Packed; RANDOMNESS_LEN_FE] = std::array::from_fn(|i| Packed::from_fn(|lane| randomness[lane][i]));
+    let digest = encoding_digest(message, slot, truncated_merkle_root, lanes);
+    std::array::from_fn(|lane| encoding_of(&std::array::from_fn(|k| digest[k].as_slice()[lane])))
+}
+
+/// The message digest an encoding is read from, for one randomness or for a
+/// packing of them, since the compressions are the same over either.
+fn encoding_digest<R: Algebra<F> + InjectiveMonomial<3> + Copy + Send + Sync + 'static>(
+    message: &[F; MESSAGE_LEN_FE],
+    slot: u32,
+    truncated_merkle_root: &[F; TRUNCATED_MERKLE_ROOT_LEN_FE],
+    randomness: [R; RANDOMNESS_LEN_FE],
+) -> [R; 8] {
+    let poseidon = utils::get_poseidon16();
     // Encode slot as 2 field elements (16 bits each)
     let [slot_lo, slot_hi] = slot_to_field_elements(slot);
 
     // A = poseidon(message (9 fe), randomness (7 fe))
-    let mut a_input_right = [F::default(); 8];
-    a_input_right[0] = message[8];
-    a_input_right[1..1 + RANDOMNESS_LEN_FE].copy_from_slice(randomness);
-    let a = poseidon16_compress_pair(message[..8].try_into().unwrap(), &a_input_right);
+    let mut a = [R::ZERO; 16];
+    for (i, limb) in message.iter().enumerate() {
+        a[i] = R::from(*limb);
+    }
+    a[MESSAGE_LEN_FE..].copy_from_slice(&randomness);
+    poseidon.compress_in_place(&mut a);
 
     // B = poseidon(A (8 fe), slot (2 fe), truncated_merkle_root (6 fe))
-    let mut b_input_right = [F::default(); 8];
-    b_input_right[0] = slot_lo;
-    b_input_right[1] = slot_hi;
-    b_input_right[2..8].copy_from_slice(truncated_merkle_root);
-    let compressed = poseidon16_compress_pair(&a, &b_input_right);
+    let mut b = [R::ZERO; 16];
+    b[..8].copy_from_slice(&a[..8]);
+    b[8] = R::from(slot_lo);
+    b[9] = R::from(slot_hi);
+    for (i, limb) in truncated_merkle_root.iter().enumerate() {
+        b[10 + i] = R::from(*limb);
+    }
+    poseidon.compress_in_place(&mut b);
+    b[..8].try_into().unwrap()
+}
 
+/// The chain indices a compressed message digest encodes, or `None` where the
+/// digest is not an admissible encoding.
+fn encoding_of(compressed: &Digest) -> Option<[u8; V]> {
     if compressed.iter().any(|&kb| kb == -F::ONE) {
         // ensures uniformity of encoding
         return None;

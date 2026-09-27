@@ -1,5 +1,5 @@
 use backend::*;
-use rand::{SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use xmss::*;
 
 type F = KoalaBear;
@@ -61,6 +61,51 @@ fn a_restored_secret_key_signs_as_the_original() {
         Err(XmssSignatureError::SlotOutOfRange),
         "the restored key lost its range"
     );
+}
+
+/// The try a seeded search accepts at, and the chain indices it yields. Every
+/// try before the accepted one was refused, so a change to either the digest or
+/// the acceptance rule moves one of the two.
+#[test]
+fn the_encoding_a_seeded_search_finds_is_pinned() {
+    let message: [F; MESSAGE_LEN_FE] = std::array::from_fn(|i| F::from_usize(i * 3 + 7));
+    let root: [F; TRUNCATED_MERKLE_ROOT_LEN_FE] = std::array::from_fn(|i| F::from_usize(i + 1000));
+    let (_, encoding, tries) =
+        find_randomness_for_wots_encoding(&message, 0x0001_0203, &root, &mut StdRng::seed_from_u64(1));
+    assert_eq!(
+        (tries, encoding),
+        (
+            37458,
+            [
+                4, 7, 2, 5, 5, 4, 5, 5, 6, 2, 0, 6, 4, 3, 7, 4, 4, 5, 1, 6, 6, 7, 2, 7, 3, 4, 6, 5, 4, 7, 5, 2, 1, 5,
+                6, 4, 2, 6, 7, 5, 1, 4
+            ]
+        )
+    );
+}
+
+/// Randomness is transposed into the packing and digests out of it, so a lane
+/// read from the wrong position answers for another lane's randomness.
+#[test]
+fn packed_encoding_agrees_with_wots_encode() {
+    type Packed = <F as Field>::Packing;
+    let message: [F; MESSAGE_LEN_FE] = std::array::from_fn(|i| F::from_usize(i * 3 + 7));
+    let root: [F; TRUNCATED_MERKLE_ROOT_LEN_FE] = std::array::from_fn(|i| F::from_usize(i + 1000));
+    // Both 16-bit halves nonzero, so neither half's place in the digest goes
+    // unchecked
+    let slot = 0x0001_0203;
+    let mut rng = StdRng::seed_from_u64(1);
+
+    let mut accepted = 0;
+    while accepted < 3 {
+        let lanes: [[F; RANDOMNESS_LEN_FE]; Packed::WIDTH] = std::array::from_fn(|_| rng.random());
+        let packed = wots_encode_packed(&message, slot, &root, &lanes);
+        for (lane, randomness) in lanes.iter().enumerate() {
+            let scalar = wots_encode(&message, slot, &root, randomness);
+            assert_eq!(packed[lane], scalar, "lane {lane}");
+            accepted += usize::from(scalar.is_some());
+        }
+    }
 }
 
 #[test]
