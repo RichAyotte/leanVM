@@ -169,6 +169,10 @@ impl XmssSecretKey {
             merkle_root: self.merkle_tree.last().unwrap()[0],
         }
     }
+
+    pub fn slot_range(&self) -> std::ops::RangeInclusive<u32> {
+        self.slot_start..=self.slot_end
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]

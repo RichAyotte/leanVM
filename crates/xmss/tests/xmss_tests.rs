@@ -49,6 +49,7 @@ fn a_restored_secret_key_signs_as_the_original() {
     let restored: XmssSecretKey = postcard::from_bytes(&postcard::to_allocvec(&sk).unwrap()).unwrap();
 
     assert_eq!(restored.public_key(), pk);
+    assert_eq!(restored.slot_range(), 100..=115);
     for slot in 100..=115 {
         let rng = || StdRng::seed_from_u64(u64::from(slot));
         let original = xmss_sign(&mut rng(), &sk, &message, slot).unwrap();
